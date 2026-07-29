@@ -6,10 +6,17 @@ class AutoAttack(BaseModule):
     def __init__(self):
         super().__init__("Auto Attack")
 
-    def update(self):
+    def configure(self, right_panel, center_panel):
 
-        if not self.is_enabled():
-            return
+        self.set_interval(
+            right_panel.auto_attack.interval()
+        )
 
-        # Aquí irá la lógica del ataque
-        # print("AutoAttack")
+        if right_panel.auto_attack.is_enabled():
+            self.enable()
+        else:
+            self.disable()
+
+    def update(self, state):
+
+        print(f"[Auto Attack] Tick ({self.interval_ms} ms)")

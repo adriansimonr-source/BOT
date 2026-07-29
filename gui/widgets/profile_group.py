@@ -13,6 +13,7 @@ class ProfileGroup(QGroupBox):
         layout.addWidget(QLabel("PERFIL ACTUAL"))
         self.profile_selector = QComboBox()
         self.profile_selector.addItem("Default")
+        self.profile_selector.addItem("Davion")
         layout.addWidget(self.profile_selector)
 
         self.setLayout(layout)

@@ -24,21 +24,16 @@ class MainWindow(QMainWindow):
 
         self.configure_window()
 
-        # ==================================================
-        # Core
-        # ==================================================
-
+#Busca el proceso del juego y lo conecta al bot
         self.process_manager = ProcessManager()
-        self.game_state_manager = GameStateManager()
+        self.game_state_manager = GameStateManager(self.process_manager)
         self.bot_engine = BotEngine(self.game_state_manager)
 
-        # ==================================================
-        # Game Loop
-        # ==================================================
-
+#Qtimer para manteener el bucle del bot en ejecución
         self.timer = QTimer(self)
-        self.timer.setInterval(50)  # 20 FPS
+        self.timer.setInterval(50)
         self.timer.timeout.connect(self.bot_engine.update)
+        self.timer.timeout.connect(self.update_character_ui)
 
         self.create_menu()
         self.create_toolbar()
@@ -47,9 +42,7 @@ class MainWindow(QMainWindow):
 
         self.connect_signals()
 
-    # ==================================================
-    # Configuración
-    # ==================================================
+#Configuración de la ventana principal
 
     def configure_window(self):
 
@@ -57,9 +50,7 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
         self.setMinimumSize(900, 550)
 
-    # ==================================================
-    # Menú
-    # ==================================================
+#Menu auxiliar para la ventana principal
 
     def create_menu(self):
 
@@ -69,18 +60,14 @@ class MainWindow(QMainWindow):
         menu.addMenu("Configuración")
         menu.addMenu("Ayuda")
 
-    # ==================================================
-    # Toolbar
-    # ==================================================
+#Toolbar auxiliar para la ventana principal
 
     def create_toolbar(self):
 
         toolbar = QToolBar()
         self.addToolBar(toolbar)
 
-    # ==================================================
-    # Interfaz principal
-    # ==================================================
+#Construccion de la GUI principal con los paneles izquierdo, derecho y central
 
     def create_central_widget(self):
 
@@ -115,22 +102,15 @@ class MainWindow(QMainWindow):
 
         central.setLayout(main_layout)
 
-    # ==================================================
-    # Barra de estado
-    # ==================================================
+#Barra de estado, es posible que la elimine en un futuro
 
     def create_statusbar(self):
 
         status = QStatusBar()
-
         status.showMessage("Aplicación iniciada")
-
         self.setStatusBar(status)
 
-    # ==================================================
-    # Señales
-    # ==================================================
-
+#Detectar proceso y conectar señales de los botones a las funciones correspondientes
     def connect_signals(self):
 
         self.left_panel.process_group.detect_process_button.clicked.connect(
@@ -141,10 +121,7 @@ class MainWindow(QMainWindow):
             self.toggle_bot
         )
 
-    # ==================================================
-    # Detectar proceso
-    # ==================================================
-
+# Detectar proceso
     def detect_process(self):
 
         self.left_panel.process_group.detecting()
@@ -186,18 +163,13 @@ class MainWindow(QMainWindow):
                 "Proceso no encontrado"
             )
 
-    # ==================================================
-    # Bot
-    # ==================================================
+# Bot start/stop logic
 
     def toggle_bot(self):
 
         if self.bot_engine.is_running():
-
             self.stop_bot()
-
         else:
-
             self.start_bot()
 
     def start_bot(self):
@@ -205,10 +177,23 @@ class MainWindow(QMainWindow):
         if not self.process_manager.is_connected():
             return
 
+        # Configurar todos los módulos
+        self.bot_engine.configure(
+            self.right_panel,
+            self.center_panel
+        )
+
+        # Bloquear la interfaz
+        self.right_panel.lock_controls()
+        self.center_panel.lock_controls()
+
+        # Iniciar motor
         self.bot_engine.start()
 
+        # Iniciar Game Loop
         self.timer.start()
 
+        # Actualizar interfaz
         self.left_panel.set_running()
 
         self.statusBar().showMessage(
@@ -217,12 +202,23 @@ class MainWindow(QMainWindow):
 
     def stop_bot(self):
 
+        # Detener Game Loop
         self.timer.stop()
 
+        # Detener motor
         self.bot_engine.stop()
 
+        # Desbloquear configuración
+        self.right_panel.unlock_controls()
+        self.center_panel.unlock_controls()
+
+        # Actualizar interfaz
         self.left_panel.set_stopped()
 
         self.statusBar().showMessage(
             "Bot detenido"
         )
+
+    def update_character_ui(self):
+        state = self.game_state_manager.get_state()
+        self.left_panel.character_group.update_state(state)

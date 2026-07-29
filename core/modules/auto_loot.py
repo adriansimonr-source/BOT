@@ -6,10 +6,17 @@ class AutoLoot(BaseModule):
     def __init__(self):
         super().__init__("Auto Loot")
 
-    def update(self):
+    def configure(self, right_panel, center_panel):
 
-        if not self.is_enabled():
-            return
+        self.set_interval(
+            right_panel.auto_loot.interval()
+        )
 
-        # Aquí irá la lógica del loot
-        # print("AutoLoot")
+        if right_panel.auto_loot.is_enabled():
+            self.enable()
+        else:
+            self.disable()
+
+    def update(self, state):
+
+        print(f"[Auto Loot] Tick ({self.interval_ms} ms)")

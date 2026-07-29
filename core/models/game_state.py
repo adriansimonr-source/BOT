@@ -1,83 +1,66 @@
-from dataclasses import dataclass, field
-from typing import List
-
-
-@dataclass
 class GameState:
 
-    # ===========================
-    # Personaje
-    # ===========================
+    def __init__(self):
 
-    hp: int = 0
-    max_hp: int = 0
+        # =====================================
+        # Conexión
+        # =====================================
 
-    mp: int = 0
-    max_mp: int = 0
+        self.connected = False
 
-    level: int = 0
 
-    # ===========================
-    # Objetivo
-    # ===========================
+        # =====================================
+        # Personaje
+        # =====================================
 
-    target_exists: bool = False
+        self.character_name = ""
 
-    target_hp: int = 0
-    target_max_hp: int = 0
+        self.level = 0
 
-    target_name: str = ""
 
-    # ===========================
-    # Posición
-    # ===========================
+        # =====================================
+        # Estadísticas
+        # =====================================
 
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
+        self.hp = 0
+        self.max_hp = 0
 
-    # ===========================
-    # Estado
-    # ===========================
+        self.mp = 0
+        self.max_mp = 0
 
-    in_combat: bool = False
 
-    dead: bool = False
+        # =====================================
+        # Posición
+        # =====================================
 
-    casting: bool = False
+        self.x = 0
+        self.y = 0
 
-    moving: bool = False
 
-    # ===========================
-    # Buffs
-    # ===========================
+        # =====================================
+        # Combate
+        # =====================================
 
-    buffs: List[str] = field(default_factory=list)
+        self.in_combat = False
+        self.has_target = False
 
-    # ===========================
-    # Propiedades calculadas
-    # ===========================
 
-    @property
-    def hp_percent(self):
+        # =====================================
+        # Buffs
+        # =====================================
 
-        if self.max_hp == 0:
+        self.buffs = []
+
+
+    # =====================================
+    # Helpers
+    # =====================================
+
+    def hp_percentage(self):
+
+        if self.max_hp <= 0:
             return 0
 
-        return int(self.hp / self.max_hp * 100)
-
-    @property
-    def mp_percent(self):
-
-        if self.max_mp == 0:
-            return 0
-
-        return int(self.mp / self.max_mp * 100)
-
-    @property
-    def target_hp_percent(self):
-
-        if self.target_max_hp == 0:
-            return 0
-
-        return int(self.target_hp / self.target_max_hp * 100)
+        return int(
+            (self.hp / self.max_hp) * 100
+        )

@@ -1,22 +1,29 @@
-from core.models.game_state import GameState
+def update(self):
+
+    if self.process_manager.is_connected():
+
+        self.state.connected = True
+
+    else:
+
+        self.state.connected = False
+        return
 
 
-class GameStateManager:
+    # Datos simulados
 
-    def __init__(self):
+    self.state.character_name = "Davion"
 
-        self.state = GameState()
+    self.state.level = 1
 
-    def update(self):
 
-        """
-        Aquí en el futuro leeremos la información del juego.
+    self.state.hp = 2500
+    self.state.max_hp = 3000
 
-        De momento solo dejamos preparado el método.
-        """
 
-        pass
+    self.state.mp = 800
+    self.state.max_mp = 1000
 
-    def get_state(self):
 
-        return self.state
+    self.state.x = 125
+    self.state.y = 340

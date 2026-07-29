@@ -27,7 +27,7 @@ class CenterPanel(QWidget):
     def create_layout(self):
 
         skills_layout = QGridLayout()
-        skills_layout.setHorizontalSpacing(10)
+        skills_layout.setHorizontalSpacing(2)
         skills_layout.setVerticalSpacing(5)
 
         for i, skill in enumerate(self.skills):
@@ -49,3 +49,13 @@ class CenterPanel(QWidget):
         layout.addStretch()
 
         self.setLayout(layout)
+    def lock_controls(self):
+
+        for skill in self.skills:
+            skill.lock()
+
+
+    def unlock_controls(self):
+
+        for skill in self.skills:
+            skill.unlock()    

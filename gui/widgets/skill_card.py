@@ -22,6 +22,7 @@ class SkillCard(QWidget):
         self.time_spin = QSpinBox()
         self.time_spin.setRange(500, 6000000)
         self.time_spin.setValue(500)
+        self.time_spin.setSingleStep(500)
         self.time_spin.setSuffix(" ms")
         self.time_spin.setFixedWidth(80)
 
@@ -38,7 +39,6 @@ class SkillCard(QWidget):
 
         layout.setContentsMargins(1, 1, 1, 1)
         layout.setSpacing(2)
-
 
         self.setLayout(layout)
 
@@ -57,3 +57,20 @@ class SkillCard(QWidget):
 
     def set_time(self, value: int):
         self.time_spin.setValue(value)
+
+    def skill_number(self):
+        return self.skill_label.text()
+
+    # -------------------------
+    # Bloqueo configuración
+    # -------------------------
+
+    def lock(self):
+
+        self.enabled_checkbox.setEnabled(False)
+        self.time_spin.setEnabled(False)
+
+    def unlock(self):
+
+        self.enabled_checkbox.setEnabled(True)
+        self.time_spin.setEnabled(True)

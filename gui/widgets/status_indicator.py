@@ -16,7 +16,7 @@ class StatusIndicator(QWidget):
         Status.CONNECTED: ("#2e7d32", "Conectado" ),
         Status.DETECTING: ("#f9a825", "Detectando..."),
         Status.RUNNING: ("#1976d2", "Ejecutando"),
-        Status.PAUSED: ("#ef6c00", "Pausado"),
+        Status.PAUSED: ("#ef6c00", "Detenido"),
     }
 
     def __init__(self):
