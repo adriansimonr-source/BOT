@@ -1,11 +1,19 @@
 from core.process_manager import ProcessManager
+from core.memory_reader import MemoryReader
 
 pm = ProcessManager()
 
-process_name = "KathanaGame.exe"  # Cambia esto por el .exe de tu juego
+if pm.find_process("KathanaGame.exe"):
 
-if pm.find_process(process_name):
-    print("✅ Proceso encontrado")
-    print(f"PID: {pm.get_pid()}")
+    print("Proceso encontrado")
+
+    reader = MemoryReader()
+
+    if reader.open_process(pm.get_pid()):
+        print("Handle abierto correctamente")
+    else:
+        print("No se pudo abrir el proceso")
+
 else:
-    print("❌ Proceso no encontrado")
+
+    print("Proceso no encontrado")
