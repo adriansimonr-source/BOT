@@ -1,3 +1,6 @@
+from core.models.player_state import PlayerState
+from core.models.target_state import TargetState
+
 class GameState:
 
     def __init__(self):
@@ -8,7 +11,9 @@ class GameState:
 
         self.connected = False
 
+        self.player = PlayerState()
 
+        self.target = TargetState()
         # =====================================
         # Personaje
         # =====================================
