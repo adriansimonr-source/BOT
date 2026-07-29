@@ -1,5 +1,11 @@
 from enum import Enum, auto
 
+from core.modules.auto_target import AutoTarget
+from core.modules.auto_attack import AutoAttack
+from core.modules.auto_loot import AutoLoot
+from core.modules.buff_manager import BuffManager
+from core.modules.rotation_manager import RotationManager
+
 
 class BotState(Enum):
     STOPPED = auto()
@@ -13,12 +19,29 @@ class BotEngine:
 
         self.state = BotState.STOPPED
 
-        # Aquí registraremos los módulos
+        # ============================
+        # Módulos del bot
+        # ============================
+
         self.modules = []
 
-    # =====================================
-    # Control del motor
-    # =====================================
+        self.register_module(AutoTarget())
+        self.register_module(AutoAttack())
+        self.register_module(BuffManager())
+        self.register_module(RotationManager())
+        self.register_module(AutoLoot())
+
+    # ==================================================
+    # Gestión de módulos
+    # ==================================================
+
+    def register_module(self, module):
+
+        self.modules.append(module)
+
+    # ==================================================
+    # Control del bot
+    # ==================================================
 
     def start(self):
 
@@ -27,54 +50,59 @@ class BotEngine:
 
         self.state = BotState.RUNNING
 
+        for module in self.modules:
+            module.on_start()
+
         print("Bot iniciado")
 
     def stop(self):
 
+        if self.state == BotState.STOPPED:
+            return
+
         self.state = BotState.STOPPED
+
+        for module in self.modules:
+            module.on_stop()
 
         print("Bot detenido")
 
     def pause(self):
 
-        if self.state == BotState.RUNNING:
+        if self.state != BotState.RUNNING:
+            return
 
-            self.state = BotState.PAUSED
+        self.state = BotState.PAUSED
 
-            print("Bot pausado")
+        print("Bot pausado")
 
     def resume(self):
 
-        if self.state == BotState.PAUSED:
+        if self.state != BotState.PAUSED:
+            return
 
-            self.state = BotState.RUNNING
+        self.state = BotState.RUNNING
 
-            print("Bot reanudado")
+        print("Bot reanudado")
 
-    # =====================================
+    # ==================================================
     # Game Loop
-    # =====================================
+    # ==================================================
 
     def update(self):
 
         if self.state != BotState.RUNNING:
             return
 
-        # Ejecutar todos los módulos registrados
         for module in self.modules:
-            module.update()
 
-    # =====================================
-    # Gestión de módulos
-    # =====================================
+            if module.is_enabled():
 
-    def register_module(self, module):
+                module.update()
 
-        self.modules.append(module)
-
-    # =====================================
+    # ==================================================
     # Consultas
-    # =====================================
+    # ==================================================
 
     def is_running(self):
 
@@ -87,3 +115,11 @@ class BotEngine:
     def is_paused(self):
 
         return self.state == BotState.PAUSED
+
+    def get_state(self):
+
+        return self.state
+
+    def get_modules(self):
+
+        return self.modules
