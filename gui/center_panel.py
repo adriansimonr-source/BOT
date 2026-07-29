@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QGroupBox,
+    QGroupBox, 
+    QGridLayout,
 )
 
 from gui.widgets.skill_card import SkillCard
-
 
 class CenterPanel(QWidget):
 
@@ -17,7 +17,7 @@ class CenterPanel(QWidget):
 
     def create_widgets(self):
 
-        self.skills_group = QGroupBox("SKILLS")
+        self.skills_group = QGroupBox("ROTACION")
 
         self.skills = []
 
@@ -26,12 +26,20 @@ class CenterPanel(QWidget):
 
     def create_layout(self):
 
-        skills_layout = QVBoxLayout()
+        skills_layout = QGridLayout()
+        skills_layout.setHorizontalSpacing(10)
+        skills_layout.setVerticalSpacing(5)
 
-        for skill in self.skills:
-            skills_layout.addWidget(skill)
+        for i, skill in enumerate(self.skills):
 
-        skills_layout.addStretch()
+            if i < 5:
+                row = 0
+                column = i
+            else:
+                row = 1
+                column = i - 5
+
+            skills_layout.addWidget(skill, row, column)
 
         self.skills_group.setLayout(skills_layout)
 

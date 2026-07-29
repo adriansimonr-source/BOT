@@ -20,20 +20,25 @@ class SkillCard(QWidget):
         self.skill_label.setFixedWidth(20)
 
         self.time_spin = QSpinBox()
-        self.time_spin.setRange(50, 60000)
+        self.time_spin.setRange(500, 6000000)
         self.time_spin.setValue(500)
         self.time_spin.setSuffix(" ms")
-        self.time_spin.setFixedWidth(90)
+        self.time_spin.setFixedWidth(80)
 
         layout = QHBoxLayout()
 
         layout.addWidget(self.enabled_checkbox)
+        layout.addSpacing(5)
+
         layout.addWidget(self.skill_label)
-        layout.addSpacing(10)
+        layout.addSpacing(5)
+
         layout.addWidget(self.time_spin)
         layout.addStretch()
 
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setContentsMargins(1, 1, 1, 1)
+        layout.setSpacing(2)
+
 
         self.setLayout(layout)
 

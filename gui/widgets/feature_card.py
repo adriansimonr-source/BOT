@@ -31,10 +31,10 @@ class FeatureCard(QGroupBox):
 
         self.key_label = QLabel("Tecla")
         self.key_button = QPushButton(self.default_key)
-        self.key_button.setFixedSize(90,32)
+        self.key_button.setFixedSize(30,25)
 
         layout.addWidget(self.key_label, 1, 0)
-        layout.addWidget(self.key_button,1,1,alignment=Qt.AlignmentFlag.AlignLeft,)
+        layout.addWidget(self.key_button,1,1,alignment=Qt.AlignmentFlag.AlignRight,)
 
         self.interval_label = QLabel("Intervalo")
 
@@ -48,7 +48,7 @@ class FeatureCard(QGroupBox):
         self.interval_spinbox.setValue(self.default_interval)
 
         layout.addWidget(self.interval_label, 2, 0)
-        layout.addWidget(self.interval_spinbox,2,1,alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.interval_spinbox,2,1,alignment=Qt.AlignmentFlag.AlignRight)
 
         self.setLayout(layout)
 
