@@ -1,29 +1,43 @@
-def update(self):
-
-    if self.process_manager.is_connected():
-
-        self.state.connected = True
-
-    else:
-
-        self.state.connected = False
-        return
+from core.models.game_state import GameState
 
 
-    # Datos simulados
+class GameStateManager:
 
-    self.state.character_name = "Davion"
+    def __init__(self, process_manager):
 
-    self.state.level = 1
+        self.process_manager = process_manager
 
-
-    self.state.hp = 2500
-    self.state.max_hp = 3000
+        self.state = GameState()
 
 
-    self.state.mp = 800
-    self.state.max_mp = 1000
+    def update(self):
+
+        if self.process_manager.is_connected():
+
+            self.state.connected = True
+
+        else:
+
+            self.state.connected = False
+            return
 
 
-    self.state.x = 125
-    self.state.y = 340
+        # Datos temporales de prueba
+
+        self.state.character_name = "Davion"
+
+        self.state.level = 1
+
+        self.state.hp = 2500
+        self.state.max_hp = 3000
+
+        self.state.mp = 800
+        self.state.max_mp = 1000
+
+        self.state.x = 125
+        self.state.y = 340
+
+
+    def get_state(self):
+
+        return self.state
