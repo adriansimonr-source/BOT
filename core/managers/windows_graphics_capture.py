@@ -1,5 +1,6 @@
 import winrt.windows.graphics.capture as capture
 import winrt.windows.graphics.directx as directx
+import winrt.windows.foundation as foundation
 
 
 
@@ -30,12 +31,36 @@ class WindowsGraphicsCaptureManager:
     def initialize(
         self,
         item,
-        device
+        device,
+        width,
+        height
     ):
+
 
         self.item = item
 
         self.device = device
+
+
+
+        print(
+            "Creando tamaño WinRT"
+        )
+
+
+        size = foundation.Size(
+            width,
+            height
+        )
+
+
+        print(
+            "Tamaño captura:",
+            size.width,
+            "x",
+            size.height
+        )
+
 
 
         print(
@@ -56,7 +81,7 @@ class WindowsGraphicsCaptureManager:
 
                 2,
 
-                self.item.size
+                size
 
             )
         )
@@ -65,6 +90,7 @@ class WindowsGraphicsCaptureManager:
         print(
             "FramePool creado"
         )
+
 
 
         self.session = (
@@ -80,6 +106,7 @@ class WindowsGraphicsCaptureManager:
         )
 
 
+
         self.session.start_capture()
 
 
@@ -93,25 +120,23 @@ class WindowsGraphicsCaptureManager:
 
 
     # =====================================
-    # Obtener siguiente frame
+    # Obtener frame
     # =====================================
 
     def get_frame(
         self
     ):
 
+
         if self.frame_pool is None:
 
             return None
 
 
-        frame = (
+        return (
             self.frame_pool
             .try_get_next_frame()
         )
-
-
-        return frame
 
 
 
@@ -127,6 +152,7 @@ class WindowsGraphicsCaptureManager:
         if self.session:
 
             self.session.close()
+
 
 
         if self.frame_pool:

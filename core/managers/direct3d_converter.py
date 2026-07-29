@@ -1,6 +1,8 @@
 import ctypes
 import comtypes
 
+import winrt.windows.graphics.directx.direct3d11 as d3d11
+
 
 
 # ==================================================
@@ -23,7 +25,7 @@ class Direct3DConverter:
 
 
     # =====================================
-    # Crear WinRT IDirect3DDevice
+    # Crear IDirect3DDevice WinRT
     # =====================================
 
     def create_winrt_device(
@@ -105,15 +107,14 @@ class Direct3DConverter:
             # Crear IDirect3DDevice WinRT
             # ---------------------------------
 
-
-            d3d11_dll = ctypes.windll.LoadLibrary(
+            d3d11 = ctypes.windll.LoadLibrary(
                 "d3d11.dll"
             )
 
 
 
             CreateDirect3D11DeviceFromDXGIDevice = (
-                d3d11_dll
+                d3d11
                 .CreateDirect3D11DeviceFromDXGIDevice
             )
 
@@ -137,7 +138,7 @@ class Direct3DConverter:
 
 
 
-            winrt_device = ctypes.c_void_p()
+            winrt_device_ptr = ctypes.c_void_p()
 
 
 
@@ -145,7 +146,7 @@ class Direct3DConverter:
                 CreateDirect3D11DeviceFromDXGIDevice(
                     dxgi_device,
                     ctypes.byref(
-                        winrt_device
+                        winrt_device_ptr
                     )
                 )
             )
@@ -163,12 +164,26 @@ class Direct3DConverter:
 
 
 
-            self.winrt_device = winrt_device
+            print(
+                "IDirect3DDevice COM creado"
+            )
+
+
+
+            # ---------------------------------
+            # Convertir COM -> objeto WinRT
+            # ---------------------------------
+
+            self.winrt_device = (
+                d3d11.IDirect3DDevice._from(
+                    winrt_device_ptr
+                )
+            )
 
 
 
             print(
-                "IDirect3DDevice WinRT creado"
+                "IDirect3DDevice WinRT convertido"
             )
 
 
@@ -192,6 +207,12 @@ class Direct3DConverter:
 
 
 
-    def get_device(self):
+    # =====================================
+    # Obtener dispositivo
+    # =====================================
+
+    def get_device(
+        self
+    ):
 
         return self.winrt_device
