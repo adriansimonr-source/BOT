@@ -13,6 +13,7 @@ from gui.right_panel import RightPanel
 from gui.center_panel import CenterPanel
 
 from core.process_manager import ProcessManager
+from core.managers.game_state_manager import GameStateManager
 from core.bot_engine import BotEngine
 
 
@@ -23,19 +24,20 @@ class MainWindow(QMainWindow):
 
         self.configure_window()
 
-        # ===========================
+        # ==================================================
         # Core
-        # ===========================
+        # ==================================================
 
         self.process_manager = ProcessManager()
-        self.bot_engine = BotEngine()
+        self.game_state_manager = GameStateManager()
+        self.bot_engine = BotEngine(self.game_state_manager)
 
-        # ===========================
+        # ==================================================
         # Game Loop
-        # ===========================
+        # ==================================================
 
         self.timer = QTimer(self)
-        self.timer.setInterval(50)          # 20 FPS
+        self.timer.setInterval(50)  # 20 FPS
         self.timer.timeout.connect(self.bot_engine.update)
 
         self.create_menu()
@@ -77,7 +79,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
 
     # ==================================================
-    # Central Widget
+    # Interfaz principal
     # ==================================================
 
     def create_central_widget(self):
@@ -114,7 +116,7 @@ class MainWindow(QMainWindow):
         central.setLayout(main_layout)
 
     # ==================================================
-    # Status Bar
+    # Barra de estado
     # ==================================================
 
     def create_statusbar(self):
@@ -148,7 +150,7 @@ class MainWindow(QMainWindow):
         self.left_panel.process_group.detecting()
 
         self.statusBar().showMessage(
-            "Buscando KathanaGame.exe..."
+            "Buscando proceso..."
         )
 
         found = self.process_manager.find_process(
@@ -178,8 +180,10 @@ class MainWindow(QMainWindow):
 
             self.left_panel.disable_start_button()
 
+            self.stop_bot()
+
             self.statusBar().showMessage(
-                "KathanaGame.exe no encontrado"
+                "Proceso no encontrado"
             )
 
     # ==================================================

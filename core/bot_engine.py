@@ -6,6 +6,8 @@ from core.modules.auto_loot import AutoLoot
 from core.modules.buff_manager import BuffManager
 from core.modules.rotation_manager import RotationManager
 
+from core.managers.game_state_manager import GameStateManager
+
 
 class BotState(Enum):
     STOPPED = auto()
@@ -15,13 +17,15 @@ class BotState(Enum):
 
 class BotEngine:
 
-    def __init__(self):
+    def __init__(self, game_state_manager: GameStateManager):
 
         self.state = BotState.STOPPED
 
-        # ============================
-        # Módulos del bot
-        # ============================
+        self.game_state_manager = game_state_manager
+
+        # ===========================
+        # Módulos
+        # ===========================
 
         self.modules = []
 
@@ -94,11 +98,18 @@ class BotEngine:
         if self.state != BotState.RUNNING:
             return
 
+        # Actualizar el estado del juego
+        self.game_state_manager.update()
+
+        # Obtener el estado actual
+        state = self.game_state_manager.get_state()
+
+        # Ejecutar módulos
         for module in self.modules:
 
             if module.is_enabled():
 
-                module.update()
+                module.update(state)
 
     # ==================================================
     # Consultas
