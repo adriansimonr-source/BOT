@@ -1,6 +1,11 @@
-from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout
+from PySide6.QtWidgets import (
+    QGroupBox,
+    QLabel,
+    QGridLayout,
+)
 
 from gui.widgets.status_indicator import StatusIndicator
+from gui.widgets.resource_bar import ResourceBar
 
 
 class CharacterGroup(QGroupBox):
@@ -14,7 +19,10 @@ class CharacterGroup(QGroupBox):
 
     def setup_ui(self):
 
-        layout = QVBoxLayout()
+        layout = QGridLayout()
+
+        layout.setHorizontalSpacing(15)
+        layout.setVerticalSpacing(6)
 
 
         # ============================
@@ -22,7 +30,9 @@ class CharacterGroup(QGroupBox):
         # ============================
 
         layout.addWidget(
-            QLabel("NOMBRE")
+            QLabel("NOMBRE"),
+            0,
+            0
         )
 
         self.character_name_label = QLabel(
@@ -30,7 +40,30 @@ class CharacterGroup(QGroupBox):
         )
 
         layout.addWidget(
-            self.character_name_label
+            self.character_name_label,
+            0,
+            1
+        )
+
+
+        # ============================
+        # Nivel
+        # ============================
+
+        layout.addWidget(
+            QLabel("NIVEL"),
+            1,
+            0
+        )
+
+        self.level_label = QLabel(
+            "0"
+        )
+
+        layout.addWidget(
+            self.level_label,
+            1,
+            1
         )
 
 
@@ -39,7 +72,9 @@ class CharacterGroup(QGroupBox):
         # ============================
 
         layout.addWidget(
-            QLabel("ESTADO")
+            QLabel("ESTADO"),
+            2,
+            0
         )
 
         self.character_status_indicator = StatusIndicator()
@@ -47,7 +82,9 @@ class CharacterGroup(QGroupBox):
         self.character_status_indicator.disconnected()
 
         layout.addWidget(
-            self.character_status_indicator
+            self.character_status_indicator,
+            2,
+            1
         )
 
 
@@ -55,16 +92,16 @@ class CharacterGroup(QGroupBox):
         # Vida
         # ============================
 
-        layout.addWidget(
-            QLabel("VIDA")
-        )
-
-        self.hp_label = QLabel(
-            "0 / 0"
+        self.hp_bar = ResourceBar(
+            "VIDA"
         )
 
         layout.addWidget(
-            self.hp_label
+            self.hp_bar,
+            3,
+            0,
+            1,
+            2
         )
 
 
@@ -72,16 +109,16 @@ class CharacterGroup(QGroupBox):
         # Mana
         # ============================
 
-        layout.addWidget(
-            QLabel("MANA")
-        )
-
-        self.mp_label = QLabel(
-            "0 / 0"
+        self.mp_bar = ResourceBar(
+            "MANA"
         )
 
         layout.addWidget(
-            self.mp_label
+            self.mp_bar,
+            4,
+            0,
+            1,
+            2
         )
 
 
@@ -90,7 +127,9 @@ class CharacterGroup(QGroupBox):
         # ============================
 
         layout.addWidget(
-            QLabel("POSICIÓN")
+            QLabel("POSICIÓN"),
+            5,
+            0
         )
 
         self.position_label = QLabel(
@@ -98,7 +137,9 @@ class CharacterGroup(QGroupBox):
         )
 
         layout.addWidget(
-            self.position_label
+            self.position_label,
+            5,
+            1
         )
 
 
@@ -113,12 +154,32 @@ class CharacterGroup(QGroupBox):
 
     def update_state(self, state):
 
+        player = state.player
+
+
+        # ============================
+        # Nombre
+        # ============================
+
         self.character_name_label.setText(
-            state.character_name
-            if state.character_name
+            player.name
+            if player.name
             else "No detectado"
         )
 
+
+        # ============================
+        # Nivel
+        # ============================
+
+        self.level_label.setText(
+            str(player.level)
+        )
+
+
+        # ============================
+        # Estado
+        # ============================
 
         if state.connected:
 
@@ -129,18 +190,28 @@ class CharacterGroup(QGroupBox):
             self.character_status_indicator.disconnected()
 
 
-        self.hp_label.setText(
-            f"{state.hp} / {state.max_hp}"
+        # ============================
+        # Recursos
+        # ============================
+
+        self.hp_bar.update_value(
+            player.hp,
+            player.max_hp
         )
 
 
-        self.mp_label.setText(
-            f"{state.mp} / {state.max_mp}"
+        self.mp_bar.update_value(
+            player.mp,
+            player.max_mp
         )
 
+
+        # ============================
+        # Posición
+        # ============================
 
         self.position_label.setText(
-            f"X: {state.x}  Y: {state.y}"
+            f"X: {player.x}  Y: {player.y}"
         )
 
 

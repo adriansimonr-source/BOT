@@ -10,6 +10,10 @@ class GameStateManager:
         self.state = GameState()
 
 
+    # =====================================
+    # Actualización del estado
+    # =====================================
+
     def update(self):
 
         if self.process_manager.is_connected():
@@ -22,21 +26,47 @@ class GameStateManager:
             return
 
 
-        # Datos temporales de prueba
+        # =====================================
+        # Datos temporales del jugador
+        # (más adelante vendrán del lector)
+        # =====================================
 
-        self.state.character_name = "Davion"
+        player = self.state.player
 
-        self.state.level = 1
+        player.name = "Davion"
 
-        self.state.hp = 2500
-        self.state.max_hp = 3000
+        player.level = 1
 
-        self.state.mp = 800
-        self.state.max_mp = 1000
+        player.hp = 2500
+        player.max_hp = 3000
 
-        self.state.x = 125
-        self.state.y = 340
+        player.mp = 800
+        player.max_mp = 1000
 
+        player.x = 125
+        player.y = 340
+
+
+        # =====================================
+        # Datos temporales del objetivo
+        # =====================================
+
+        target = self.state.target
+
+        target.exists = True
+
+        target.name = "Goblin Guerrero"
+
+        target.level = 25
+
+        target.hp = 500
+        target.max_hp = 1000
+
+
+
+    # =====================================
+    # Acceso
+    # =====================================
 
     def get_state(self):
 

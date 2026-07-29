@@ -114,10 +114,12 @@ class BotEngine:
         self.game_state_manager.update()
 
         state = self.game_state_manager.get_state()
+        player = state.player
+
         print(
-            f"{state.character_name} "
-            f"HP:{state.hp}/{state.max_hp}"
-            f" MP:{state.mp}/{state.max_mp}"
+            f"{player.name} "
+            f"HP:{player.hp}/{player.max_hp}"
+            f" MP:{player.mp}/{player.max_mp}"
         )
         # Ejecutar módulos
         for module in self.modules:
