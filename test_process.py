@@ -1,5 +1,5 @@
 from core.process_manager import ProcessManager
-from core.managers.windows_graphics_capture import WindowsGraphicsCaptureManager
+from core.managers.wgc_com_capture import WGCComCapture
 
 
 
@@ -10,6 +10,7 @@ process_manager = ProcessManager()
 if process_manager.find_process(
     "KathanaGame.exe"
 ):
+
 
     print(
         "Proceso encontrado"
@@ -23,25 +24,33 @@ if process_manager.find_process(
 
 
     print(
-        "HWND:",
+        "HWND encontrado:",
         hwnd
     )
 
 
 
-    capture = (
-        WindowsGraphicsCaptureManager(
-            hwnd
-        )
+    capture = WGCComCapture(
+        hwnd
     )
 
 
-    capture.save_capture(
-        "wgc_test.png"
+
+    result = (
+        capture.initialize()
     )
+
+
+
+    print(
+        "RESULTADO:",
+        result
+    )
+
 
 
 else:
+
 
     print(
         "Juego no encontrado"
