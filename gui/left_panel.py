@@ -31,6 +31,7 @@ class LeftPanel(QWidget):
         # Botón principal
         self.start_button = QPushButton("INICIAR")
         self.start_button.setMinimumHeight(40)
+        self.start_button.setEnabled(False)
 
     def create_layout(self):
 
@@ -63,3 +64,8 @@ class LeftPanel(QWidget):
 
         self.bot_status.paused()
         self.start_button.setText("INICIAR")
+    def enable_start_button(self):
+        self.start_button.setEnabled(True)
+
+    def disable_start_button(self):
+        self.start_button.setEnabled(False)

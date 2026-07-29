@@ -11,6 +11,8 @@ from gui.left_panel import LeftPanel
 from gui.right_panel import RightPanel
 from gui.center_panel import CenterPanel
 
+from core.process_manager import ProcessManager
+
 
 class MainWindow(QMainWindow):
 
@@ -19,10 +21,15 @@ class MainWindow(QMainWindow):
 
         self.configure_window()
 
+        # Managers
+        self.process_manager = ProcessManager()
+
         self.create_menu()
         self.create_toolbar()
         self.create_central_widget()
         self.create_statusbar()
+
+        self.connect_signals()
 
     def configure_window(self):
 
@@ -81,3 +88,44 @@ class MainWindow(QMainWindow):
         status = QStatusBar()
         status.showMessage("Aplicación iniciada")
         self.setStatusBar(status)
+
+    # ==================================================
+    # Señales
+    # ==================================================
+
+    def connect_signals(self):
+
+        self.left_panel.process_group.detect_process_button.clicked.connect(
+            self.detect_process
+        )
+
+    # ==================================================
+    # Detección del proceso
+    # ==================================================
+
+    def detect_process(self):
+
+        self.left_panel.process_group.detecting()
+        self.statusBar().showMessage("Buscando KathanaGame.exe...")
+
+        if self.process_manager.find_process("KathanaGame.exe"):
+
+            self.left_panel.process_group.set_process(
+                self.process_manager.get_name(),
+                self.process_manager.get_pid()
+            )
+
+            self.left_panel.process_group.connected()
+            self.left_panel.enable_start_button()
+
+            self.statusBar().showMessage(
+                f"Conectado a {self.process_manager.get_name()} (PID {self.process_manager.get_pid()})"
+            )
+
+        else:
+
+            self.left_panel.process_group.clear_process()
+            self.left_panel.process_group.disconnected()
+            self.left_panel.disable_start_button()
+
+            self.statusBar().showMessage("KathanaGame.exe no encontrado")

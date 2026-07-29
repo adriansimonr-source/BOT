@@ -3,17 +3,16 @@ from core.memory_reader import MemoryReader
 
 pm = ProcessManager()
 
-if pm.find_process("KathanaGame.exe"):
+if not pm.find_process("KathanaGame.exe"):
+    print("Juego no encontrado")
+    exit()
 
-    print("Proceso encontrado")
+print("Juego encontrado")
+print("PID:", pm.get_pid())
 
-    reader = MemoryReader()
+memory = MemoryReader()
 
-    if reader.open_process(pm.get_pid()):
-        print("Handle abierto correctamente")
-    else:
-        print("No se pudo abrir el proceso")
-
+if memory.connect(pm.get_pid()):
+    print("Handle abierto correctamente")
 else:
-
-    print("Proceso no encontrado")
+    print("No se pudo abrir el proceso")

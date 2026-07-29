@@ -1,18 +1,22 @@
 import ctypes
-from ctypes import wintypes
 
-PROCESS_VM_READ = 0x0010
-PROCESS_QUERY_INFORMATION = 0x0400
+from core.winapi import (
+    kernel32,
+    PROCESS_VM_READ,
+    PROCESS_QUERY_INFORMATION
+)
 
 
 class MemoryReader:
 
     def __init__(self):
+
         self.handle = None
+        self.pid = None
 
-    def open_process(self, pid: int) -> bool:
+    def connect(self, pid: int) -> bool:
 
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.pid = pid
 
         self.handle = kernel32.OpenProcess(
             PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
@@ -22,12 +26,54 @@ class MemoryReader:
 
         return self.handle != 0
 
-    def close(self):
+    def disconnect(self):
 
         if self.handle:
-            ctypes.windll.kernel32.CloseHandle(self.handle)
-            self.handle = None
 
-    def is_connected(self):
+            kernel32.CloseHandle(self.handle)
+
+            self.handle = None
+            self.pid = None
+
+    @property
+    def connected(self):
 
         return self.handle is not None
+
+    def read_int(self, address: int):
+
+        value = ctypes.c_int()
+
+        bytes_read = ctypes.c_size_t()
+
+        success = ctypes.windll.kernel32.ReadProcessMemory(
+            self.handle,
+            ctypes.c_void_p(address),
+            ctypes.byref(value),
+            ctypes.sizeof(value),
+            ctypes.byref(bytes_read)
+        )
+
+        if not success:
+            return None
+
+        return value.value
+
+    def read_float(self, address: int):
+
+        value = ctypes.c_float()
+
+        bytes_read = ctypes.c_size_t()
+
+        success = ctypes.windll.kernel32.ReadProcessMemory(
+            self.handle,
+            ctypes.c_void_p(address),
+            ctypes.byref(value),
+            ctypes.sizeof(value),
+            ctypes.byref(bytes_read)
+        )
+
+        if not success:
+            return None
+
+        return value.value
