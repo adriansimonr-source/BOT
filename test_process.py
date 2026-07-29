@@ -1,51 +1,63 @@
 from core.process_manager import ProcessManager
-from core.managers.wgc_com_capture import WGCComCapture
+from core.managers.windows_graphics_capture import WindowsGraphicsCaptureManager
+import winrt.windows.graphics.capture.interop as wgc_interop
 
 
 
-process_manager = ProcessManager()
+pm = ProcessManager()
 
 
 
-if process_manager.find_process(
+if pm.find_process(
     "KathanaGame.exe"
 ):
 
-    print(
-        "Proceso encontrado"
-    )
 
+    hwnd = pm.get_window_handle()
 
-    hwnd = (
-        process_manager
-        .get_window_handle()
-    )
 
 
     print(
-        "HWND encontrado:",
+        "HWND:",
         hwnd
     )
 
 
 
-    wgc = WGCComCapture(
-        hwnd
-    )
+    # Crear GraphicsCaptureItem
 
-
-
-    result = (
-        wgc.initialize()
+    item = (
+        wgc_interop
+        .create_for_window(
+            hwnd
+        )
     )
 
 
 
     print(
-        "RESULTADO:",
+        "ITEM:",
+        item
+    )
+
+
+
+    capture = WindowsGraphicsCaptureManager(
+        hwnd
+    )
+
+
+
+    result = capture.initialize(
+        item
+    )
+
+
+
+    print(
+        "INICIALIZADO:",
         result
     )
-
 
 
 else:
