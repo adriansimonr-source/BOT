@@ -11,7 +11,6 @@ if process_manager.find_process(
     "KathanaGame.exe"
 ):
 
-
     print(
         "Proceso encontrado"
     )
@@ -30,14 +29,14 @@ if process_manager.find_process(
 
 
 
-    capture = WGCComCapture(
+    wgc = WGCComCapture(
         hwnd
     )
 
 
 
     result = (
-        capture.initialize()
+        wgc.initialize()
     )
 
 
@@ -50,7 +49,6 @@ if process_manager.find_process(
 
 
 else:
-
 
     print(
         "Juego no encontrado"

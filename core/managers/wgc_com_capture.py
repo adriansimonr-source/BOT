@@ -5,11 +5,34 @@ from comtypes import GUID
 
 
 # ==================================================
-# GUID Windows Graphics Capture
+# Windows Runtime
 # ==================================================
 
-GraphicsCaptureItem_GUID = GUID(
-    "{79C3F95B-31F7-4EC2-A464-632EF5D30760}"
+combase = ctypes.windll.combase
+
+
+RoGetActivationFactory = (
+    combase.RoGetActivationFactory
+)
+
+
+RoGetActivationFactory.argtypes = [
+    ctypes.c_wchar_p,
+    ctypes.POINTER(GUID),
+    ctypes.POINTER(ctypes.c_void_p)
+]
+
+
+RoGetActivationFactory.restype = ctypes.HRESULT
+
+
+
+# ==================================================
+# GUIDS
+# ==================================================
+
+IInspectable_GUID = GUID(
+    "{AF86E2E0-B12D-4C6A-9C5A-D7AA65101E90}"
 )
 
 
@@ -18,9 +41,20 @@ IGraphicsCaptureItemInterop_GUID = GUID(
 )
 
 
+GraphicsCaptureItem_GUID = GUID(
+    "{79C3F95B-31F7-4EC2-A464-632EF5D30760}"
+)
+
+
+
+RuntimeClass = (
+    "Windows.Graphics.Capture.GraphicsCaptureItem"
+)
+
+
 
 # ==================================================
-# Interface COM
+# COM Interface
 # ==================================================
 
 class IGraphicsCaptureItemInterop(
@@ -38,25 +72,17 @@ class IGraphicsCaptureItemInterop(
             "CreateForWindow",
 
             (
-                [
-                    "in"
-                ],
+                ["in"],
                 ctypes.c_void_p
             ),
 
             (
-                [
-                    "in"
-                ],
-                ctypes.POINTER(
-                    GUID
-                )
+                ["in"],
+                ctypes.POINTER(GUID)
             ),
 
             (
-                [
-                    "out"
-                ],
+                ["out"],
                 ctypes.POINTER(
                     ctypes.c_void_p
                 )
@@ -67,7 +93,7 @@ class IGraphicsCaptureItemInterop(
 
 
 # ==================================================
-# Captura WGC COM
+# Captura WGC
 # ==================================================
 
 class WGCComCapture:
@@ -79,14 +105,9 @@ class WGCComCapture:
     ):
 
         self.hwnd = hwnd
-
         self.item = None
 
 
-
-    # =====================================
-    # Inicialización
-    # =====================================
 
     def initialize(self):
 
@@ -104,24 +125,66 @@ class WGCComCapture:
         )
 
 
-        return self.create_capture_item()
+        return self.create_item()
 
 
 
-    # =====================================
-    # Crear GraphicsCaptureItem
-    # =====================================
-
-    def create_capture_item(self):
-
+    def create_item(self):
 
         try:
 
+            factory_ptr = ctypes.c_void_p()
 
-            factory = comtypes.CoCreateInstance(
-                GraphicsCaptureItem_GUID,
-                IGraphicsCaptureItemInterop,
-                comtypes.CLSCTX_INPROC_SERVER
+
+            hr = RoGetActivationFactory(
+                RuntimeClass,
+                ctypes.byref(
+                    IInspectable_GUID
+                ),
+                ctypes.byref(
+                    factory_ptr
+                )
+            )
+
+
+            if hr != 0:
+
+                print(
+                    "Factory error:",
+                    hex(hr)
+                )
+
+                return False
+
+
+
+            print(
+                "Factory obtenida"
+            )
+
+
+
+            # Convertir factory a IUnknown
+
+            unknown = ctypes.cast(
+                factory_ptr,
+                ctypes.POINTER(
+                    comtypes.IUnknown
+                )
+            )
+
+
+
+            interop = (
+                unknown.QueryInterface(
+                    IGraphicsCaptureItemInterop
+                )
+            )
+
+
+
+            print(
+                "Interop obtenida"
             )
 
 
@@ -130,7 +193,7 @@ class WGCComCapture:
 
 
 
-            result = factory.CreateForWindow(
+            hr = interop.CreateForWindow(
                 ctypes.c_void_p(
                     self.hwnd
                 ),
@@ -144,11 +207,11 @@ class WGCComCapture:
 
 
 
-            if result != 0:
+            if hr != 0:
 
                 print(
-                    "Error HRESULT:",
-                    hex(result)
+                    "CreateForWindow HRESULT:",
+                    hex(hr)
                 )
 
                 return False
@@ -170,9 +233,8 @@ class WGCComCapture:
 
         except Exception as e:
 
-
             print(
-                "Error creando GraphicsCaptureItem:"
+                "Error WGC:"
             )
 
             print(
