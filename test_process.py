@@ -1,8 +1,10 @@
 from core.process_manager import ProcessManager
-from core.managers.screen_capture_manager import ScreenCaptureManager
+from core.managers.windows_graphics_capture import WindowsGraphicsCaptureManager
+
 
 
 process_manager = ProcessManager()
+
 
 
 if process_manager.find_process(
@@ -14,26 +16,30 @@ if process_manager.find_process(
     )
 
 
+    hwnd = (
+        process_manager
+        .get_window_handle()
+    )
+
+
     print(
-        process_manager.get_window_position()
+        "HWND:",
+        hwnd
     )
 
 
-    capture_manager = ScreenCaptureManager(
-        process_manager.window_manager
-    )
 
-
-    result = capture_manager.save_capture(
-        "game_capture.png"
-    )
-
-
-    if result:
-
-        print(
-            "Captura guardada"
+    capture = (
+        WindowsGraphicsCaptureManager(
+            hwnd
         )
+    )
+
+
+    capture.save_capture(
+        "wgc_test.png"
+    )
+
 
 else:
 

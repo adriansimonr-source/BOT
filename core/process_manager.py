@@ -54,20 +54,40 @@ class ProcessManager:
 
                 if name == process_name:
 
+
                     self.process = process
+
 
                     self.pid = (
                         process.info["pid"]
                     )
 
+
                     self.name = name
 
 
-                    # Buscar ventana
 
-                    self.window_manager.find_window_by_pid(
-                        self.pid
+                    # =====================================
+                    # Buscar ventana del juego
+                    # =====================================
+
+                    found_window = (
+                        self.window_manager.find_window_by_pid(
+                            self.pid,
+                            "Kathana - The Reign of Shadow"
+                        )
                     )
+
+
+                    # Si el proceso no tiene la ventana,
+                    # buscar por título global
+
+                    if not found_window:
+
+                        self.window_manager.find_window_by_title(
+                            "Kathana - The Reign of Shadow"
+                        )
+
 
 
                     return True
@@ -100,9 +120,7 @@ class ProcessManager:
 
         try:
 
-            return (
-                self.process.is_running()
-            )
+            return self.process.is_running()
 
 
         except:
@@ -149,8 +167,7 @@ class ProcessManager:
     def get_window_position(self):
 
         return (
-            self.window_manager
-            .get_position()
+            self.window_manager.get_position()
         )
 
 

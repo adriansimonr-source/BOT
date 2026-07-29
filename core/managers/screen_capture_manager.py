@@ -1,5 +1,5 @@
-import mss
-import mss.tools
+import bettercam
+import cv2
 
 
 class ScreenCaptureManager:
@@ -12,76 +12,132 @@ class ScreenCaptureManager:
 
         self.window_manager = window_manager
 
+        # Crear capturador
+        self.camera = bettercam.create()
 
 
-    # ==================================================
-    # Capturar ventana del juego
-    # ==================================================
+
+    # =====================================
+    # Captura monitor
+    # =====================================
 
     def capture(self):
 
-        window = (
-            self.window_manager
-            .get_position()
+        frame = self.camera.grab()
+
+
+        print(
+            "BETTERCAM FRAME:",
+            None if frame is None else frame.shape
         )
 
 
-        if window is None:
+        return frame
+
+
+
+    # =====================================
+    # Captura ventana
+    # =====================================
+
+    def capture_window(self):
+
+        frame = self.capture()
+
+
+        if frame is None:
+
+            print(
+                "No hay frame"
+            )
 
             return None
 
 
 
-        monitor = {
-
-            "left": window["x"],
-
-            "top": window["y"],
-
-            "width": window["width"],
-
-            "height": window["height"]
-
-        }
+        position = (
+            self.window_manager.get_position()
+        )
 
 
-        with mss.mss() as sct:
-
-
-            screenshot = sct.grab(
-                monitor
-            )
-
-
-            return screenshot
+        print(
+            "WINDOW POSITION:",
+            position
+        )
 
 
 
-    # ==================================================
-    # Guardar captura (debug)
-    # ==================================================
+        if position is None:
+
+            return frame
+
+
+
+        x = position["x"]
+
+        y = position["y"]
+
+        width = position["width"]
+
+        height = position["height"]
+
+
+
+        crop = frame[
+            y:y+height,
+            x:x+width
+        ]
+
+
+        print(
+            "CROP:",
+            crop.shape
+        )
+
+
+        return crop
+
+
+
+    # =====================================
+    # Guardar captura
+    # =====================================
 
     def save_capture(
         self,
-        filename="capture.png"
+        filename="game_capture.png"
     ):
 
-        screenshot = self.capture()
+
+        frame = self.capture_window()
 
 
-        if screenshot is None:
+        if frame is None:
 
             return False
 
 
 
-        with mss.mss() as sct:
+        if frame.size == 0:
 
-            mss.tools.to_png(
-                screenshot.rgb,
-                screenshot.size,
-                output=filename
+            print(
+                "Imagen vacía"
             )
 
+            return False
 
-        return True
+
+
+        result = cv2.imwrite(
+            filename,
+            frame
+        )
+
+
+        print(
+            "WRITE:",
+            result
+        )
+
+
+        return result
