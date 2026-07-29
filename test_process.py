@@ -1,18 +1,42 @@
 from core.process_manager import ProcessManager
-from core.memory_reader import MemoryReader
+from core.managers.screen_capture_manager import ScreenCaptureManager
 
-pm = ProcessManager()
 
-if not pm.find_process("KathanaGame.exe"):
-    print("Juego no encontrado")
-    exit()
+process_manager = ProcessManager()
 
-print("Juego encontrado")
-print("PID:", pm.get_pid())
 
-memory = MemoryReader()
+if process_manager.find_process(
+    "KathanaGame.exe"
+):
 
-if memory.connect(pm.get_pid()):
-    print("Handle abierto correctamente")
+    print(
+        "Proceso encontrado"
+    )
+
+
+    print(
+        process_manager.get_window_position()
+    )
+
+
+    capture_manager = ScreenCaptureManager(
+        process_manager.window_manager
+    )
+
+
+    result = capture_manager.save_capture(
+        "game_capture.png"
+    )
+
+
+    if result:
+
+        print(
+            "Captura guardada"
+        )
+
 else:
-    print("No se pudo abrir el proceso")
+
+    print(
+        "Juego no encontrado"
+    )

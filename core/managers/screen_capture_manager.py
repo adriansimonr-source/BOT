@@ -5,40 +5,83 @@ import mss.tools
 class ScreenCaptureManager:
 
 
-    def __init__(self):
-
-        self.monitor = None
-
-
-
-    def set_region(
+    def __init__(
         self,
-        x,
-        y,
-        width,
-        height
+        window_manager
     ):
 
-        self.monitor = {
-            "left": x,
-            "top": y,
-            "width": width,
-            "height": height
-        }
+        self.window_manager = window_manager
 
 
+
+    # ==================================================
+    # Capturar ventana del juego
+    # ==================================================
 
     def capture(self):
 
-        if self.monitor is None:
+        window = (
+            self.window_manager
+            .get_position()
+        )
+
+
+        if window is None:
+
             return None
+
+
+
+        monitor = {
+
+            "left": window["x"],
+
+            "top": window["y"],
+
+            "width": window["width"],
+
+            "height": window["height"]
+
+        }
 
 
         with mss.mss() as sct:
 
-            image = sct.grab(
-                self.monitor
+
+            screenshot = sct.grab(
+                monitor
             )
 
 
-            return image
+            return screenshot
+
+
+
+    # ==================================================
+    # Guardar captura (debug)
+    # ==================================================
+
+    def save_capture(
+        self,
+        filename="capture.png"
+    ):
+
+        screenshot = self.capture()
+
+
+        if screenshot is None:
+
+            return False
+
+
+
+        with mss.mss() as sct:
+
+            mss.tools.to_png(
+                screenshot.rgb,
+                screenshot.size,
+                output=filename
+            )
+
+
+        return True
