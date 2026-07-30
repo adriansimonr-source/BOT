@@ -1,216 +1,43 @@
 import time
-import ctypes
-import comtypes
+import cv2
 
-
-from core.managers.window_manager import WindowManager
-from core.managers.direct3d_device import Direct3DDeviceManager
-from core.managers.direct3d_converter import Direct3DConverter
-
-from core.managers.wgc_framepool_abi import WGCFramePoolABI
-from core.managers.wgc_item_abi import WGCItemABI
-from core.managers.wgc_session_abi import WGCSessionABI
-from core.managers.wgc_frame_reader_abi import WGCFrameReaderABI
-from core.managers.wgc_frame_abi import WGCFrameABI
+from core.services.capture_engine import CaptureEngine
 
 
 
-WINDOW_TITLE = (
-    "Kathana - The Reign of Shadow"
-)
-
+TITLE = "Kathana - The Reign of Shadow"
 
 WIDTH = 1920
 HEIGHT = 1080
 
+PREVIEW = (960, 540)
 
 
-# ==================================================
-# GUID DXGI ACCESS
-# ==================================================
 
-IID_DXGI_ACCESS = comtypes.GUID(
-    "{A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1}"
+def section(text):
+
+    print()
+    print("=" * 40)
+    print(text)
+    print("=" * 40)
+
+
+
+
+
+# ==========================================
+# CAPTURE ENGINE
+# ==========================================
+
+
+section(
+    "CAPTURE PIPELINE TEST"
 )
 
 
+capture = CaptureEngine(
 
-
-
-# ==================================================
-# QueryInterface Surface
-# ==================================================
-
-def query_dxgi_access(surface):
-
-
-    print(
-        "Consultando IDirect3DDxgiInterfaceAccess"
-    )
-
-
-
-    obj = ctypes.cast(
-
-        surface,
-
-        ctypes.POINTER(
-
-            ctypes.POINTER(
-                ctypes.c_void_p
-            )
-
-        )
-
-    )
-
-
-    vtable = obj.contents
-
-
-
-    QueryInterface = ctypes.WINFUNCTYPE(
-
-        ctypes.HRESULT,
-
-        ctypes.c_void_p,
-
-        ctypes.POINTER(
-            comtypes.GUID
-        ),
-
-        ctypes.POINTER(
-            ctypes.c_void_p
-        )
-
-    )(
-
-        vtable[0]
-
-    )
-
-
-
-    access = ctypes.c_void_p()
-
-
-
-    hr = QueryInterface(
-
-        surface,
-
-        ctypes.byref(
-            IID_DXGI_ACCESS
-        ),
-
-        ctypes.byref(
-            access
-        )
-
-    )
-
-
-
-    print(
-
-        "QI DXGI HRESULT:",
-
-        hex(
-            hr & 0xffffffff
-        )
-
-    )
-
-
-    print(
-        "DXGI ACCESS:",
-        access
-    )
-
-
-    return access
-
-
-
-
-
-# ==================================================
-# CAPTURE
-# ==================================================
-
-window = WindowManager()
-
-
-if not window.find_window_by_title(
-    WINDOW_TITLE
-):
-
-    raise Exception(
-        "Ventana no encontrada"
-    )
-
-
-
-hwnd = window.hwnd
-
-
-
-print(
-    "HWND:",
-    hwnd
-)
-
-
-
-
-
-# D3D11
-
-d3d = Direct3DDeviceManager()
-
-
-if not d3d.create_device():
-
-    raise Exception(
-        "Error D3D11"
-    )
-
-
-
-converter = Direct3DConverter()
-
-
-
-if not converter.create_winrt_device(
-
-    d3d.get_device()
-
-):
-
-    raise Exception(
-        "Error WinRT Device"
-    )
-
-
-
-device = converter.get_device()
-
-
-
-
-
-# FramePool
-
-framepool_abi = WGCFramePoolABI()
-
-
-framepool_abi.get_statics2()
-
-
-
-framepool = framepool_abi.create_free_threaded(
-
-    device,
+    TITLE,
 
     WIDTH,
 
@@ -220,161 +47,165 @@ framepool = framepool_abi.create_free_threaded(
 
 
 
+capture.start()
 
 
-# Item
-
-item = WGCItemABI().create_for_window(
-
-    hwnd
-
+print(
+    "[OK] Window -> D3D -> WGC -> GPU Pipeline"
 )
 
 
 
 
 
-# Session
+# ==========================================
+# LOOP
+# ==========================================
 
-session = WGCSessionABI()
+
+frames = 0
+
+start = time.time()
+
+
+first = True
 
 
 
-session.create_session(
+try:
 
-    framepool,
 
-    item
+    while True:
 
+
+
+        frame = capture.get_frame()
+
+
+
+        if first:
+
+
+            section(
+                "FRAME VALIDATION"
+            )
+
+
+            print(
+
+                frame.info()
+
+            )
+
+
+            print(
+
+                "[OK] Texture -> CPU -> Frame"
+
+            )
+
+
+            first = False
+
+
+
+
+
+        frames += 1
+
+
+
+        fps = frames / (
+            time.time() - start
+        )
+
+
+
+
+
+
+        image = cv2.resize(
+
+            frame.image,
+
+            PREVIEW
+
+        )
+
+
+
+        cv2.putText(
+
+            image,
+
+            f"FPS: {fps:.1f}",
+
+            (20,40),
+
+            cv2.FONT_HERSHEY_SIMPLEX,
+
+            1,
+
+            (0,255,0),
+
+            2
+
+        )
+
+
+
+        cv2.imshow(
+
+            "BOT VISION",
+
+            image
+
+        )
+
+
+
+
+        if cv2.waitKey(1) == 27:
+
+            break
+
+
+
+
+
+finally:
+
+
+    capture.stop()
+
+
+    cv2.destroyAllWindows()
+
+
+
+
+
+section(
+    "RESULT"
 )
-
-
-
-session.start_capture()
 
 
 
 print(
-    "CAPTURA INICIADA"
+    "Frames:",
+    frames
 )
-
-
-
-time.sleep(2)
-
-
-
-
-
-# Reader
-
-reader = WGCFrameReaderABI()
-
-
-reader.set_framepool(
-
-    framepool
-
-)
-
-
-
-frame_reader = WGCFrameABI()
-
-
-
 
 
 print(
-    "ESPERANDO FRAME"
+    "FPS:",
+    round(
+        frames/(time.time()-start),
+        2
+    )
 )
 
 
-
-
-
-while True:
-
-
-    frame = reader.try_get_next_frame()
-
-
-
-    if frame is None:
-
-        time.sleep(
-            0.05
-        )
-
-        continue
-
-
-
-    print()
-
-    print(
-        "FRAME:",
-        frame
-    )
-
-
-
-    frame_reader.set_frame(
-
-        frame
-
-    )
-
-
-
-    surface = frame_reader.get_surface()
-
-
-
-    print(
-        "SURFACE:",
-        surface
-    )
-
-
-
-    access = query_dxgi_access(
-
-        surface
-
-    )
-
-
-
-    print()
-
-    print(
-        "RESULTADO:"
-    )
-
-
-    if access:
-
-        print(
-            "DXGI ACCESS CONSEGUIDO"
-        )
-
-    else:
-
-        print(
-            "NO HAY DXGI ACCESS"
-        )
-
-
-
-    break
-
-
-
-
-
-reader.release_frame(
-
-    frame
-
+print(
+    "[OK] PIPELINE COMPLETED"
 )
