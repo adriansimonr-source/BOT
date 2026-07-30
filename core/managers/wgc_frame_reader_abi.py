@@ -1,6 +1,7 @@
 import ctypes
 
 
+
 class WGCFrameReaderABI:
 
 
@@ -9,6 +10,10 @@ class WGCFrameReaderABI:
         self.framepool = None
 
 
+
+    # ======================================
+    # Asignar FramePool
+    # ======================================
 
     def set_framepool(
         self,
@@ -19,11 +24,12 @@ class WGCFrameReaderABI:
 
 
 
-    # ==================================================
-    # TryGetNextFrame
-    # ==================================================
 
-    def try_get_frame(
+    # ======================================
+    # Obtener siguiente frame
+    # ======================================
+
+    def try_get_next_frame(
         self
     ):
 
@@ -31,7 +37,7 @@ class WGCFrameReaderABI:
         if self.framepool is None:
 
             raise RuntimeError(
-                "FramePool no configurado"
+                "FramePool no asignado"
             )
 
 
@@ -41,9 +47,11 @@ class WGCFrameReaderABI:
             self.framepool,
 
             ctypes.POINTER(
+
                 ctypes.POINTER(
                     ctypes.c_void_p
                 )
+
             )
 
         )
@@ -53,27 +61,7 @@ class WGCFrameReaderABI:
 
 
 
-        #
-        # IDirect3D11CaptureFramePool
-        #
-        # 0 QueryInterface
-        # 1 AddRef
-        # 2 Release
-        # 3 GetIids
-        # 4 GetRuntimeClassName
-        # 5 GetTrustLevel
-        #
-        # 6 Recreate
-        # 7 TryGetNextFrame
-        # 8 FrameArrived add
-        # 9 FrameArrived remove
-        # 10 CreateCaptureSession
-        # 11 DispatcherQueue
-        #
-
-
-
-        TryGetNextFrame = ctypes.CFUNCTYPE(
+        TryGetNextFrame = ctypes.WINFUNCTYPE(
 
             ctypes.c_long,
 
@@ -109,14 +97,13 @@ class WGCFrameReaderABI:
 
         if hr != 0:
 
-            print(
-                "TryGetNextFrame HRESULT:",
-                hex(
-                    hr & 0xffffffff
-                )
-            )
+            raise OSError(
 
-            return None
+                hr,
+
+                "TryGetNextFrame fallo"
+
+            )
 
 
 
@@ -126,10 +113,66 @@ class WGCFrameReaderABI:
 
 
 
-        print(
-            "FRAME RECIBIDO:",
-            frame
+        return frame
+
+
+
+
+
+    # ======================================
+    # Liberar Frame COM
+    # ======================================
+
+    def release_frame(
+
+        self,
+
+        frame
+
+    ):
+
+
+        if frame is None:
+
+            return
+
+
+
+        obj = ctypes.cast(
+
+            frame,
+
+            ctypes.POINTER(
+
+                ctypes.POINTER(
+                    ctypes.c_void_p
+                )
+
+            )
+
         )
 
 
-        return frame
+        vtable = obj.contents
+
+
+
+        Release = ctypes.WINFUNCTYPE(
+
+            ctypes.c_ulong,
+
+            ctypes.c_void_p
+
+        )(
+
+            vtable[2]
+
+        )
+
+
+
+        Release(
+
+            frame
+
+        )

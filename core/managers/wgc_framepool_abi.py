@@ -1,6 +1,30 @@
 import ctypes
 
 
+from core.managers.wgc_factory_abi import (
+    WGCFactoryABI
+)
+
+
+
+class SizeInt32(ctypes.Structure):
+
+    _fields_ = [
+
+        (
+            "Width",
+            ctypes.c_int32
+        ),
+
+        (
+            "Height",
+            ctypes.c_int32
+        )
+
+    ]
+
+
+
 class WGCFramePoolABI:
 
 
@@ -10,30 +34,28 @@ class WGCFramePoolABI:
 
 
 
-    def get_statics2(self):
+    # ======================================
+    # Inicializar STATICS2
+    # ======================================
 
-        from core.managers.wgc_factory_abi import (
-            WGCFactoryABI
-        )
+    def get_statics2(self):
 
 
         factory = WGCFactoryABI()
 
 
         self.statics2 = (
-            factory.get_framepool_statics2()
-        )
-
-
-        print(
-            "STATICS2:",
-            self.statics2
+            factory.get_statics2()
         )
 
 
         return self.statics2
 
 
+
+    # ======================================
+    # Crear FramePool FreeThreaded
+    # ======================================
 
     def create_free_threaded(
         self,
@@ -50,9 +72,11 @@ class WGCFramePoolABI:
             )
 
 
+
         print(
             "Creando FramePool FreeThreaded"
         )
+
 
 
         obj = ctypes.cast(
@@ -72,31 +96,38 @@ class WGCFramePoolABI:
 
 
 
-        # IStatics2:
-        #
-        # 0 QueryInterface
-        # 1 AddRef
-        # 2 Release
-        # 3 GetIids
-        # 4 GetRuntimeClassName
-        # 5 GetTrustLevel
-        # 6 Create
-        # 7 CreateFreeThreaded
+        print(
+            "VTABLE STATICS2"
+        )
 
 
-        CreateFreeThreaded = ctypes.CFUNCTYPE(
+        for i in range(8):
+
+            print(
+                i,
+                hex(
+                    ctypes.cast(
+                        vtable[i],
+                        ctypes.c_void_p
+                    ).value
+                )
+            )
+
+
+
+        CreateFreeThreaded = ctypes.WINFUNCTYPE(
 
             ctypes.c_long,
 
-            ctypes.c_void_p,
+            ctypes.c_void_p,     # this
 
-            ctypes.c_void_p,
+            ctypes.c_void_p,     # IDirect3DDevice
 
-            ctypes.c_int,
+            ctypes.c_int,        # PixelFormat
 
-            ctypes.c_int,
+            ctypes.c_int,        # Buffers
 
-            ctypes.c_int,
+            SizeInt32,           # Size
 
             ctypes.POINTER(
                 ctypes.c_void_p
@@ -104,13 +135,47 @@ class WGCFramePoolABI:
 
         )(
 
-            vtable[7]
+            vtable[6]
 
         )
 
 
 
-        result = ctypes.c_void_p()
+        framepool = ctypes.c_void_p()
+
+
+
+        size = SizeInt32(
+
+            width,
+
+            height
+
+        )
+
+
+
+        DXGI_FORMAT_B8G8R8A8_UNORM = 87
+
+
+
+        print(
+            "STATICS2:",
+            self.statics2
+        )
+
+
+        print(
+            "DEVICE:",
+            device
+        )
+
+
+        print(
+            "SIZE:",
+            size.Width,
+            size.Height
+        )
 
 
 
@@ -120,19 +185,18 @@ class WGCFramePoolABI:
 
             device,
 
-            87,        # B8G8R8A8_UNORM
+            DXGI_FORMAT_B8G8R8A8_UNORM,
 
             2,
 
-            width,
-
-            height,
+            size,
 
             ctypes.byref(
-                result
+                framepool
             )
 
         )
+
 
 
         print(
@@ -155,8 +219,8 @@ class WGCFramePoolABI:
 
         print(
             "FRAMEPOOL:",
-            result
+            framepool
         )
 
 
-        return result
+        return framepool

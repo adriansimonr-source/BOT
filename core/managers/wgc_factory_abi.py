@@ -2,38 +2,106 @@ import ctypes
 import comtypes
 
 
+
 RUNTIME_CLASS = (
     "Windows.Graphics.Capture.Direct3D11CaptureFramePool"
 )
 
 
-IINSPECTABLE = comtypes.GUID(
-    "{AF86E2E0-B12D-4C6A-9C5A-D7AA65101E90}"
+
+IID_FRAMEPOOL_STATICS2 = comtypes.GUID(
+    "{589B103F-6BBC-5DF5-A991-02E28B3B66D5}"
 )
 
 
-class WGCFactorABI:
+
+class WGCFactoryABI:
 
 
-    def get_factory(self):
+    def get_statics2(self):
+
 
         print(
-            "Obteniendo factory IInspectable"
+            "Obteniendo STATICS2"
         )
 
 
-        factory = ctypes.c_void_p()
+        combase = ctypes.windll.combase
+
+
+
+        # ============================
+        # Crear HSTRING
+        # ============================
+
+        combase.WindowsCreateString.argtypes = [
+
+            ctypes.c_wchar_p,
+
+            ctypes.c_uint32,
+
+            ctypes.POINTER(
+                ctypes.c_void_p
+            )
+
+        ]
+
+
+        combase.WindowsCreateString.restype = ctypes.HRESULT
+
+
+
+        hstring = ctypes.c_void_p()
+
+
+
+        hr = combase.WindowsCreateString(
+
+            RUNTIME_CLASS,
+
+            len(RUNTIME_CLASS),
+
+            ctypes.byref(
+                hstring
+            )
+
+        )
+
+
+        print(
+            "WindowsCreateString:",
+            hex(
+                hr & 0xffffffff
+            )
+        )
+
+
+        if hr != 0:
+
+            raise OSError(
+                hr,
+                "WindowsCreateString fallo"
+            )
+
+
+
+        # ============================
+        # RoGetActivationFactory
+        # ============================
+
+
+        statics2 = ctypes.c_void_p()
+
 
 
         RoGetActivationFactory = (
-            ctypes.windll.combase
-            .RoGetActivationFactory
+            combase.RoGetActivationFactory
         )
 
 
         RoGetActivationFactory.argtypes = [
 
-            ctypes.c_wchar_p,
+            ctypes.c_void_p,
 
             ctypes.POINTER(
                 comtypes.GUID
@@ -42,38 +110,60 @@ class WGCFactorABI:
             ctypes.POINTER(
                 ctypes.c_void_p
             )
+
         ]
 
 
-        RoGetActivationFactory.restype = (
-            ctypes.HRESULT
-        )
+        RoGetActivationFactory.restype = ctypes.HRESULT
+
 
 
         hr = RoGetActivationFactory(
 
-            RUNTIME_CLASS,
+            hstring,
 
             ctypes.byref(
-                IINSPECTABLE
+                IID_FRAMEPOOL_STATICS2
             ),
 
             ctypes.byref(
-                factory
+                statics2
+            )
+
+        )
+
+
+
+        print(
+            "RoGetActivationFactory:",
+            hex(
+                hr & 0xffffffff
             )
         )
 
 
-        print(
-            "HRESULT:",
-            hex(hr)
+
+        # liberar HSTRING
+
+        combase.WindowsDeleteString(
+            hstring
         )
 
 
+
+        if hr != 0:
+
+            raise OSError(
+                hr,
+                "No se obtuvo STATICS2"
+            )
+
+
+
         print(
-            "FACTORY:",
-            factory
+            "STATICS2:",
+            statics2
         )
 
 
-        return factory
+        return statics2
