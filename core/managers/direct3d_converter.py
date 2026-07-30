@@ -5,10 +5,6 @@ import winrt.windows.graphics.directx.direct3d11 as d3d11
 
 
 
-# ==================================================
-# GUID IDXGIDevice
-# ==================================================
-
 IDXGIDevice_GUID = comtypes.GUID(
     "{54EC77FA-1377-44E6-8C32-88FD5F44C84C}"
 )
@@ -22,11 +18,10 @@ class Direct3DConverter:
 
         self.winrt_device = None
 
+        # Mantener referencia COM viva
+        self.winrt_device_ptr = None
 
 
-    # =====================================
-    # Crear IDirect3DDevice WinRT
-    # =====================================
 
     def create_winrt_device(
         self,
@@ -46,7 +41,9 @@ class Direct3DConverter:
 
 
 
-            # Obtener vtable COM
+            # -------------------------------
+            # Obtener IDXGIDevice
+            # -------------------------------
 
             vtable = ctypes.cast(
                 d3d_device,
@@ -56,7 +53,6 @@ class Direct3DConverter:
                     )
                 )
             )
-
 
 
             QueryInterface = ctypes.WINFUNCTYPE(
@@ -73,7 +69,6 @@ class Direct3DConverter:
             )
 
 
-
             hr = QueryInterface(
                 d3d_device,
                 ctypes.byref(
@@ -83,7 +78,6 @@ class Direct3DConverter:
                     dxgi_device
                 )
             )
-
 
 
             if hr != 0:
@@ -103,21 +97,16 @@ class Direct3DConverter:
 
 
 
-            # ---------------------------------
+            # -------------------------------
             # Crear IDirect3DDevice WinRT
-            # ---------------------------------
+            # -------------------------------
 
-            d3d11 = ctypes.windll.LoadLibrary(
-                "d3d11.dll"
-            )
-
+            d3d11dll = ctypes.windll.d3d11
 
 
             CreateDirect3D11DeviceFromDXGIDevice = (
-                d3d11
-                .CreateDirect3D11DeviceFromDXGIDevice
+                d3d11dll.CreateDirect3D11DeviceFromDXGIDevice
             )
-
 
 
             CreateDirect3D11DeviceFromDXGIDevice.argtypes = [
@@ -131,26 +120,25 @@ class Direct3DConverter:
             ]
 
 
-
             CreateDirect3D11DeviceFromDXGIDevice.restype = (
                 ctypes.HRESULT
             )
 
 
 
-            winrt_device_ptr = ctypes.c_void_p()
+            winrt_ptr = ctypes.c_void_p()
 
 
 
-            hr = (
-                CreateDirect3D11DeviceFromDXGIDevice(
-                    dxgi_device,
-                    ctypes.byref(
-                        winrt_device_ptr
-                    )
+            hr = CreateDirect3D11DeviceFromDXGIDevice(
+
+                dxgi_device,
+
+                ctypes.byref(
+                    winrt_ptr
                 )
-            )
 
+            )
 
 
             if hr != 0:
@@ -169,21 +157,38 @@ class Direct3DConverter:
             )
 
 
-
-            # ---------------------------------
-            # Convertir COM -> objeto WinRT
-            # ---------------------------------
-
-            self.winrt_device = (
-                d3d11.IDirect3DDevice._from(
-                    winrt_device_ptr
-                )
+            print(
+                "PTR:",
+                winrt_ptr
             )
 
 
 
+            # IMPORTANTE:
+            # Guardamos el puntero COM real
+            self.winrt_device_ptr = winrt_ptr
+
+
+
+            # Creamos wrapper WinRT solo para Python
+            self.winrt_device = (
+                d3d11.IDirect3DDevice._make_(
+                    d3d11.IDirect3DDevice,
+                    winrt_ptr.value
+                )
+            )
+
+
             print(
-                "IDirect3DDevice WinRT convertido"
+                "IDirect3DDevice WinRT creado"
+            )
+
+
+            print(
+                "DEVICE ABI:",
+                hex(
+                    self.winrt_device_ptr.value
+                )
             )
 
 
@@ -202,17 +207,21 @@ class Direct3DConverter:
                 e
             )
 
-
             return False
 
 
 
-    # =====================================
-    # Obtener dispositivo
-    # =====================================
-
-    def get_device(
-        self
-    ):
+    def get_device(self):
 
         return self.winrt_device
+
+
+
+    def get_device_ptr(self):
+
+        """
+        Devuelve puntero COM válido
+        para CreateFreeThreaded
+        """
+
+        return self.winrt_device_ptr

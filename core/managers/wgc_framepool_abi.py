@@ -1,18 +1,4 @@
 import ctypes
-import comtypes
-
-
-
-RUNTIME_CLASS = (
-    "Windows.Graphics.Capture.Direct3D11CaptureFramePool"
-)
-
-
-
-IActivationFactory_GUID = comtypes.GUID(
-    "{00000035-0000-0000-C000-000000000046}"
-)
-
 
 
 class WGCFramePoolABI:
@@ -20,88 +6,157 @@ class WGCFramePoolABI:
 
     def __init__(self):
 
-        self.factory = None
+        self.statics2 = None
 
 
 
-    def get_factory(self):
+    def get_statics2(self):
+
+        from core.managers.wgc_factory_abi import (
+            WGCFactoryABI
+        )
+
+
+        factory = WGCFactoryABI()
+
+
+        self.statics2 = (
+            factory.get_framepool_statics2()
+        )
+
 
         print(
-            "Obteniendo IActivationFactory"
+            "STATICS2:",
+            self.statics2
         )
 
 
-        combase = ctypes.windll.combase
+        return self.statics2
 
 
-        RoGetActivationFactory = (
-            combase.RoGetActivationFactory
+
+    def create_free_threaded(
+        self,
+        device,
+        width,
+        height
+    ):
+
+
+        if self.statics2 is None:
+
+            raise RuntimeError(
+                "Statics2 no inicializado"
+            )
+
+
+        print(
+            "Creando FramePool FreeThreaded"
         )
 
 
-        RoGetActivationFactory.argtypes = [
+        obj = ctypes.cast(
 
-            ctypes.c_wchar_p,
+            self.statics2,
 
             ctypes.POINTER(
-                comtypes.GUID
-            ),
+                ctypes.POINTER(
+                    ctypes.c_void_p
+                )
+            )
+
+        )
+
+
+        vtable = obj.contents
+
+
+
+        # IStatics2:
+        #
+        # 0 QueryInterface
+        # 1 AddRef
+        # 2 Release
+        # 3 GetIids
+        # 4 GetRuntimeClassName
+        # 5 GetTrustLevel
+        # 6 Create
+        # 7 CreateFreeThreaded
+
+
+        CreateFreeThreaded = ctypes.CFUNCTYPE(
+
+            ctypes.c_long,
+
+            ctypes.c_void_p,
+
+            ctypes.c_void_p,
+
+            ctypes.c_int,
+
+            ctypes.c_int,
+
+            ctypes.c_int,
 
             ctypes.POINTER(
                 ctypes.c_void_p
             )
 
-        ]
+        )(
 
+            vtable[7]
 
-        RoGetActivationFactory.restype = ctypes.HRESULT
-
-
-
-        factory = ctypes.c_void_p()
+        )
 
 
 
-        hr = RoGetActivationFactory(
+        result = ctypes.c_void_p()
 
-            RUNTIME_CLASS,
+
+
+        hr = CreateFreeThreaded(
+
+            self.statics2,
+
+            device,
+
+            87,        # B8G8R8A8_UNORM
+
+            2,
+
+            width,
+
+            height,
 
             ctypes.byref(
-                IActivationFactory_GUID
-            ),
-
-            ctypes.byref(
-                factory
+                result
             )
 
         )
+
+
+        print(
+            "CreateFreeThreaded HRESULT:",
+            hex(
+                hr & 0xffffffff
+            )
+        )
+
 
 
         if hr != 0:
 
-            print(
-                "HRESULT:",
-                hex(hr)
+            raise OSError(
+                hr,
+                "CreateFreeThreaded fallo"
             )
-
-            return False
-
-
-
-        self.factory = factory
 
 
 
         print(
-            "IActivationFactory OK:",
-            factory
+            "FRAMEPOOL:",
+            result
         )
 
 
-        return True
-
-
-
-    def get_pointer(self):
-
-        return self.factory
+        return result

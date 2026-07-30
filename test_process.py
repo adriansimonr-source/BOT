@@ -1,4 +1,7 @@
-from core.process_manager import ProcessManager
+import time
+
+
+from core.managers.window_manager import WindowManager
 
 from core.managers.direct3d_device import (
     Direct3DDeviceManager
@@ -8,32 +11,41 @@ from core.managers.direct3d_converter import (
     Direct3DConverter
 )
 
-import winrt.windows.graphics.capture as capture
-import winrt.windows.graphics.directx as directx
-import winrt.windows.graphics.capture.interop as wgc_interop
+from core.managers.wgc_framepool_abi import (
+    WGCFramePoolABI
+)
 
-from winrt.windows.foundation import Size
+from core.managers.wgc_item_abi import (
+    WGCItemABI
+)
+
+from core.managers.wgc_session_abi import (
+    WGCSessionABI
+)
+
+from core.managers.wgc_frame_reader_abi import (
+    WGCFrameReaderABI
+)
 
 
 
-pm = ProcessManager()
+# ==================================================
+# WINDOW
+# ==================================================
+
+window = WindowManager()
 
 
-
-if not pm.find_process(
-    "KathanaGame.exe"
+if not window.find_window_by_title(
+    "Kathana - The Reign of Shadow"
 ):
 
-    print(
-        "Juego no encontrado"
+    raise Exception(
+        "Kathana no encontrada"
     )
 
-    exit()
 
-
-
-hwnd = pm.get_window_handle()
-
+hwnd = window.hwnd
 
 
 print(
@@ -43,127 +55,191 @@ print(
 
 
 
-# =====================================
-# GraphicsCaptureItem
-# =====================================
+# ==================================================
+# D3D11 DEVICE
+# ==================================================
 
-item = (
-    wgc_interop
-    .create_for_window(
-        hwnd
+d3d_manager = Direct3DDeviceManager()
+
+
+if not d3d_manager.create_device():
+
+    raise Exception(
+        "Error creando D3D11"
     )
-)
+
+
+d3d_device = d3d_manager.get_device()
 
 
 
-print(
-    "ITEM OK"
-)
-
-
-
-# =====================================
-# D3D11
-# =====================================
-
-d3d = Direct3DDeviceManager()
-
-
-if not d3d.create_device():
-
-    exit()
-
-
-
-# =====================================
-# Convertir a WinRT
-# =====================================
+# ==================================================
+# WINRT DEVICE
+# ==================================================
 
 converter = Direct3DConverter()
 
 
 if not converter.create_winrt_device(
-    d3d.get_device()
+    d3d_device
 ):
 
-    exit()
-
-
-
-device = converter.get_device()
-
-
-
-print(
-    "DEVICE WINRT:",
-    device
-)
-
-
-print(
-    "TIPO DEVICE:",
-    type(device)
-)
-
-
-
-# =====================================
-# Tamaño
-# =====================================
-
-position = (
-    pm.get_window_position()
-)
-
-
-
-size = Size(
-    position["width"],
-    position["height"]
-)
-
-
-
-print(
-    "SIZE:",
-    size.width,
-    size.height
-)
-
-
-
-# =====================================
-# Crear FramePool
-# =====================================
-
-print(
-    "CREANDO FRAMEPOOL"
-)
-
-
-
-pool = (
-    capture
-    .Direct3D11CaptureFramePool
-    .create_free_threaded(
-        device,
-
-        directx
-        .DirectXPixelFormat
-        .B8_G8_R8_A8_UINT_NORMALIZED,
-
-        2,
-
-        size
+    raise Exception(
+        "Error convirtiendo device"
     )
+
+
+winrt_device = converter.get_device()
+
+
+
+print(
+    "DEVICE WINRT:"
+)
+
+print(
+    winrt_device
+)
+
+
+
+# ==================================================
+# FRAMEPOOL
+# ==================================================
+
+framepool_abi = WGCFramePoolABI()
+
+
+print(
+    "Inicializando STATICS2"
+)
+
+
+framepool_abi.get_statics2()
+
+
+
+framepool = framepool_abi.create_free_threaded(
+
+    winrt_device,
+
+    1920,
+
+    1080
+
 )
 
 
 
 print(
-    "FRAMEPOOL CREADO:"
+    "FRAMEPOOL:"
 )
 
 print(
-    pool
+    framepool
 )
+
+
+
+# ==================================================
+# ITEM
+# ==================================================
+
+item_abi = WGCItemABI()
+
+
+item = item_abi.create_for_window(
+
+    hwnd
+
+)
+
+
+
+print(
+    "ITEM:"
+)
+
+print(
+    item
+)
+
+
+
+# ==================================================
+# SESSION
+# ==================================================
+
+session_abi = WGCSessionABI()
+
+
+session = session_abi.create_session(
+
+    framepool,
+
+    item
+
+)
+
+
+
+print(
+    "SESSION:"
+)
+
+print(
+    session
+)
+
+
+
+session_abi.start_capture()
+
+
+
+print(
+    "CAPTURA FUNCIONANDO"
+)
+
+
+
+# ==================================================
+# FRAME READER
+# ==================================================
+
+reader = WGCFrameReaderABI()
+
+
+reader.set_framepool(
+
+    framepool
+
+)
+
+
+
+print(
+    "Esperando frames..."
+)
+
+
+
+while True:
+
+
+    frame = reader.try_get_frame()
+
+
+
+    if frame:
+
+        print(
+            "FRAME RECIBIDO:",
+            frame
+        )
+
+
+
+    time.sleep(
+        0.01
+    )
