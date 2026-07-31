@@ -1,72 +1,165 @@
 from core.models.game_state import GameState
 
+from core.managers.vision_manager import VisionManager
+
+
+
+
 
 class GameStateManager:
 
-    def __init__(self, process_manager):
+
+    def __init__(
+
+        self,
+
+        process_manager
+
+    ):
+
 
         self.process_manager = process_manager
+
+
+        # Estado global del juego
 
         self.state = GameState()
 
 
+
+        # Sistema de visión
+
+        self.vision = VisionManager()
+
+
+
+        self.running = False
+
+
+
+
+
+
     # =====================================
-    # Actualización del estado
+    # START
     # =====================================
 
-    def update(self):
 
-        if self.process_manager.is_connected():
+    def start(self):
 
-            self.state.connected = True
 
-        else:
+        if self.running:
 
-            self.state.connected = False
             return
 
 
-        # =====================================
-        # Datos temporales del jugador
-        # (más adelante vendrán del lector)
-        # =====================================
 
-        player = self.state.player
-
-        player.name = "Davion"
-
-        player.level = 1
-
-        player.hp = 2500
-        player.max_hp = 3000
-
-        player.mp = 800
-        player.max_mp = 1000
-
-        player.x = 125
-        player.y = 340
+        self.vision.start()
 
 
-        # =====================================
-        # Datos temporales del objetivo
-        # =====================================
+        self.running = True
 
-        target = self.state.target
 
-        target.exists = True
 
-        target.name = "Goblin Guerrero"
+        print(
 
-        target.level = 25
+            "[GameStateManager] iniciado"
 
-        target.hp = 500
-        target.max_hp = 1000
+        )
+
+
+
+
 
 
 
     # =====================================
-    # Acceso
+    # UPDATE
     # =====================================
+
+
+    def update(self):
+
+
+        if not self.process_manager.is_connected():
+
+
+            self.state.connected = False
+
+
+            return
+
+
+
+
+
+        self.state.connected = True
+
+
+
+
+
+        if not self.running:
+
+            return
+
+
+
+
+
+        # Actualizar visión
+
+        self.vision.update(
+
+            self.state
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # STOP
+    # =====================================
+
+
+    def stop(self):
+
+
+        if not self.running:
+
+            return
+
+
+
+        self.vision.stop()
+
+
+        self.running = False
+
+
+
+        print(
+
+            "[GameStateManager] detenido"
+
+        )
+
+
+
+
+
+
+
+    # =====================================
+    # STATE ACCESS
+    # =====================================
+
 
     def get_state(self):
 

@@ -1,0 +1,15 @@
+{
+    "Ban Dopang": {
+        "priority":5,
+        "ignore":false,
+        "elite":false,
+        "boss":false
+    },
+
+    "Ban Zangkun": {
+        "priority":5,
+        "ignore":false,
+        "elite":false,
+        "boss":false
+    }
+}

@@ -1,211 +1,353 @@
-import time
 import cv2
 
+
 from core.services.capture_engine import CaptureEngine
+from core.services.template_manager import TemplateManager
+from core.services.template_detector import TemplateDetector
+from core.services.hud_resolver import HUDResolver
+from core.services.target_validator import TargetValidator
 
 
 
 TITLE = "Kathana - The Reign of Shadow"
 
-WIDTH = 1920
-HEIGHT = 1080
 
-PREVIEW = (960, 540)
 
 
 
-def section(text):
+def main():
 
-    print()
-    print("=" * 40)
-    print(text)
-    print("=" * 40)
 
+    print("=" * 60)
+    print(" TARGET VALIDATOR TEST ")
+    print("=" * 60)
 
 
 
+    # =====================================
+    # Captura
+    # =====================================
 
-# ==========================================
-# CAPTURE ENGINE
-# ==========================================
 
+    capture = CaptureEngine(
 
-section(
-    "CAPTURE PIPELINE TEST"
-)
+        TITLE,
 
+        1920,
 
-capture = CaptureEngine(
+        1080
 
-    TITLE,
+    )
 
-    WIDTH,
 
-    HEIGHT
+    capture.start()
 
-)
 
 
+    frame = capture.get_frame()
 
-capture.start()
 
 
-print(
-    "[OK] Window -> D3D -> WGC -> GPU Pipeline"
-)
+    image = frame.image
 
 
 
+    cv2.imwrite(
 
+        "validator_frame.png",
 
-# ==========================================
-# LOOP
-# ==========================================
+        image
 
+    )
 
-frames = 0
 
-start = time.time()
 
+    print("[OK] Frame capturado")
 
-first = True
 
 
 
-try:
 
+    # =====================================
+    # Servicios
+    # =====================================
 
-    while True:
 
+    manager = TemplateManager()
 
+    detector = TemplateDetector()
 
-        frame = capture.get_frame()
+    resolver = HUDResolver()
 
+    validator = TargetValidator()
 
 
-        if first:
 
 
-            section(
-                "FRAME VALIDATION"
-            )
 
+    # =====================================
+    # PLAYER
+    # =====================================
 
-            print(
 
-                frame.info()
+    print("\n--- PLAYER ---")
 
-            )
 
 
-            print(
+    player_template = manager.get(
 
-                "[OK] Texture -> CPU -> Frame"
+        "player_anchor"
 
-            )
+    )
 
 
-            first = False
 
+    player_detection = detector.detect(
 
+        image,
 
+        player_template
 
+    )
 
-        frames += 1
 
 
+    print(
 
-        fps = frames / (
-            time.time() - start
+        "PLAYER ANCHOR:",
+
+        player_detection
+
+    )
+
+
+
+
+
+    if player_detection:
+
+
+        player_region = manager.get(
+
+            "player_hud"
+
         )
 
 
 
+        player_hud = resolver.resolve(
 
+            player_detection,
 
-
-        image = cv2.resize(
-
-            frame.image,
-
-            PREVIEW
+            player_region
 
         )
 
 
 
-        cv2.putText(
+        print(
+
+            "PLAYER HUD:",
+
+            player_hud
+
+        )
+
+
+
+        player_crop = resolver.crop(
 
             image,
 
-            f"FPS: {fps:.1f}",
-
-            (20,40),
-
-            cv2.FONT_HERSHEY_SIMPLEX,
-
-            1,
-
-            (0,255,0),
-
-            2
+            player_hud
 
         )
 
 
 
-        cv2.imshow(
+        cv2.imwrite(
 
-            "BOT VISION",
+            "player_hud_validator.png",
 
-            image
+            player_crop
+
+        )
+
+
+        print(
+
+            "[OK] player_hud_validator.png creado"
 
         )
 
 
 
 
-        if cv2.waitKey(1) == 27:
-
-            break
 
 
 
+    # =====================================
+    # ENEMY
+    # =====================================
 
 
-finally:
-
-
-    capture.stop()
-
-
-    cv2.destroyAllWindows()
+    print("\n--- ENEMY ---")
 
 
 
+    enemy_template = manager.get(
 
+        "enemy_anchor"
 
-section(
-    "RESULT"
-)
-
-
-
-print(
-    "Frames:",
-    frames
-)
-
-
-print(
-    "FPS:",
-    round(
-        frames/(time.time()-start),
-        2
     )
-)
 
 
-print(
-    "[OK] PIPELINE COMPLETED"
-)
+
+    enemy_detection = detector.detect(
+
+        image,
+
+        enemy_template
+
+    )
+
+
+
+    print(
+
+        "ENEMY ANCHOR:",
+
+        enemy_detection
+
+    )
+
+
+
+
+
+    if enemy_detection:
+
+
+
+        enemy_region = manager.get(
+
+            "enemy_hud"
+
+        )
+
+
+
+        enemy_hud = resolver.resolve(
+
+            enemy_detection,
+
+            enemy_region
+
+        )
+
+
+
+        print(
+
+            "ENEMY HUD:",
+
+            enemy_hud
+
+        )
+
+
+
+        enemy_crop = resolver.crop(
+
+            image,
+
+            enemy_hud
+
+        )
+
+
+
+        cv2.imwrite(
+
+            "enemy_hud_validator.png",
+
+            enemy_crop
+
+        )
+
+
+        print(
+
+            "[OK] enemy_hud_validator.png creado"
+
+        )
+
+
+
+
+
+        # -----------------------------
+        # VALIDACION
+        # -----------------------------
+
+
+        valid_enemy = validator.validate_enemy(
+
+            enemy_crop
+
+        )
+
+
+
+        print()
+
+        print(
+
+            "RESULTADO ENEMY:",
+
+            valid_enemy
+
+        )
+
+
+        if valid_enemy:
+
+            print(
+
+                "[OK] Objetivo enemigo valido"
+
+            )
+
+        else:
+
+            print(
+
+                "[FAIL] No parece enemigo"
+
+            )
+
+
+
+    else:
+
+
+        print(
+
+            "[INFO] No se detectó enemy_anchor"
+
+        )
+
+
+
+
+
+    print("\nFIN TEST")
+
+
+
+
+
+
+if __name__ == "__main__":
+
+    main()

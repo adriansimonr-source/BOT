@@ -5,42 +5,38 @@ from core.models.enemy_state import EnemyState
 
 class GameState:
 
+
     def __init__(self):
 
-        # =====================================
-        # Conexión
         # =====================================
 
         self.connected = False
 
 
-        # =====================================
-        # Entidades
-        # =====================================
+        # Jugador actual
 
         self.player = PlayerState()
+
 
         # Objetivo seleccionado actualmente
 
         self.target = TargetState()
 
+        # Enemigos detectados por visión
 
-        # Objetivos detectados por visión
+        self.visible_targets: list[EnemyState] = []
 
-        self.visible_targets = []
-
-
-
-        # =====================================
-        # Combate global
-        # =====================================
 
         self.in_combat = False
-
-
-
-        # =====================================
-        # Buffs globales
-        # =====================================
-
         self.buffs = []
+
+
+    def reset(self):
+
+
+        self.connected = False
+        self.player.reset()
+        self.target.reset()
+        self.visible_targets.clear()
+        self.in_combat = False
+        self.buffs.clear()

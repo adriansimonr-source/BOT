@@ -3,46 +3,27 @@ class EnemyState:
 
     def __init__(self):
 
-        # Existe actualmente
 
         self.exists = False
 
 
-        # =========================
-        # Información básica
-        # =========================
 
         self.name = ""
 
         self.level = 0
 
 
-        # =========================
-        # Vida
-        # =========================
 
-        self.hp = 0
-
-        self.max_hp = 0
+        self.hp_percent = 0
 
 
-        # =========================
-        # Posición
-        # =========================
 
         self.distance = 0
 
 
-        # =========================
-        # Estado visual
-        # =========================
-
         self.visible = False
 
 
-        # =========================
-        # Tipo enemigo
-        # =========================
 
         self.is_elite = False
 
@@ -50,18 +31,40 @@ class EnemyState:
 
 
 
+
+        self.targetable = False
+
+        self.priority = 0
+
+
+
+
     def clear(self):
 
+
         self.exists = False
+
 
         self.name = ""
 
         self.level = 0
 
-        self.hp = 0
 
-        self.max_hp = 0
+        self.hp_percent = 0
+
+
 
         self.distance = 0
 
+
         self.visible = False
+
+
+        self.is_elite = False
+
+        self.is_boss = False
+
+
+        self.targetable = False
+
+        self.priority = 0

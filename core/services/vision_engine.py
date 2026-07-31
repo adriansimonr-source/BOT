@@ -11,21 +11,27 @@ from core.models.detection import Detection
 class VisionEngine:
 
 
+    def __init__(
 
-    def __init__(self):
+        self,
+
+        region_manager=None
+
+    ):
 
 
         self.previous = None
 
+        self.region_manager = region_manager
+
 
 
 
 
 
     # =====================================
-    # Procesar frame
+    # Frame completo
     # =====================================
-
 
     def process(
 
@@ -44,8 +50,6 @@ class VisionEngine:
 
 
 
-
-
         gray = cv2.cvtColor(
 
             image,
@@ -56,28 +60,16 @@ class VisionEngine:
 
 
 
-
-
-        #
-        # Primer frame
-        #
-
         if self.previous is None:
 
 
             self.previous = gray
-
 
             return result
 
 
 
 
-
-
-        #
-        # Diferencia
-        #
 
         diff = cv2.absdiff(
 
@@ -93,11 +85,7 @@ class VisionEngine:
 
 
 
-
-
         result.score = float(score)
-
-
 
         result.changed = score > 5
 
@@ -110,3 +98,67 @@ class VisionEngine:
 
 
         return result
+
+
+
+
+
+
+
+
+    # =====================================
+    # Procesar región
+    # =====================================
+
+    def process_region(
+
+        self,
+
+        frame,
+
+        region_name
+
+    ):
+
+
+        if self.region_manager is None:
+
+            raise RuntimeError(
+
+                "RegionManager no configurado"
+
+            )
+
+
+
+
+
+        region = self.region_manager.get(
+
+            region_name
+
+        )
+
+
+
+        if region is None:
+
+            raise ValueError(
+
+                f"Region no existe: {region_name}"
+
+            )
+
+
+
+
+
+        crop = region.crop(
+
+            frame.image
+
+        )
+
+
+
+        return crop
