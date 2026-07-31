@@ -9,6 +9,8 @@ from core.services.name_matcher import NameMatcher
 from core.services.player_monitor import PlayerMonitor
 from core.services.enemy_monitor import EnemyMonitor
 
+from core.managers.entity_cache_manager import EntityCacheManager
+
 
 
 
@@ -43,6 +45,7 @@ class VisionManager:
         self.bar_reader = BarReader()
 
 
+
         self.name_matcher = NameMatcher()
 
 
@@ -64,6 +67,13 @@ class VisionManager:
 
 
 
+        self.entity_cache = EntityCacheManager()
+
+
+
+
+
+
         self.player_monitor = PlayerMonitor(
 
             self.detector,
@@ -74,9 +84,13 @@ class VisionManager:
 
             self.templates,
 
-            self.name_matcher
+            self.name_matcher,
+
+            self.entity_cache
 
         )
+
+
 
 
 
@@ -92,7 +106,9 @@ class VisionManager:
 
             self.templates,
 
-            self.name_matcher
+            self.name_matcher,
+
+            self.entity_cache
 
         )
 
@@ -106,6 +122,11 @@ class VisionManager:
 
 
 
+
+
+    # =====================================
+    # START
+    # =====================================
 
 
     def start(self):
@@ -136,6 +157,11 @@ class VisionManager:
 
 
 
+
+
+    # =====================================
+    # UPDATE
+    # =====================================
 
 
     def update(
@@ -174,6 +200,7 @@ class VisionManager:
 
 
 
+
         self.player_monitor.update(
 
             image,
@@ -181,6 +208,7 @@ class VisionManager:
             state.player
 
         )
+
 
 
 
@@ -201,6 +229,11 @@ class VisionManager:
 
 
 
+
+
+    # =====================================
+    # STOP
+    # =====================================
 
 
     def stop(self):

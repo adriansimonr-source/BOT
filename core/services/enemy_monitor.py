@@ -19,7 +19,9 @@ class EnemyMonitor:
 
         templates,
 
-        name_matcher
+        name_matcher,
+
+        entity_cache
 
     ):
 
@@ -34,10 +36,17 @@ class EnemyMonitor:
 
         self.name_matcher = name_matcher
 
+        self.entity_cache = entity_cache
 
 
 
 
+
+
+
+    # =====================================
+    # UPDATE
+    # =====================================
 
 
     def update(
@@ -66,7 +75,6 @@ class EnemyMonitor:
         )
 
 
-
         enemy_anchor = self.detector.detect(
 
             image,
@@ -82,7 +90,10 @@ class EnemyMonitor:
 
             target_state.reset()
 
+            self.entity_cache.clear_enemy()
+
             return False
+
 
 
 
@@ -97,7 +108,6 @@ class EnemyMonitor:
         )
 
 
-
         enemy_hud = self.resolver.resolve(
 
             enemy_anchor,
@@ -110,11 +120,9 @@ class EnemyMonitor:
 
         if not enemy_hud:
 
-
             target_state.reset()
 
             return False
-
 
 
 
@@ -133,9 +141,6 @@ class EnemyMonitor:
 
         if hud_image is None:
 
-
-            target_state.reset()
-
             return False
 
 
@@ -144,79 +149,28 @@ class EnemyMonitor:
 
 
 
-
-        target_state.exists = True
-
-
-
+        # =====================================
+        # IDENTIDAD ENEMIGO
+        # =====================================
 
 
-
-
-        # =========================
-        # NOMBRE
-        # =========================
-
-
-        name_region = self.templates.get(
-
-            "enemy_name"
-
-        )
-
-
-        name_image = self.crop_region(
+        self.read_identity(
 
             hud_image,
 
-            name_region
+            target_state
 
         )
 
 
 
-        if name_image is not None:
-
-
-            name = self.name_matcher.match_enemy(
-
-                name_image
-
-            )
-
-
-            if name:
-
-                target_state.name = name
 
 
 
 
-
-
-
-        # =========================
-        # NIVEL
-        # =========================
-
-
-        level_region = self.templates.get(
-
-            "enemy_level"
-
-        )
-
-        # Preparado para futuro
-
-
-
-
-
-
-
-        # =========================
+        # =====================================
         # HP
-        # =========================
+        # =====================================
 
 
         hp_region = self.templates.get(
@@ -237,16 +191,15 @@ class EnemyMonitor:
 
 
 
-        target_state.hp_percent = (
+        target_state.hp_percent = self.bar_reader.read_enemy_hp(
 
-            self.bar_reader.read_enemy_hp(
-
-                hp_image
-
-            )
+            hp_image
 
         )
 
+
+
+        target_state.exists = True
 
 
 
@@ -256,6 +209,131 @@ class EnemyMonitor:
 
 
 
+
+
+    # =====================================
+    # OCR ENEMIGO
+    # =====================================
+
+
+    def read_identity(
+
+        self,
+
+        hud_image,
+
+        target_state
+
+    ):
+
+
+        name_region = self.templates.get(
+
+            "enemy_name"
+
+        )
+
+
+        name_image = self.crop_region(
+
+            hud_image,
+
+            name_region
+
+        )
+
+
+
+        name = self.name_matcher.read_enemy_name(
+
+            name_image
+
+        )
+
+
+
+        if not name:
+
+            return
+
+
+
+
+
+        if self.entity_cache.enemy_changed(
+
+            name
+
+        ):
+
+
+            level_region = self.templates.get(
+
+                "enemy_level"
+
+            )
+
+
+            level_image = self.crop_region(
+
+                hud_image,
+
+                level_region
+
+            )
+
+
+            level = self.name_matcher.read_number(
+
+                level_image
+
+            )
+
+
+
+            target_state.name = name
+
+            target_state.level = level
+
+
+
+            self.entity_cache.update_enemy(
+
+                name,
+
+                level
+
+            )
+
+
+
+        else:
+
+
+            target_state.name = (
+
+                self.entity_cache.current_enemy_name
+
+            )
+
+
+            target_state.level = (
+
+                self.entity_cache.current_enemy_level
+
+            )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # CROP
+    # =====================================
 
 
     def crop_region(
@@ -269,53 +347,27 @@ class EnemyMonitor:
     ):
 
 
-        if image is None or region is None:
+        if image is None:
 
             return None
 
 
 
-        x = region.get(
+        if region is None:
 
-            "x",
-
-            0
-
-        )
-
-
-        y = region.get(
-
-            "y",
-
-            0
-
-        )
-
-
-        width = region.get(
-
-            "width",
-
-            0
-
-        )
-
-
-        height = region.get(
-
-            "height",
-
-            0
-
-        )
+            return None
 
 
 
         return image[
 
-            y:y + height,
+            region["y"]:
 
-            x:x + width
+            region["y"] + region["height"],
+
+
+            region["x"]:
+
+            region["x"] + region["width"]
 
         ]

@@ -2,6 +2,8 @@ import os
 import cv2
 import numpy as np
 
+from core.services.ocr_reader import OCRReader
+
 
 
 
@@ -26,12 +28,16 @@ class NameMatcher:
         self.player_templates = {}
 
 
+        self.ocr = OCRReader()
+
+
+
 
 
 
 
     # =====================================
-    # LOAD
+    # LOAD TEMPLATES
     # =====================================
 
 
@@ -75,6 +81,8 @@ class NameMatcher:
 
 
 
+
+
     def load_folder(
 
         self,
@@ -99,7 +107,7 @@ class NameMatcher:
         for file in os.listdir(path):
 
 
-            if not file.endswith(".png"):
+            if not file.lower().endswith(".png"):
 
                 continue
 
@@ -107,15 +115,19 @@ class NameMatcher:
 
 
 
+            filepath = os.path.join(
+
+                path,
+
+                file
+
+            )
+
+
+
             image = cv2.imread(
 
-                os.path.join(
-
-                    path,
-
-                    file
-
-                ),
+                filepath,
 
                 cv2.IMREAD_GRAYSCALE
 
@@ -154,7 +166,7 @@ class NameMatcher:
 
 
     # =====================================
-    # MATCH
+    # MATCH PUBLIC
     # =====================================
 
 
@@ -205,6 +217,143 @@ class NameMatcher:
 
 
 
+
+    # =====================================
+    # OCR PUBLIC
+    # =====================================
+
+
+    def read_enemy_name(
+
+        self,
+
+        image
+
+    ):
+
+
+        # Primero intentamos template
+
+        result = self.match_enemy(
+
+            image
+
+        )
+
+
+        if result:
+
+            return self.normalize(
+
+                result
+
+            )
+
+
+
+
+
+        # Si no existe usamos OCR
+
+
+        result = self.ocr.read_text(
+
+            image
+
+        )
+
+
+
+        return self.normalize(
+
+            result
+
+        )
+
+
+
+
+
+
+
+
+
+    def read_player_name(
+
+        self,
+
+        image
+
+    ):
+
+
+        result = self.match_player(
+
+            image
+
+        )
+
+
+        if result:
+
+            return self.normalize(
+
+                result
+
+            )
+
+
+
+
+
+        result = self.ocr.read_text(
+
+            image
+
+        )
+
+
+
+        return self.normalize(
+
+            result
+
+        )
+
+
+
+
+
+
+
+    def read_number(
+
+        self,
+
+        image
+
+    ):
+
+
+        return self.ocr.read_number(
+
+            image
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # CORE TEMPLATE MATCH
+    # =====================================
+
+
     def match(
 
         self,
@@ -253,9 +402,17 @@ class NameMatcher:
         for name, template in templates.items():
 
 
+
+            current = gray
+
+
+
+
+
             if gray.shape != template.shape:
 
-                resized = cv2.resize(
+
+                current = cv2.resize(
 
                     gray,
 
@@ -269,23 +426,21 @@ class NameMatcher:
 
                 )
 
-            else:
-
-                resized = gray
-
 
 
 
 
             result = cv2.matchTemplate(
 
-                resized,
+                current,
 
                 template,
 
                 cv2.TM_CCOEFF_NORMED
 
             )
+
+
 
 
 
@@ -297,6 +452,7 @@ class NameMatcher:
 
             if score > best_score:
 
+
                 best_score = score
 
                 best_name = name
@@ -305,7 +461,10 @@ class NameMatcher:
 
 
 
+
+
         if best_score >= self.threshold:
+
 
             return best_name
 
@@ -314,3 +473,67 @@ class NameMatcher:
 
 
         return None
+
+
+
+
+
+
+
+    # =====================================
+    # NORMALIZAR NOMBRE
+    # =====================================
+
+
+    def normalize(
+
+        self,
+
+        text
+
+    ):
+
+
+        if not text:
+
+            return ""
+
+
+
+        text = str(text)
+
+
+
+        replacements = {
+
+            "\n": " ",
+
+            "_": " "
+
+        }
+
+
+
+        for old, new in replacements.items():
+
+            text = text.replace(
+
+                old,
+
+                new
+
+            )
+
+
+
+
+
+        text = " ".join(
+
+            text.split()
+
+        )
+
+
+
+        return text.strip()

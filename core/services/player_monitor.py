@@ -19,7 +19,9 @@ class PlayerMonitor:
 
         templates,
 
-        name_matcher
+        name_matcher,
+
+        entity_cache
 
     ):
 
@@ -34,10 +36,17 @@ class PlayerMonitor:
 
         self.name_matcher = name_matcher
 
+        self.entity_cache = entity_cache
 
 
 
 
+
+
+
+    # =====================================
+    # UPDATE
+    # =====================================
 
 
     def update(
@@ -59,7 +68,7 @@ class PlayerMonitor:
 
 
 
-        anchor_template = self.templates.get(
+        player_anchor_template = self.templates.get(
 
             "player_anchor"
 
@@ -71,7 +80,7 @@ class PlayerMonitor:
 
             image,
 
-            anchor_template
+            player_anchor_template
 
         )
 
@@ -79,11 +88,9 @@ class PlayerMonitor:
 
         if not player_anchor:
 
-
             player_state.reset()
 
             return False
-
 
 
 
@@ -110,7 +117,6 @@ class PlayerMonitor:
 
         if not player_hud:
 
-
             player_state.reset()
 
             return False
@@ -132,8 +138,6 @@ class PlayerMonitor:
 
         if hud_image is None:
 
-            player_state.reset()
-
             return False
 
 
@@ -142,58 +146,16 @@ class PlayerMonitor:
 
 
 
-        # =========================
-        # NOMBRE
-        # =========================
+        # =====================================
+        # IDENTIDAD
+        # =====================================
 
 
-        name_region = self.templates.get(
-
-            "player_name"
-
-        )
-
-
-        name_image = self.crop_region(
+        self.read_identity(
 
             hud_image,
 
-            name_region
-
-        )
-
-
-        if name_image is not None:
-
-
-            name = self.name_matcher.match_player(
-
-                name_image
-
-            )
-
-
-            if name:
-
-                player_state.name = name
-
-
-
-
-
-
-
-
-        # =========================
-        # NIVEL
-        # =========================
-
-
-        # Reservado para reconocimiento futuro
-
-        level_region = self.templates.get(
-
-            "player_level"
+            player_state
 
         )
 
@@ -203,9 +165,9 @@ class PlayerMonitor:
 
 
 
-        # =========================
+        # =====================================
         # HP
-        # =========================
+        # =====================================
 
 
         hp_region = self.templates.get(
@@ -224,13 +186,10 @@ class PlayerMonitor:
         )
 
 
-        player_state.hp_percent = (
 
-            self.bar_reader.read_hp(
+        player_state.hp_percent = self.bar_reader.read_hp(
 
-                hp_image
-
-            )
+            hp_image
 
         )
 
@@ -240,9 +199,9 @@ class PlayerMonitor:
 
 
 
-        # =========================
+        # =====================================
         # MP
-        # =========================
+        # =====================================
 
 
         mp_region = self.templates.get(
@@ -261,15 +220,13 @@ class PlayerMonitor:
         )
 
 
-        player_state.mp_percent = (
 
-            self.bar_reader.read_mp(
+        player_state.mp_percent = self.bar_reader.read_mp(
 
-                mp_image
-
-            )
+            mp_image
 
         )
+
 
 
 
@@ -280,6 +237,117 @@ class PlayerMonitor:
 
 
 
+
+
+    # =====================================
+    # OCR IDENTIDAD
+    # =====================================
+
+
+    def read_identity(
+
+        self,
+
+        hud_image,
+
+        player_state
+
+    ):
+
+
+
+        # Nombre una única vez
+
+        if self.entity_cache.need_player_name():
+
+
+            region = self.templates.get(
+
+                "player_name"
+
+            )
+
+
+            name_image = self.crop_region(
+
+                hud_image,
+
+                region
+
+            )
+
+
+            name = self.name_matcher.read_player_name(
+
+                name_image
+
+            )
+
+
+
+            if name:
+
+
+                player_state.name = name
+
+
+                self.entity_cache.player_name_loaded_ok()
+
+
+
+
+
+
+
+        # Nivel cada 30 minutos
+
+
+        if self.entity_cache.need_player_level():
+
+
+            region = self.templates.get(
+
+                "player_level"
+
+            )
+
+
+
+            level_image = self.crop_region(
+
+                hud_image,
+
+                region
+
+            )
+
+
+
+            level = self.name_matcher.read_number(
+
+                level_image
+
+            )
+
+
+
+            if level > 0:
+
+                player_state.level = level
+
+
+
+            self.entity_cache.update_player_level_time()
+
+
+
+
+
+
+
+    # =====================================
+    # CROP
+    # =====================================
 
 
     def crop_region(
@@ -293,53 +361,27 @@ class PlayerMonitor:
     ):
 
 
-        if image is None or region is None:
+        if image is None:
 
             return None
 
 
 
-        x = region.get(
+        if region is None:
 
-            "x",
-
-            0
-
-        )
-
-
-        y = region.get(
-
-            "y",
-
-            0
-
-        )
-
-
-        width = region.get(
-
-            "width",
-
-            0
-
-        )
-
-
-        height = region.get(
-
-            "height",
-
-            0
-
-        )
+            return None
 
 
 
         return image[
 
-            y:y + height,
+            region["y"]:
 
-            x:x + width
+            region["y"] + region["height"],
+
+
+            region["x"]:
+
+            region["x"] + region["width"]
 
         ]
