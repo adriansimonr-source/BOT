@@ -2,6 +2,8 @@ import ctypes
 
 
 
+
+
 class WGCSessionABI:
 
 
@@ -11,14 +13,23 @@ class WGCSessionABI:
 
 
 
+
+
+
+
     # ==================================================
     # Crear GraphicsCaptureSession
     # ==================================================
 
+
     def create_session(
+
         self,
+
         framepool,
+
         item
+
     ):
 
 
@@ -27,16 +38,19 @@ class WGCSessionABI:
         )
 
 
-        # Obtener vtable del FramePool
 
         obj = ctypes.cast(
 
             framepool,
 
             ctypes.POINTER(
+
                 ctypes.POINTER(
+
                     ctypes.c_void_p
+
                 )
+
             )
 
         )
@@ -46,55 +60,20 @@ class WGCSessionABI:
 
 
 
-        print(
-            "VTABLE FRAMEPOOL"
-        )
-
-
-        for i in range(12):
-
-            print(
-                i,
-                hex(
-                    ctypes.cast(
-                        vtable[i],
-                        ctypes.c_void_p
-                    ).value
-                )
-            )
-
-
-
-        #
-        # IDirect3D11CaptureFramePool : IInspectable
-        #
-        # 0 QueryInterface
-        # 1 AddRef
-        # 2 Release
-        # 3 GetIids
-        # 4 GetRuntimeClassName
-        # 5 GetTrustLevel
-        #
-        # 6 Recreate
-        # 7 TryGetNextFrame
-        # 8 FrameArrived add
-        # 9 FrameArrived remove
-        # 10 CreateCaptureSession
-        # 11 DispatcherQueue
-        #
-
 
 
         CreateCaptureSession = ctypes.CFUNCTYPE(
 
             ctypes.c_long,
 
-            ctypes.c_void_p,       # this
+            ctypes.c_void_p,
 
-            ctypes.c_void_p,       # GraphicsCaptureItem
+            ctypes.c_void_p,
 
             ctypes.POINTER(
+
                 ctypes.c_void_p
+
             )
 
         )(
@@ -102,6 +81,8 @@ class WGCSessionABI:
             vtable[10]
 
         )
+
+
 
 
 
@@ -116,7 +97,9 @@ class WGCSessionABI:
             item,
 
             ctypes.byref(
+
                 session
+
             )
 
         )
@@ -124,10 +107,15 @@ class WGCSessionABI:
 
 
         print(
+
             "CreateCaptureSession HRESULT:",
+
             hex(
+
                 hr & 0xffffffff
+
             )
+
         )
 
 
@@ -135,20 +123,28 @@ class WGCSessionABI:
         if hr != 0:
 
             raise OSError(
+
                 hr,
+
                 "CreateCaptureSession fallo"
+
             )
 
 
 
-        print(
-            "SESSION:",
-            session
-        )
-
 
 
         self.session = session
+
+
+
+        print(
+
+            "SESSION:",
+
+            session
+
+        )
 
 
 
@@ -158,20 +154,19 @@ class WGCSessionABI:
 
 
 
+
+
     # ==================================================
-    # StartCapture
+    # Debug session
     # ==================================================
 
-    def start_capture(
-        self
-    ):
+
+    def debug_session(self):
 
 
         if self.session is None:
 
-            raise RuntimeError(
-                "No existe session"
-            )
+            return
 
 
 
@@ -180,9 +175,13 @@ class WGCSessionABI:
             self.session,
 
             ctypes.POINTER(
+
                 ctypes.POINTER(
+
                     ctypes.c_void_p
+
                 )
+
             )
 
         )
@@ -193,26 +192,97 @@ class WGCSessionABI:
 
 
         print(
+
             "VTABLE SESSION"
+
         )
 
 
-        for i in range(8):
+
+        for i in range(10):
+
 
             print(
+
                 i,
+
                 hex(
+
                     ctypes.cast(
+
                         vtable[i],
+
                         ctypes.c_void_p
+
                     ).value
+
                 )
+
             )
 
 
 
+
+
+
+
+
+
+    # ==================================================
+    # StartCapture
+    # ==================================================
+
+
+    def start_capture(
+
+        self
+
+    ):
+
+
+        if self.session is None:
+
+            raise RuntimeError(
+
+                "No existe session"
+
+            )
+
+
+
+
+
+        self.debug_session()
+
+
+
+
+
+        obj = ctypes.cast(
+
+            self.session,
+
+            ctypes.POINTER(
+
+                ctypes.POINTER(
+
+                    ctypes.c_void_p
+
+                )
+
+            )
+
+        )
+
+
+        vtable = obj.contents
+
+
+
+
+
         #
-        # IGraphicsCaptureSession : IInspectable
+        # IGraphicsCaptureSession
         #
         # 0 QueryInterface
         # 1 AddRef
@@ -239,8 +309,12 @@ class WGCSessionABI:
 
 
 
+
+
         print(
+
             "Ejecutando StartCapture"
+
         )
 
 
@@ -253,24 +327,40 @@ class WGCSessionABI:
 
 
 
+
+
         print(
+
             "StartCapture HRESULT:",
+
             hex(
+
                 hr & 0xffffffff
+
             )
+
         )
+
+
 
 
 
         if hr != 0:
 
             raise OSError(
+
                 hr,
+
                 "StartCapture fallo"
+
             )
 
 
 
+
+
         print(
+
             "CAPTURA INICIADA"
+
         )

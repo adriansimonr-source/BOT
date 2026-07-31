@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QProgressBar,
     QLabel,
-    QHBoxLayout,
+    QHBoxLayout
 )
 
 
@@ -12,14 +12,7 @@ from PySide6.QtWidgets import (
 class ResourceBar(QWidget):
 
 
-    def __init__(
-
-        self,
-
-        name
-
-    ):
-
+    def __init__(self, name):
 
         super().__init__()
 
@@ -33,12 +26,10 @@ class ResourceBar(QWidget):
 
 
 
-
     def setup_ui(self):
 
 
         layout = QHBoxLayout()
-
 
 
         self.label = QLabel(
@@ -48,9 +39,7 @@ class ResourceBar(QWidget):
         )
 
 
-
         self.bar = QProgressBar()
-
 
 
         self.bar.setMinimum(
@@ -76,14 +65,11 @@ class ResourceBar(QWidget):
 
 
 
-
-
         layout.addWidget(
 
             self.label
 
         )
-
 
 
         layout.addWidget(
@@ -93,15 +79,11 @@ class ResourceBar(QWidget):
         )
 
 
-
         layout.addWidget(
 
             self.value_label
 
         )
-
-
-
 
 
         layout.setContentsMargins(
@@ -117,9 +99,6 @@ class ResourceBar(QWidget):
         )
 
 
-
-
-
         self.setLayout(
 
             layout
@@ -132,9 +111,8 @@ class ResourceBar(QWidget):
 
 
 
-
     # =====================================
-    # Actualización por porcentaje
+    # ACTUALIZAR PORCENTAJE
     # =====================================
 
 
@@ -152,31 +130,68 @@ class ResourceBar(QWidget):
             value = 0
 
 
-
         if value > 100:
 
             value = 100
 
 
 
-
-
-        value = int(value)
-
-
-
-
-
         self.bar.setValue(
 
-            value
+            int(value)
+
+        )
+
+
+        self.value_label.setText(
+
+            f"{int(value)}%"
 
         )
 
 
 
-        self.value_label.setText(
 
-            f"{value}%"
+
+    # Compatibilidad
+    # =====================================
+
+
+    def update_value(
+
+        self,
+
+        current,
+
+        maximum
+
+    ):
+
+
+        if maximum <= 0:
+
+            self.update_percent(
+
+                0
+
+            )
+
+            return
+
+
+
+        percent = (
+
+            current /
+
+            maximum
+
+        ) * 100
+
+
+
+        self.update_percent(
+
+            percent
 
         )

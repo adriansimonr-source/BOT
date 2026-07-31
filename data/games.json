@@ -1,0 +1,20 @@
+{
+    "games": [
+
+        {
+            "id": "kathana",
+
+            "name": "Kathana - The Reign of Shadow",
+
+            "process": "KathanaGame.exe",
+
+            "window": "Kathana - The Reign of Shadow",
+
+            "resolution": {
+                "width": 1920,
+                "height": 1080
+            }
+        }
+
+    ]
+}

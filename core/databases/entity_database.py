@@ -8,6 +8,11 @@ class EntityDatabase:
 
         self.enemies = {}
 
+        self.items = {}
+
+
+
+
 
 
 
@@ -27,12 +32,66 @@ class EntityDatabase:
     ):
 
 
+        if not name:
+
+            return
+
+
+
         if data is None:
 
-            data = {}
+            data = {
+
+                "level": 0,
+
+                "class": "",
+
+                "last_seen": None
+
+            }
+
 
 
         self.players[name] = data
+
+
+
+
+
+
+
+    def update_player(
+
+        self,
+
+        name,
+
+        data
+
+    ):
+
+
+        if name not in self.players:
+
+            self.add_player(
+
+                name,
+
+                data
+
+            )
+
+            return
+
+
+
+        self.players[name].update(
+
+            data
+
+        )
+
+
 
 
 
@@ -57,6 +116,19 @@ class EntityDatabase:
 
 
 
+
+
+    def get_players(self):
+
+
+        return self.players
+
+
+
+
+
+
+
     def is_player(
 
         self,
@@ -67,6 +139,27 @@ class EntityDatabase:
 
 
         return name in self.players
+
+
+
+
+
+
+
+    def remove_player(
+
+        self,
+
+        name
+
+    ):
+
+
+        if name in self.players:
+
+            del self.players[name]
+
+
 
 
 
@@ -90,9 +183,18 @@ class EntityDatabase:
     ):
 
 
+        if not name:
+
+            return
+
+
+
         if data is None:
 
+
             data = {
+
+                "level": 0,
 
                 "priority": 0,
 
@@ -100,12 +202,82 @@ class EntityDatabase:
 
                 "elite": False,
 
-                "boss": False
+                "boss": False,
+
+                "encounters": 0
 
             }
 
 
+
         self.enemies[name] = data
+
+
+
+
+
+
+
+    def update_enemy(
+
+        self,
+
+        name,
+
+        data
+
+    ):
+
+
+        if name not in self.enemies:
+
+
+            self.add_enemy(
+
+                name,
+
+                data
+
+            )
+
+            return
+
+
+
+        self.enemies[name].update(
+
+            data
+
+        )
+
+
+
+
+
+
+
+    def register_enemy_encounter(
+
+        self,
+
+        name
+
+    ):
+
+
+        if name not in self.enemies:
+
+            self.add_enemy(
+
+                name
+
+            )
+
+
+
+        self.enemies[name]["encounters"] += 1
+
+
 
 
 
@@ -130,6 +302,19 @@ class EntityDatabase:
 
 
 
+
+
+    def get_enemies(self):
+
+
+        return self.enemies
+
+
+
+
+
+
+
     def is_enemy(
 
         self,
@@ -147,8 +332,29 @@ class EntityDatabase:
 
 
 
+    def remove_enemy(
+
+        self,
+
+        name
+
+    ):
+
+
+        if name in self.enemies:
+
+            del self.enemies[name]
+
+
+
+
+
+
+
+
+
     # =====================================
-    # FILTROS
+    # FILTROS ENEMIGOS
     # =====================================
 
 
@@ -166,6 +372,7 @@ class EntityDatabase:
             name
 
         )
+
 
 
         if enemy is None:
@@ -204,6 +411,7 @@ class EntityDatabase:
         )
 
 
+
         if enemy is None:
 
             return 0
@@ -240,6 +448,7 @@ class EntityDatabase:
         )
 
 
+
         if enemy is None:
 
             return False
@@ -253,3 +462,110 @@ class EntityDatabase:
             False
 
         )
+
+
+
+
+
+
+
+    def is_elite(
+
+        self,
+
+        name
+
+    ):
+
+
+        enemy = self.get_enemy(
+
+            name
+
+        )
+
+
+
+        if enemy is None:
+
+            return False
+
+
+
+        return enemy.get(
+
+            "elite",
+
+            False
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # ITEMS (PREPARADO)
+    # =====================================
+
+
+    def add_item(
+
+        self,
+
+        name,
+
+        data=None
+
+    ):
+
+
+        if data is None:
+
+            data = {
+
+                "keep": False,
+
+                "value": 0
+
+            }
+
+
+
+        self.items[name] = data
+
+
+
+
+
+
+
+    def get_item(
+
+        self,
+
+        name
+
+    ):
+
+
+        return self.items.get(
+
+            name
+
+        )
+
+
+
+
+
+
+
+    def get_items(self):
+
+
+        return self.items

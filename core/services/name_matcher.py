@@ -1,6 +1,5 @@
 import os
 import cv2
-import numpy as np
 
 from core.services.ocr_reader import OCRReader
 
@@ -74,8 +73,6 @@ class NameMatcher:
             path
 
         )
-
-
 
 
 
@@ -166,7 +163,7 @@ class NameMatcher:
 
 
     # =====================================
-    # MATCH PUBLIC
+    # TEMPLATE MATCH
     # =====================================
 
 
@@ -218,142 +215,6 @@ class NameMatcher:
 
 
 
-    # =====================================
-    # OCR PUBLIC
-    # =====================================
-
-
-    def read_enemy_name(
-
-        self,
-
-        image
-
-    ):
-
-
-        # Primero intentamos template
-
-        result = self.match_enemy(
-
-            image
-
-        )
-
-
-        if result:
-
-            return self.normalize(
-
-                result
-
-            )
-
-
-
-
-
-        # Si no existe usamos OCR
-
-
-        result = self.ocr.read_text(
-
-            image
-
-        )
-
-
-
-        return self.normalize(
-
-            result
-
-        )
-
-
-
-
-
-
-
-
-
-    def read_player_name(
-
-        self,
-
-        image
-
-    ):
-
-
-        result = self.match_player(
-
-            image
-
-        )
-
-
-        if result:
-
-            return self.normalize(
-
-                result
-
-            )
-
-
-
-
-
-        result = self.ocr.read_text(
-
-            image
-
-        )
-
-
-
-        return self.normalize(
-
-            result
-
-        )
-
-
-
-
-
-
-
-    def read_number(
-
-        self,
-
-        image
-
-    ):
-
-
-        return self.ocr.read_number(
-
-            image
-
-        )
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # CORE TEMPLATE MATCH
-    # =====================================
-
-
     def match(
 
         self,
@@ -389,8 +250,6 @@ class NameMatcher:
 
 
 
-
-
         best_name = None
 
         best_score = 0
@@ -402,10 +261,7 @@ class NameMatcher:
         for name, template in templates.items():
 
 
-
             current = gray
-
-
 
 
 
@@ -439,8 +295,6 @@ class NameMatcher:
                 cv2.TM_CCOEFF_NORMED
 
             )
-
-
 
 
 
@@ -481,7 +335,156 @@ class NameMatcher:
 
 
     # =====================================
-    # NORMALIZAR NOMBRE
+    # READ PLAYER
+    # =====================================
+
+
+    def read_player_name(
+
+        self,
+
+        image
+
+    ):
+
+
+        name = self.match_player(
+
+            image
+
+        )
+
+
+
+        if name:
+
+            return self.normalize(
+
+                name
+
+            )
+
+
+
+
+
+        name = self.ocr.read_text(
+
+            image
+
+        )
+
+
+
+        return self.normalize(
+
+            name
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # READ ENEMY
+    # =====================================
+
+
+    def read_enemy_name(
+
+        self,
+
+        image
+
+    ):
+
+
+        name = self.match_enemy(
+
+            image
+
+        )
+
+
+
+        if name:
+
+            return self.normalize(
+
+                name
+
+            )
+
+
+
+
+
+        name = self.ocr.read_text(
+
+            image
+
+        )
+
+
+
+        return self.normalize(
+
+            name
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # READ NUMBER
+    # =====================================
+
+
+    def read_number(
+
+        self,
+
+        image
+
+    ):
+
+
+        value = self.ocr.read_number(
+
+            image
+
+        )
+
+
+        try:
+
+            return int(value)
+
+
+        except:
+
+
+            return 0
+
+
+
+
+
+
+
+    # =====================================
+    # NORMALIZE OCR TEXT
     # =====================================
 
 
@@ -504,29 +507,74 @@ class NameMatcher:
 
 
 
-        replacements = {
-
-            "\n": " ",
-
-            "_": " "
-
-        }
 
 
+        # Saltos de línea
 
-        for old, new in replacements.items():
+        text = text.replace(
+
+            "\n",
+
+            " "
+
+        )
+
+
+
+
+
+        # Caracteres basura habituales OCR
+
+        garbage = [
+
+            "|",
+
+            "_",
+
+            "-",
+
+            "—",
+
+            "–",
+
+            ".",
+
+            ",",
+
+            ":",
+
+            ";",
+
+            "~",
+
+            "`",
+
+            "'",
+
+            "\""
+
+        ]
+
+
+
+
+
+        for char in garbage:
+
 
             text = text.replace(
 
-                old,
+                char,
 
-                new
+                ""
 
             )
 
 
 
 
+
+        # Espacios duplicados
 
         text = " ".join(
 
@@ -536,4 +584,20 @@ class NameMatcher:
 
 
 
-        return text.strip()
+
+
+        text = text.strip()
+
+
+
+
+
+        if len(text) < 2:
+
+            return ""
+
+
+
+
+
+        return text

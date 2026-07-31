@@ -1,16 +1,31 @@
 import psutil
 
 from core.managers.window_manager import WindowManager
+from core.managers.config_manager import ConfigManager
+from core.managers.game_profile_manager import GameProfileManager
+
 
 
 class ProcessManager:
 
-
     def __init__(self):
 
-        # ===============================
-        # Datos del proceso
-        # ===============================
+        self.config = ConfigManager()
+
+        self.game_profiles = GameProfileManager()
+
+
+        active_game = self.config.get(
+            "active_game"
+        )
+
+
+        if active_game:
+
+            self.game_profiles.set_active_game(
+                active_game
+            )
+
 
         self.process = None
 
@@ -19,25 +34,32 @@ class ProcessManager:
         self.name = None
 
 
-        # ===============================
-        # Ventana del proceso
-        # ===============================
+        self.window_title = None
+
 
         self.window_manager = WindowManager()
 
 
 
-    # =====================================
-    # Buscar proceso
-    # =====================================
-
     def find_process(
         self,
-        process_name: str
+        process_name=None
     ):
 
+        self.disconnect()
 
-        self.process = None
+
+        if process_name is None:
+
+            process_name = (
+                self.game_profiles.get_process()
+            )
+
+
+        if process_name is None:
+
+            return False
+
 
 
         for process in psutil.process_iter(
@@ -54,40 +76,38 @@ class ProcessManager:
 
                 if name == process_name:
 
-
                     self.process = process
 
-
-                    self.pid = (
-                        process.info["pid"]
-                    )
-
+                    self.pid = process.info["pid"]
 
                     self.name = name
 
 
+                    window_title = (
+                        self.game_profiles.get_window()
+                    )
 
-                    # =====================================
-                    # Buscar ventana del juego
-                    # =====================================
 
                     found_window = (
                         self.window_manager.find_window_by_pid(
                             self.pid,
-                            "Kathana - The Reign of Shadow"
+                            window_title
                         )
                     )
 
 
-                    # Si el proceso no tiene la ventana,
-                    # buscar por título global
-
                     if not found_window:
 
-                        self.window_manager.find_window_by_title(
-                            "Kathana - The Reign of Shadow"
+                        found_window = (
+                            self.window_manager.find_window_by_title(
+                                window_title
+                            )
                         )
 
+
+                    if found_window:
+
+                        self.window_title = window_title
 
 
                     return True
@@ -107,9 +127,58 @@ class ProcessManager:
 
 
 
-    # =====================================
-    # Estado conexión
-    # =====================================
+
+
+    def set_game(
+        self,
+        game_id
+    ):
+
+        return self.game_profiles.set_active_game(
+            game_id
+        )
+
+
+
+
+
+    def get_active_game(self):
+
+        return (
+            self.game_profiles.get_active_game()
+        )
+
+
+
+
+
+    def find_window_only(
+        self,
+        title=None
+    ):
+
+        if title is None:
+
+            title = self.game_profiles.get_window()
+
+
+        found = (
+            self.window_manager.find_window_by_title(
+                title
+            )
+        )
+
+
+        if found:
+
+            self.window_title = title
+
+
+        return found
+
+
+
+
 
     def is_connected(self):
 
@@ -123,15 +192,13 @@ class ProcessManager:
             return self.process.is_running()
 
 
-        except:
+        except psutil.Error:
 
             return False
 
 
 
-    # =====================================
-    # Información proceso
-    # =====================================
+
 
     def get_pid(self):
 
@@ -151,16 +218,15 @@ class ProcessManager:
 
 
 
-    # =====================================
-    # Información ventana
-    # =====================================
+
 
     def has_window(self):
 
         return (
-            self.window_manager.hwnd
-            is not None
+            self.window_manager.hwnd is not None
         )
+
+
 
 
 
@@ -172,6 +238,8 @@ class ProcessManager:
 
 
 
+
+
     def get_window_handle(self):
 
         return (
@@ -180,9 +248,45 @@ class ProcessManager:
 
 
 
-    # =====================================
-    # Limpiar
-    # =====================================
+
+
+    def get_window_title(self):
+
+        return self.window_title
+
+
+
+
+
+    def get_configured_process(self):
+
+        return (
+            self.game_profiles.get_process()
+        )
+
+
+
+
+
+    def get_configured_window(self):
+
+        return (
+            self.game_profiles.get_window()
+        )
+
+
+
+
+
+    def get_available_games(self):
+
+        return (
+            self.game_profiles.get_games()
+        )
+
+
+
+
 
     def disconnect(self):
 
@@ -191,5 +295,7 @@ class ProcessManager:
         self.pid = None
 
         self.name = None
+
+        self.window_title = None
 
         self.window_manager.hwnd = None

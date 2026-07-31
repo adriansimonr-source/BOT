@@ -21,7 +21,9 @@ class EnemyMonitor:
 
         name_matcher,
 
-        entity_cache
+        entity_cache,
+
+        entity_database
 
     ):
 
@@ -37,6 +39,8 @@ class EnemyMonitor:
         self.name_matcher = name_matcher
 
         self.entity_cache = entity_cache
+
+        self.entity_database = entity_database
 
 
 
@@ -75,6 +79,14 @@ class EnemyMonitor:
         )
 
 
+        if anchor_template is None:
+
+            return False
+
+
+
+
+
         enemy_anchor = self.detector.detect(
 
             image,
@@ -85,15 +97,17 @@ class EnemyMonitor:
 
 
 
+        # No hay objetivo visible
+
         if not enemy_anchor:
 
 
-            target_state.reset()
+            target_state.exists = False
 
-            self.entity_cache.clear_enemy()
+            target_state.hp_percent = 0
+
 
             return False
-
 
 
 
@@ -108,6 +122,14 @@ class EnemyMonitor:
         )
 
 
+        if hud_template is None:
+
+            return False
+
+
+
+
+
         enemy_hud = self.resolver.resolve(
 
             enemy_anchor,
@@ -120,9 +142,8 @@ class EnemyMonitor:
 
         if not enemy_hud:
 
-            target_state.reset()
-
             return False
+
 
 
 
@@ -149,11 +170,6 @@ class EnemyMonitor:
 
 
 
-        # =====================================
-        # IDENTIDAD ENEMIGO
-        # =====================================
-
-
         self.read_identity(
 
             hud_image,
@@ -164,38 +180,15 @@ class EnemyMonitor:
 
 
 
-
-
-
-
-        # =====================================
-        # HP
-        # =====================================
-
-
-        hp_region = self.templates.get(
-
-            "enemy_hp"
-
-        )
-
-
-
-        hp_image = self.crop_region(
+        self.read_health(
 
             hud_image,
 
-            hp_region
+            target_state
 
         )
 
 
-
-        target_state.hp_percent = self.bar_reader.read_enemy_hp(
-
-            hp_image
-
-        )
 
 
 
@@ -212,7 +205,7 @@ class EnemyMonitor:
 
 
     # =====================================
-    # OCR ENEMIGO
+    # IDENTIDAD
     # =====================================
 
 
@@ -227,11 +220,13 @@ class EnemyMonitor:
     ):
 
 
+
         name_region = self.templates.get(
 
             "enemy_name"
 
         )
+
 
 
         name_image = self.crop_region(
@@ -244,9 +239,39 @@ class EnemyMonitor:
 
 
 
+        if name_image is None:
+
+            return
+
+
+
+
+
+
+
         name = self.name_matcher.read_enemy_name(
 
             name_image
+
+        )
+
+
+
+        if not self.valid_name(name):
+
+            return
+
+
+
+
+
+
+
+        # Resolver contra base de datos
+
+        name = self.entity_database.resolve_enemy_name(
+
+            name
 
         )
 
@@ -260,11 +285,19 @@ class EnemyMonitor:
 
 
 
+
+
+        # Enemigo nuevo o cambiado
+
         if self.entity_cache.enemy_changed(
 
             name
 
         ):
+
+
+            level = 0
+
 
 
             level_region = self.templates.get(
@@ -283,17 +316,25 @@ class EnemyMonitor:
             )
 
 
-            level = self.name_matcher.read_number(
 
-                level_image
+            if level_image is not None:
 
-            )
+
+                level = self.name_matcher.read_number(
+
+                    level_image
+
+                )
+
+
 
 
 
             target_state.name = name
 
             target_state.level = level
+
+
 
 
 
@@ -304,6 +345,16 @@ class EnemyMonitor:
                 level
 
             )
+
+
+
+            self.entity_database.register_enemy_seen(
+
+                name
+
+            )
+
+
 
 
 
@@ -324,6 +375,100 @@ class EnemyMonitor:
             )
 
 
+
+
+
+
+
+
+
+    # =====================================
+    # VIDA
+    # =====================================
+
+
+    def read_health(
+
+        self,
+
+        hud_image,
+
+        target_state
+
+    ):
+
+
+        hp_region = self.templates.get(
+
+            "enemy_hp"
+
+        )
+
+
+
+        hp_image = self.crop_region(
+
+            hud_image,
+
+            hp_region
+
+        )
+
+
+
+        if hp_image is None:
+
+            return
+
+
+
+
+
+        target_state.hp_percent = (
+
+            self.bar_reader.read_enemy_hp(
+
+                hp_image
+
+            )
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # VALIDACION
+    # =====================================
+
+
+    def valid_name(
+
+        self,
+
+        name
+
+    ):
+
+
+        if not name:
+
+            return False
+
+
+
+        if len(name) < 2:
+
+            return False
+
+
+
+        return True
 
 
 
@@ -359,15 +504,57 @@ class EnemyMonitor:
 
 
 
+
+
+        x = region.get(
+
+            "x",
+
+            0
+
+        )
+
+
+        y = region.get(
+
+            "y",
+
+            0
+
+        )
+
+
+        width = region.get(
+
+            "width",
+
+            0
+
+        )
+
+
+        height = region.get(
+
+            "height",
+
+            0
+
+        )
+
+
+
+        if width <= 0 or height <= 0:
+
+            return None
+
+
+
+
+
         return image[
 
-            region["y"]:
+            y:y + height,
 
-            region["y"] + region["height"],
-
-
-            region["x"]:
-
-            region["x"] + region["width"]
+            x:x + width
 
         ]

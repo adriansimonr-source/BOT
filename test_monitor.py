@@ -1,15 +1,7 @@
+from core.services.name_matcher import NameMatcher
+from core.services.ocr_reader import OCRReader
+
 import cv2
-
-
-from core.services.capture_engine import CaptureEngine
-from core.services.template_manager import TemplateManager
-from core.services.template_detector import TemplateDetector
-from core.services.hud_resolver import HUDResolver
-from core.services.target_validator import TargetValidator
-
-
-
-TITLE = "Kathana - The Reign of Shadow"
 
 
 
@@ -18,331 +10,83 @@ TITLE = "Kathana - The Reign of Shadow"
 def main():
 
 
-    print("=" * 60)
-    print(" TARGET VALIDATOR TEST ")
-    print("=" * 60)
+    matcher = NameMatcher()
 
 
 
-    # =====================================
-    # Captura
-    # =====================================
-
-
-    capture = CaptureEngine(
-
-        TITLE,
-
-        1920,
-
-        1080
-
+    matcher.load_enemy_templates(
+        "data/entities/enemies"
     )
 
 
-    capture.start()
-
-
-
-    frame = capture.get_frame()
-
-
-
-    image = frame.image
-
-
-
-    cv2.imwrite(
-
-        "validator_frame.png",
-
-        image
-
-    )
-
-
-
-    print("[OK] Frame capturado")
-
-
-
-
-
-    # =====================================
-    # Servicios
-    # =====================================
-
-
-    manager = TemplateManager()
-
-    detector = TemplateDetector()
-
-    resolver = HUDResolver()
-
-    validator = TargetValidator()
-
-
-
-
-
-    # =====================================
-    # PLAYER
-    # =====================================
-
-
-    print("\n--- PLAYER ---")
-
-
-
-    player_template = manager.get(
-
-        "player_anchor"
-
-    )
-
-
-
-    player_detection = detector.detect(
-
-        image,
-
-        player_template
-
+    matcher.load_player_templates(
+        "data/entities/players"
     )
 
 
 
     print(
-
-        "PLAYER ANCHOR:",
-
-        player_detection
-
+        "Enemies templates:",
+        matcher.enemy_templates.keys()
     )
-
-
-
-
-
-    if player_detection:
-
-
-        player_region = manager.get(
-
-            "player_hud"
-
-        )
-
-
-
-        player_hud = resolver.resolve(
-
-            player_detection,
-
-            player_region
-
-        )
-
-
-
-        print(
-
-            "PLAYER HUD:",
-
-            player_hud
-
-        )
-
-
-
-        player_crop = resolver.crop(
-
-            image,
-
-            player_hud
-
-        )
-
-
-
-        cv2.imwrite(
-
-            "player_hud_validator.png",
-
-            player_crop
-
-        )
-
-
-        print(
-
-            "[OK] player_hud_validator.png creado"
-
-        )
-
-
-
-
-
-
-
-    # =====================================
-    # ENEMY
-    # =====================================
-
-
-    print("\n--- ENEMY ---")
-
-
-
-    enemy_template = manager.get(
-
-        "enemy_anchor"
-
-    )
-
-
-
-    enemy_detection = detector.detect(
-
-        image,
-
-        enemy_template
-
-    )
-
 
 
     print(
-
-        "ENEMY ANCHOR:",
-
-        enemy_detection
-
+        "Players templates:",
+        matcher.player_templates.keys()
     )
 
 
 
 
 
-    if enemy_detection:
+    # ==========================
+    # PRUEBA CON IMAGENES LIVE
+    # ==========================
+
+
+    enemy = cv2.imread(
+        "live_enemy_name.png"
+    )
+
+
+    player = cv2.imread(
+        "live_player_name.png"
+    )
 
 
 
-        enemy_region = manager.get(
 
-            "enemy_hud"
 
+    print()
+
+    print(
+        "========== PLAYER =========="
+    )
+
+
+    print(
+        matcher.read_player_name(
+            player
         )
+    )
 
 
 
-        enemy_hud = resolver.resolve(
 
-            enemy_detection,
 
-            enemy_region
+    print()
 
+    print(
+        "========== ENEMY =========="
+    )
+
+
+    print(
+        matcher.read_enemy_name(
+            enemy
         )
-
-
-
-        print(
-
-            "ENEMY HUD:",
-
-            enemy_hud
-
-        )
-
-
-
-        enemy_crop = resolver.crop(
-
-            image,
-
-            enemy_hud
-
-        )
-
-
-
-        cv2.imwrite(
-
-            "enemy_hud_validator.png",
-
-            enemy_crop
-
-        )
-
-
-        print(
-
-            "[OK] enemy_hud_validator.png creado"
-
-        )
-
-
-
-
-
-        # -----------------------------
-        # VALIDACION
-        # -----------------------------
-
-
-        valid_enemy = validator.validate_enemy(
-
-            enemy_crop
-
-        )
-
-
-
-        print()
-
-        print(
-
-            "RESULTADO ENEMY:",
-
-            valid_enemy
-
-        )
-
-
-        if valid_enemy:
-
-            print(
-
-                "[OK] Objetivo enemigo valido"
-
-            )
-
-        else:
-
-            print(
-
-                "[FAIL] No parece enemigo"
-
-            )
-
-
-
-    else:
-
-
-        print(
-
-            "[INFO] No se detectó enemy_anchor"
-
-        )
-
-
-
-
-
-    print("\nFIN TEST")
-
+    )
 
 
 

@@ -21,7 +21,9 @@ class PlayerMonitor:
 
         name_matcher,
 
-        entity_cache
+        entity_cache,
+
+        entity_database
 
     ):
 
@@ -37,6 +39,8 @@ class PlayerMonitor:
         self.name_matcher = name_matcher
 
         self.entity_cache = entity_cache
+
+        self.entity_database = entity_database
 
 
 
@@ -68,7 +72,7 @@ class PlayerMonitor:
 
 
 
-        player_anchor_template = self.templates.get(
+        anchor_template = self.templates.get(
 
             "player_anchor"
 
@@ -76,11 +80,19 @@ class PlayerMonitor:
 
 
 
+        if anchor_template is None:
+
+            return False
+
+
+
+
+
         player_anchor = self.detector.detect(
 
             image,
 
-            player_anchor_template
+            anchor_template
 
         )
 
@@ -88,9 +100,8 @@ class PlayerMonitor:
 
         if not player_anchor:
 
-            player_state.reset()
-
             return False
+
 
 
 
@@ -102,6 +113,14 @@ class PlayerMonitor:
             "player_hud"
 
         )
+
+
+
+        if hud_template is None:
+
+            return False
+
+
 
 
 
@@ -117,9 +136,8 @@ class PlayerMonitor:
 
         if not player_hud:
 
-            player_state.reset()
-
             return False
+
 
 
 
@@ -146,11 +164,6 @@ class PlayerMonitor:
 
 
 
-        # =====================================
-        # IDENTIDAD
-        # =====================================
-
-
         self.read_identity(
 
             hud_image,
@@ -163,67 +176,11 @@ class PlayerMonitor:
 
 
 
-
-
-        # =====================================
-        # HP
-        # =====================================
-
-
-        hp_region = self.templates.get(
-
-            "player_hp"
-
-        )
-
-
-        hp_image = self.crop_region(
+        self.read_resources(
 
             hud_image,
 
-            hp_region
-
-        )
-
-
-
-        player_state.hp_percent = self.bar_reader.read_hp(
-
-            hp_image
-
-        )
-
-
-
-
-
-
-
-        # =====================================
-        # MP
-        # =====================================
-
-
-        mp_region = self.templates.get(
-
-            "player_mp"
-
-        )
-
-
-        mp_image = self.crop_region(
-
-            hud_image,
-
-            mp_region
-
-        )
-
-
-
-        player_state.mp_percent = self.bar_reader.read_mp(
-
-            mp_image
+            player_state
 
         )
 
@@ -240,7 +197,7 @@ class PlayerMonitor:
 
 
     # =====================================
-    # OCR IDENTIDAD
+    # IDENTIDAD
     # =====================================
 
 
@@ -256,7 +213,10 @@ class PlayerMonitor:
 
 
 
-        # Nombre una única vez
+        # ==========================
+        # NOMBRE
+        # ==========================
+
 
         if self.entity_cache.need_player_name():
 
@@ -277,29 +237,45 @@ class PlayerMonitor:
             )
 
 
-            name = self.name_matcher.read_player_name(
-
-                name_image
-
-            )
+            if name_image is not None:
 
 
+                name = self.name_matcher.read_player_name(
 
-            if name:
+                    name_image
 
-
-                player_state.name = name
-
-
-                self.entity_cache.player_name_loaded_ok()
+                )
 
 
 
+                if self.valid_name(name):
+
+
+                    name = self.entity_database.resolve_player_name(
+
+                        name
+
+                    )
+
+
+
+                    if name:
+
+
+                        player_state.name = name
+
+
+                        self.entity_cache.player_name_loaded_ok()
 
 
 
 
-        # Nivel cada 30 minutos
+
+
+
+        # ==========================
+        # NIVEL
+        # ==========================
 
 
         if self.entity_cache.need_player_level():
@@ -312,7 +288,6 @@ class PlayerMonitor:
             )
 
 
-
             level_image = self.crop_region(
 
                 hud_image,
@@ -323,21 +298,149 @@ class PlayerMonitor:
 
 
 
-            level = self.name_matcher.read_number(
+            if level_image is not None:
 
-                level_image
+
+                level = self.name_matcher.read_number(
+
+                    level_image
+
+                )
+
+
+
+                if level > 0:
+
+
+                    player_state.level = level
+
+
+
+
+
+            self.entity_cache.update_player_level_time()
+
+
+
+
+
+
+
+    # =====================================
+    # RECURSOS
+    # =====================================
+
+
+    def read_resources(
+
+        self,
+
+        hud_image,
+
+        player_state
+
+    ):
+
+
+        hp_region = self.templates.get(
+
+            "player_hp"
+
+        )
+
+
+        hp_image = self.crop_region(
+
+            hud_image,
+
+            hp_region
+
+        )
+
+
+        if hp_image is not None:
+
+
+            player_state.hp_percent = (
+
+                self.bar_reader.read_hp(
+
+                    hp_image
+
+                )
 
             )
 
 
 
-            if level > 0:
-
-                player_state.level = level
 
 
 
-            self.entity_cache.update_player_level_time()
+
+        mp_region = self.templates.get(
+
+            "player_mp"
+
+        )
+
+
+        mp_image = self.crop_region(
+
+            hud_image,
+
+            mp_region
+
+        )
+
+
+        if mp_image is not None:
+
+
+            player_state.mp_percent = (
+
+                self.bar_reader.read_mp(
+
+                    mp_image
+
+                )
+
+            )
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # VALIDACION NOMBRE
+    # =====================================
+
+
+    def valid_name(
+
+        self,
+
+        name
+
+    ):
+
+
+        if not name:
+
+            return False
+
+
+
+        if len(name) < 2:
+
+            return False
+
+
+
+        return True
 
 
 
@@ -373,15 +476,57 @@ class PlayerMonitor:
 
 
 
+
+
+        x = region.get(
+
+            "x",
+
+            0
+
+        )
+
+
+        y = region.get(
+
+            "y",
+
+            0
+
+        )
+
+
+        width = region.get(
+
+            "width",
+
+            0
+
+        )
+
+
+        height = region.get(
+
+            "height",
+
+            0
+
+        )
+
+
+
+        if width <= 0 or height <= 0:
+
+            return None
+
+
+
+
+
         return image[
 
-            region["y"]:
+            y:y + height,
 
-            region["y"] + region["height"],
-
-
-            region["x"]:
-
-            region["x"] + region["width"]
+            x:x + width
 
         ]
