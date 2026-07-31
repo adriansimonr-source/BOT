@@ -1,37 +1,121 @@
-import cv2
+from core.services.capture_engine import CaptureEngine
 
+from core.services.template_manager import TemplateManager
+from core.services.template_detector import TemplateDetector
+from core.services.hud_resolver import HUDResolver
 from core.services.ocr_reader import OCRReader
 
+import cv2
+import time
 
 
-BASE_PATH = "data/templates/regions"
 
 
 
-def load_image(filename):
+def crop_region(
 
-    path = f"{BASE_PATH}/{filename}"
+    image,
 
-    image = cv2.imread(path)
+    region
+
+):
+
 
     if image is None:
 
-        raise Exception(
-            f"No se pudo cargar {path}"
-        )
-
-    return image
+        return None
 
 
+    if region is None:
+
+        return None
 
 
 
-def crop(image, x, y, width, height):
+    x = region.get(
+
+        "x",
+
+        0
+
+    )
+
+
+    y = region.get(
+
+        "y",
+
+        0
+
+    )
+
+
+    width = region.get(
+
+        "width",
+
+        0
+
+    )
+
+
+    height = region.get(
+
+        "height",
+
+        0
+
+    )
+
+
 
     return image[
-        y:y+height,
-        x:x+width
+
+        y:y + height,
+
+        x:x + width
+
     ]
+
+
+
+
+
+
+
+def save_debug(
+
+    name,
+
+    image
+
+):
+
+
+    if image is None:
+
+        return
+
+
+    cv2.imwrite(
+
+        name,
+
+        image
+
+    )
+
+
+    print(
+
+        "[SAVE]",
+
+        name
+
+    )
+
+
+
 
 
 
@@ -40,118 +124,446 @@ def crop(image, x, y, width, height):
 def main():
 
 
-    reader = OCRReader()
+    templates = TemplateManager()
+
+
+    detector = TemplateDetector()
+
+
+    resolver = HUDResolver()
+
+
+    ocr = OCRReader()
 
 
 
-    print("\n========== PLAYER HUD ==========")
 
 
-    hud = load_image(
-        "player_hud.png"
-    )
+    capture = CaptureEngine(
 
+        "Kathana - The Reign of Shadow",
 
-    # Según tu JSON actual
-    # player_name:
-    # x=5 y=0 width=200 height=18
+        1920,
 
-    name_img = crop(
-        hud,
-        5,
-        0,
-        200,
-        18
-    )
+        1080
 
-
-    level_img = crop(
-        hud,
-        220,
-        0,
-        35,
-        18
     )
 
 
 
-    name = reader.read_text(
-        name_img
+
+
+    capture.start()
+
+
+
+    print(
+
+        "Esperando captura..."
+
     )
 
 
-    level = reader.read_number(
-        level_img
+
+    time.sleep(2)
+
+
+
+
+
+    frame = capture.get_frame()
+
+
+
+    if frame is None:
+
+        print(
+
+            "No hay frame"
+
+        )
+
+        return
+
+
+
+
+
+    image = frame.image
+
+
+
+
+
+    # ==============================
+    # PLAYER
+    # ==============================
+
+
+    print()
+
+    print(
+
+        "========== PLAYER =========="
+
+    )
+
+
+
+    player_anchor_template = templates.get(
+
+        "player_anchor"
+
+    )
+
+
+
+    player_anchor = detector.detect(
+
+        image,
+
+        player_anchor_template
+
     )
 
 
 
     print(
-        "Nombre:",
-        name
+
+        "ANCHOR:",
+
+        player_anchor
+
     )
+
+
+
+
+
+    if player_anchor:
+
+
+        player_hud_template = templates.get(
+
+            "player_hud"
+
+        )
+
+
+        player_hud = resolver.resolve(
+
+            player_anchor,
+
+            player_hud_template
+
+        )
+
+
+        print(
+
+            "HUD:",
+
+            player_hud
+
+        )
+
+
+
+        hud_image = resolver.crop(
+
+            image,
+
+            player_hud
+
+        )
+
+
+
+        save_debug(
+
+            "live_player_hud.png",
+
+            hud_image
+
+        )
+
+
+
+
+
+        name_region = templates.get(
+
+            "player_name"
+
+        )
+
+
+        name_image = crop_region(
+
+            hud_image,
+
+            name_region
+
+        )
+
+
+        save_debug(
+
+            "live_player_name.png",
+
+            name_image
+
+        )
+
+
+
+
+
+        print(
+
+            "PLAYER NAME:",
+
+            ocr.read_text(
+
+                name_image
+
+            )
+
+        )
+
+
+
+
+
+        level_region = templates.get(
+
+            "player_level"
+
+        )
+
+
+        level_image = crop_region(
+
+            hud_image,
+
+            level_region
+
+        )
+
+
+
+        save_debug(
+
+            "live_player_level.png",
+
+            level_image
+
+        )
+
+
+
+        print(
+
+            "PLAYER LEVEL:",
+
+            ocr.read_number(
+
+                level_image
+
+            )
+
+        )
+
+
+
+
+
+
+
+    # ==============================
+    # ENEMY
+    # ==============================
+
+
+    print()
+
+    print(
+
+        "========== ENEMY =========="
+
+    )
+
+
+
+    enemy_anchor_template = templates.get(
+
+        "enemy_anchor"
+
+    )
+
+
+
+    enemy_anchor = detector.detect(
+
+        image,
+
+        enemy_anchor_template
+
+    )
+
 
 
     print(
-        "Nivel:",
-        level
+
+        "ANCHOR:",
+
+        enemy_anchor
+
     )
 
 
 
 
 
-    print("\n========== ENEMY HUD ==========")
+    if enemy_anchor:
 
 
-    enemy = load_image(
-        "enemy_hud.png"
-    )
+        enemy_hud_template = templates.get(
+
+            "enemy_hud"
+
+        )
 
 
-    # enemy_name:
-    # x=0 y=0 width=200 height=18
+        enemy_hud = resolver.resolve(
 
-    enemy_name_img = crop(
-        enemy,
-        0,
-        0,
-        200,
-        18
-    )
+            enemy_anchor,
+
+            enemy_hud_template
+
+        )
 
 
-    enemy_level_img = crop(
-        enemy,
-        225,
-        0,
-        35,
-        18
-    )
+        print(
 
+            "HUD:",
 
+            enemy_hud
 
-    enemy_name = reader.read_text(
-        enemy_name_img
-    )
-
-
-    enemy_level = reader.read_number(
-        enemy_level_img
-    )
+        )
 
 
 
-    print(
-        "Enemigo:",
-        enemy_name
-    )
+        hud_image = resolver.crop(
+
+            image,
+
+            enemy_hud
+
+        )
 
 
-    print(
-        "Nivel enemigo:",
-        enemy_level
-    )
+
+        save_debug(
+
+            "live_enemy_hud.png",
+
+            hud_image
+
+        )
+
+
+
+
+
+        name_region = templates.get(
+
+            "enemy_name"
+
+        )
+
+
+        name_image = crop_region(
+
+            hud_image,
+
+            name_region
+
+        )
+
+
+        save_debug(
+
+            "live_enemy_name.png",
+
+            name_image
+
+        )
+
+
+
+
+
+        print(
+
+            "ENEMY NAME:",
+
+            ocr.read_text(
+
+                name_image
+
+            )
+
+        )
+
+
+
+
+
+        level_region = templates.get(
+
+            "enemy_level"
+
+        )
+
+
+        level_image = crop_region(
+
+            hud_image,
+
+            level_region
+
+        )
+
+
+        save_debug(
+
+            "live_enemy_level.png",
+
+            level_image
+
+        )
+
+
+
+        print(
+
+            "ENEMY LEVEL:",
+
+            ocr.read_number(
+
+                level_image
+
+            )
+
+        )
+
+
+
+
+
+
+    capture.stop()
 
 
 

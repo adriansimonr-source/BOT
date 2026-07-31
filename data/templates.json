@@ -82,13 +82,13 @@
 
             "parent": "player_hud",
 
-            "x": 5,
+            "x": 0,
 
             "y": 0,
 
-            "width": 200,
+            "width": 120,
 
-            "height": 18
+            "height": 20
 
         },
 
@@ -99,11 +99,11 @@
 
             "parent": "player_hud",
 
-            "x": 220,
+            "x": 202,
 
             "y": 0,
 
-            "width": 35,
+            "width": 50,
 
             "height": 18
 
@@ -158,11 +158,11 @@
 
             "parent": "enemy_hud",
 
-            "x": 0,
+            "x": 12,
 
-            "y": 0,
+            "y": 17,
 
-            "width": 200,
+            "width": 170,
 
             "height": 18
 
@@ -177,11 +177,11 @@
 
             "x": 225,
 
-            "y": 0,
+            "y": 16,
 
-            "width": 35,
+            "width": 135,
 
-            "height": 18
+            "height": 20
 
         },
 

@@ -11,32 +11,25 @@ class OCRReader:
 
     def __init__(self):
 
-
         self.text_config = (
-
+            "--oem 3 "
             "--psm 7"
-
         )
 
 
         self.number_config = (
-
+            "--oem 3 "
             "--psm 7 "
-
             "-c tessedit_char_whitelist=0123456789"
-
         )
 
 
 
 
 
-
-
     # =====================================
-    # TEXTO GENERAL
+    # LEER TEXTO
     # =====================================
-
 
     def read_text(
 
@@ -47,7 +40,7 @@ class OCRReader:
     ):
 
 
-        processed = self.preprocess(
+        processed = self.preprocess_text(
 
             image
 
@@ -60,8 +53,7 @@ class OCRReader:
 
 
 
-
-        text = pytesseract.image_to_string(
+        result = pytesseract.image_to_string(
 
             processed,
 
@@ -71,9 +63,9 @@ class OCRReader:
 
 
 
-        return self.clean_text(
+        return self.clean(
 
-            text
+            result
 
         )
 
@@ -82,13 +74,9 @@ class OCRReader:
 
 
 
-
-
-
     # =====================================
-    # NUMEROS
+    # LEER NUMERO
     # =====================================
-
 
     def read_number(
 
@@ -99,11 +87,9 @@ class OCRReader:
     ):
 
 
-        processed = self.preprocess(
+        processed = self.preprocess_number(
 
-            image,
-
-            numbers=True
+            image
 
         )
 
@@ -114,9 +100,7 @@ class OCRReader:
 
 
 
-
-
-        text = pytesseract.image_to_string(
+        result = pytesseract.image_to_string(
 
             processed,
 
@@ -126,21 +110,19 @@ class OCRReader:
 
 
 
-        text = self.clean_text(
+        result = self.clean(
 
-            text
+            result
 
         )
 
 
-
         try:
 
-            return int(text)
+            return int(result)
 
 
-        except:
-
+        except ValueError:
 
             return 0
 
@@ -149,19 +131,15 @@ class OCRReader:
 
 
 
-
     # =====================================
-    # PREPROCESADO
+    # PREPROCESADO TEXTO
     # =====================================
 
-
-    def preprocess(
+    def preprocess_text(
 
         self,
 
-        image,
-
-        numbers=False
+        image
 
     ):
 
@@ -192,22 +170,15 @@ class OCRReader:
 
 
 
-        # Aumentamos tamaño
-        # Los textos del HUD son pequeños
-
-
-        scale = 3
-
-
         gray = cv2.resize(
 
             gray,
 
             None,
 
-            fx=scale,
+            fx=5,
 
-            fy=scale,
+            fy=5,
 
             interpolation=cv2.INTER_CUBIC
 
@@ -217,21 +188,15 @@ class OCRReader:
 
 
 
+        # Máscara para texto claro del HUD
 
-        # Umbral adaptativo
-
-
-        _, threshold = cv2.threshold(
+        mask = cv2.inRange(
 
             gray,
 
-            0,
+            140,
 
-            255,
-
-            cv2.THRESH_BINARY +
-
-            cv2.THRESH_OTSU
+            255
 
         )
 
@@ -239,8 +204,108 @@ class OCRReader:
 
 
 
-        return threshold
+        kernel = np.ones(
 
+            (2,2),
+
+            np.uint8
+
+        )
+
+
+
+        mask = cv2.morphologyEx(
+
+            mask,
+
+            cv2.MORPH_CLOSE,
+
+            kernel
+
+        )
+
+
+
+        return mask
+
+
+
+
+
+
+
+    # =====================================
+    # PREPROCESADO NUMEROS
+    # =====================================
+
+    def preprocess_number(
+
+        self,
+
+        image
+
+    ):
+
+
+        if image is None:
+
+            return None
+
+
+
+        if image.size == 0:
+
+            return None
+
+
+
+
+
+        gray = cv2.cvtColor(
+
+            image,
+
+            cv2.COLOR_BGR2GRAY
+
+        )
+
+
+
+
+
+        gray = cv2.resize(
+
+            gray,
+
+            None,
+
+            fx=6,
+
+            fy=6,
+
+            interpolation=cv2.INTER_CUBIC
+
+        )
+
+
+
+
+
+        _, thresh = cv2.threshold(
+
+            gray,
+
+            120,
+
+            255,
+
+            cv2.THRESH_BINARY
+
+        )
+
+
+
+        return thresh
 
 
 
@@ -251,8 +316,7 @@ class OCRReader:
     # LIMPIEZA
     # =====================================
 
-
-    def clean_text(
+    def clean(
 
         self,
 
@@ -267,10 +331,6 @@ class OCRReader:
 
 
 
-        text = text.strip()
-
-
-
         text = text.replace(
 
             "\n",
@@ -278,6 +338,9 @@ class OCRReader:
             " "
 
         )
+
+
+        text = text.strip()
 
 
 
