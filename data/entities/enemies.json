@@ -22,5 +22,85 @@
         "elite": false,
         "boss": false,
         "encounters": 3
+    },
+    "Baoku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 22
+    },
+    "Bongbo": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 28
+    },
+    "&@ Bongbo": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "fe Baoku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Bongbo wf": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "ys Bongbo \\": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "My Bongbos": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "ar Baoku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "No*¥aD": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Bongbo %\\": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
     }
 }

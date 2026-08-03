@@ -1,28 +1,61 @@
 class HUDResolver:
 
 
-    def resolve(self, detection, region):
+
+    def resolve(
+        self,
+        detection,
+        region
+    ):
 
 
         if detection is None:
+
             return None
 
 
 
-        anchor_bottom_y = (
-            detection["y"] +
-            detection["height"]
-        )
+        # =====================================
+        # Si viene de un anchor detectado
+        # =====================================
+
+
+        if "matched" in detection:
+
+
+            base_x = detection["x"]
+
+            base_y = (
+                detection["y"]
+                +
+                detection["height"]
+            )
+
+
+
+        # =====================================
+        # Si viene de otra region resuelta
+        # =====================================
+
+
+        else:
+
+
+            base_x = detection["x"]
+
+            base_y = detection["y"]
+
+
 
 
 
         return {
 
 
-            "x": detection["x"] + region["x"],
+            "x": base_x + region["x"],
 
 
-            "y": anchor_bottom_y + region["y"],
+            "y": base_y + region["y"],
 
 
             "width": region["width"],
@@ -34,17 +67,29 @@ class HUDResolver:
 
 
 
-    def crop(self, image, hud):
+
+
+    def crop(
+        self,
+        image,
+        hud
+    ):
 
 
         x = hud["x"]
+
         y = hud["y"]
 
         w = hud["width"]
+
         h = hud["height"]
 
 
+
         return image[
+
             y:y+h,
+
             x:x+w
+
         ]

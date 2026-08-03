@@ -1,197 +1,117 @@
-import time
+import os
 import cv2
+import pytesseract
 
 
 from core.services.capture_engine import CaptureEngine
-from core.services.vision_engine import VisionEngine
-from core.services.region_manager import RegionManager
+from core.services.template_manager import TemplateManager
+from core.services.template_detector import TemplateDetector
+from core.services.hud_resolver import HUDResolver
 
-from core.models.region import Region
+from core.managers.config_manager import ConfigManager
+from core.managers.game_profile_manager import GameProfileManager
 
 
+import numpy as np
 
 
-TITLE = "Kathana - The Reign of Shadow"
 
 
-WIDTH = 1920
-HEIGHT = 1080
 
+class CoordinatesOCRTest:
 
 
 
+    def __init__(self):
 
-def section(text):
 
-    print()
-    print("=" * 45)
-    print(text)
-    print("=" * 45)
+        print("\n=== INIT TEST ===")
 
 
+        self.config = ConfigManager()
 
+        self.games = GameProfileManager()
 
 
-# ======================================
-# CAPTURE
-# ======================================
 
+        active_game = self.config.get(
+            "active_game"
+        )
 
-section(
-    "START CAPTURE"
-)
 
+        if active_game:
 
+            self.games.set_active_game(
+                active_game
+            )
 
-capture = CaptureEngine(
 
-    TITLE,
 
-    WIDTH,
+        game = self.games.get_active_game()
 
-    HEIGHT
 
-)
+        if game is None:
 
+            raise Exception(
+                "No hay juego activo"
+            )
 
 
-capture.start()
 
+        window = self.games.get_window()
 
 
-print(
-    "[OK] Capture iniciado"
-)
-
-
-
-
-
-
-
-# ======================================
-# REGIONS
-# ======================================
-
-
-section(
-    "CREATE REGIONS"
-)
-
-
-
-regions = RegionManager()
-
-
-
-#
-# Regiones de prueba
-# Ajustaremos luego con editor visual
-#
-
-regions.add(
-
-    Region(
-
-        "center",
-
-        700,
-
-        400,
-
-        500,
-
-        300
-
-    )
-
-)
-
-
-
-print(
-
-    regions.info()
-
-)
-
-
-
-
-
-
-
-# ======================================
-# VISION
-# ======================================
-
-
-vision = VisionEngine(
-
-    regions
-
-)
-
-
-
-print(
-
-    "[OK] VisionEngine iniciado"
-
-)
-
-
-
-
-
-
-
-
-frames = 0
-
-start = time.time()
-
-
-
-try:
-
-
-    while True:
-
-
-
-        frame = capture.get_frame()
-
-
-
-        result = vision.process(
-
-            frame
-
+        width,height = (
+            self.games.get_resolution()
         )
 
 
 
-
-        crop = vision.process_region(
-
-            frame,
-
-            "center"
-
+        print(
+            "[GAME]",
+            window,
+            width,
+            height
         )
 
 
 
+        self.capture = CaptureEngine(
+            window,
+            width,
+            height
+        )
 
-        frames += 1
+
+
+        self.templates = TemplateManager()
+
+
+        self.detector = TemplateDetector()
+
+
+        self.resolver = HUDResolver()
 
 
 
-        fps = frames / (
+        print("\n=== TEMPLATES ===")
 
-            time.time() - start
+        for t in self.templates.list():
 
+            print(
+                t
+            )
+
+
+
+
+        self.capture.start()
+
+
+
+        os.makedirs(
+            "debug_coordinates",
+            exist_ok=True
         )
 
 
@@ -199,130 +119,373 @@ try:
 
 
 
-        image = cv2.resize(
 
-            frame.image,
+    def run(self):
 
-            (960,540)
 
-        )
+        frame = self.capture.get_frame()
 
 
 
-        region_view = cv2.resize(
+        if frame is None:
 
-            crop,
-
-            (500,300)
-
-        )
+            raise Exception(
+                "No hay frame"
+            )
 
 
 
-
-
-        cv2.putText(
-
-            image,
-
-            f"FPS {fps:.1f}",
-
-            (20,40),
-
-            cv2.FONT_HERSHEY_SIMPLEX,
-
-            1,
-
-            (0,255,0),
-
-            2
-
-        )
+        image = frame.image
 
 
 
-
-        cv2.imshow(
-
-            "FULL FRAME",
-
+        cv2.imwrite(
+            "debug_coordinates/fullscreen.png",
             image
+        )
+
+
+
+        print(
+            "\n=== DETECT MINIMAP ==="
+        )
+
+
+
+        minimap_template = self.templates.get(
+            "minimap_anchor"
+        )
+
+
+
+        detection = self.detector.detect(
+            image,
+            minimap_template
+        )
+
+
+
+        if detection is None:
+
+            raise Exception(
+                "No detecta minimap_anchor"
+            )
+
+
+
+        print(
+            "[ANCHOR]",
+            detection
+        )
+
+
+
+
+        print(
+            "\n=== RESOLVE HUD ==="
+        )
+
+
+        minimap_region = self.templates.get(
+            "minimap_hud"
+        )
+
+
+
+        minimap_hud = self.resolver.resolve(
+            detection,
+            minimap_region
+        )
+
+
+
+        print(
+            "[HUD]",
+            minimap_hud
+        )
+
+
+
+        minimap = self.resolver.crop(
+            image,
+            minimap_hud
+        )
+
+
+
+        cv2.imwrite(
+            "debug_coordinates/minimap.png",
+            minimap
+        )
+
+
+
+
+
+
+        print(
+            "\n=== RESOLVE COORDINATES ==="
+        )
+
+
+
+        coordinates_region = self.templates.get(
+            "player_coordinates"
+        )
+
+
+
+        coordinates_box = self.resolve_child(
+            minimap_hud,
+            coordinates_region
+        )
+
+
+
+        print(
+            "[COORD BOX]",
+            coordinates_box
+        )
+
+
+
+
+        crop = self.crop(
+            image,
+            coordinates_box
+        )
+
+
+
+        cv2.imwrite(
+            "debug_coordinates/coordinates_original.png",
+            crop
+        )
+
+
+
+
+        result = self.read_coordinates(
+            crop
+        )
+
+
+
+        print(
+            "\nOCR RESULT:"
+        )
+
+        print(
+            result
+        )
+
+
+
+
+        self.capture.stop()
+
+
+
+        print(
+            "\nFIN TEST"
+        )
+
+
+
+
+
+
+
+
+
+    def resolve_child(
+        self,
+        parent,
+        region
+    ):
+
+
+        return {
+
+
+            "x":
+            parent["x"] + region["x"],
+
+
+            "y":
+            parent["y"] + region["y"],
+
+
+            "width":
+            region["width"],
+
+
+            "height":
+            region["height"]
+
+        }
+
+
+
+
+
+
+
+
+    def crop(
+        self,
+        image,
+        box
+    ):
+
+
+        return image[
+
+            box["y"]:
+            box["y"]+box["height"],
+
+            box["x"]:
+            box["x"]+box["width"]
+
+        ]
+
+
+
+
+
+
+
+
+
+    def read_coordinates(
+        self,
+        image
+    ):
+
+
+        print(
+            "[OCR] Procesando..."
+        )
+
+
+        cv2.imwrite(
+            "debug_coordinates/ocr_input.png",
+            image
+        )
+
+
+
+        # ampliar
+
+        resized = cv2.resize(
+            image,
+            None,
+            fx=8,
+            fy=8,
+            interpolation=cv2.INTER_CUBIC
+        )
+
+
+        cv2.imwrite(
+            "debug_coordinates/ocr_resize.png",
+            resized
+        )
+
+
+
+
+        hsv = cv2.cvtColor(
+            resized,
+            cv2.COLOR_BGR2HSV
+        )
+
+
+
+        # texto blanco
+
+        mask = cv2.inRange(
+            hsv,
+            np.array(
+                [0,0,120]
+            ),
+            np.array(
+                [180,140,255]
+            )
+        )
+
+
+
+        cv2.imwrite(
+            "debug_coordinates/ocr_mask.png",
+            mask
+        )
+
+
+
+        kernel = np.ones(
+            (2,2),
+            np.uint8
+        )
+
+
+        clean = cv2.morphologyEx(
+            mask,
+            cv2.MORPH_CLOSE,
+            kernel
+        )
+
+
+
+        cv2.imwrite(
+            "debug_coordinates/ocr_clean.png",
+            clean
+        )
+
+
+
+
+
+        text = pytesseract.image_to_string(
+
+            clean,
+
+            config=
+            "--psm 7 "
+            "-c tessedit_char_whitelist=0123456789/"
 
         )
 
 
 
-        cv2.imshow(
+        return text.strip()
 
-            "REGION TEST",
 
-            region_view
 
+
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+
+
+    test = CoordinatesOCRTest()
+
+
+    try:
+
+        test.run()
+
+
+    except Exception as e:
+
+        print(
+            "\nERROR:",
+            e
         )
 
-
-
-
-
-
-
-        if frames == 1:
-
-
-            section(
-                "FIRST FRAME"
-            )
-
-
-            print(
-
-                frame.info()
-
-            )
-
-
-            print(
-
-                result.info()
-
-            )
-
-
-
-
-
-
-        if cv2.waitKey(1) == 27:
-
-            break
-
-
-
-
-
-
-
-finally:
-
-
-    capture.stop()
-
-    cv2.destroyAllWindows()
-
-
-
-
-
-section(
-    "TEST FINISHED"
-)
-
-
-
-print(
-
-    "FPS FINAL:",
-
-    frames/(time.time()-start)
-
-)
+        test.capture.stop()

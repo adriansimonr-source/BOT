@@ -6,30 +6,36 @@
             "threshold": 0.90
         },
 
+
         "enemy_anchor": {
             "file": "enemy_anchor.png",
             "threshold": 0.75
         },
+
 
         "minimap_anchor": {
             "file": "minimap_anchor.png",
             "threshold": 0.85
         },
 
+
         "skill_bar": {
             "file": "skill_bar.png",
             "threshold": 0.80
         },
+
 
         "player_buffs": {
             "file": "player_buffs.png",
             "threshold": 0.80
         },
 
+
         "inventory": {
             "file": "inventory.png",
             "threshold": 0.80
         },
+
 
         "chat": {
             "file": "chat.png",
@@ -42,19 +48,34 @@
     "regions": {
 
 
+        "minimap_search_area": {
+
+            "type": "search",
+
+            "x": 1680,
+
+            "y": 0,
+
+            "width": 240,
+
+            "height": 240
+
+        },
+
+
         "minimap_hud": {
 
             "type": "hud",
 
             "parent": "minimap_anchor",
 
-            "x": 0,
+            "x": -95,
 
-            "y": 0,
+            "y": -195,
 
-            "width": 250,
+            "width": 200,
 
-            "height": 250
+            "height": 200
 
         },
 
@@ -65,32 +86,33 @@
 
             "parent": "minimap_hud",
 
-            "x": 0,
+            "x": 5,
 
-            "y": 220,
+            "y": 177,
 
-            "width": 80,
+            "width": 85,
 
-            "height": 25
+            "height": 18
 
         },
 
 
         "player_direction": {
 
-            "type": "text",
+            "type": "detector",
 
             "parent": "minimap_hud",
 
-            "x": 105,
+            "x": 85,
 
-            "y": 0,
+            "y": 85,
 
-            "width": 40,
+            "width": 50,
 
-            "height": 40
+            "height": 50
 
         },
+
 
 
         "player_hud": {

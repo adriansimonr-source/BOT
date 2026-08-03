@@ -1,86 +1,146 @@
 import cv2
+import os
 
 
 from core.services.capture_engine import CaptureEngine
 from core.services.template_manager import TemplateManager
 from core.services.template_detector import TemplateDetector
 from core.services.hud_resolver import HUDResolver
-from core.services.target_validator import TargetValidator
-from core.services.bar_reader import BarReader
-
-from core.models.combat_state import CombatState
+from core.managers.config_manager import ConfigManager
+from core.managers.game_profile_manager import GameProfileManager
 
 
 
-
-TITLE = "Kathana - The Reign of Shadow"
-
-
-
-
-
-def crop_relative(image, region):
-
-    if image is None:
-        return None
+os.makedirs(
+    "templates/coordinates/x",
+    exist_ok=True
+)
 
 
-    x = region.get("x", 0)
-    y = region.get("y", 0)
-
-    w = region.get("width", 0)
-    h = region.get("height", 0)
+os.makedirs(
+    "templates/coordinates/y",
+    exist_ok=True
+)
 
 
 
-    return image[
-        y:y+h,
-        x:x+w
-    ]
+# ==============================
+# MISMA CONFIG QUE VISIONMANAGER
+# ==============================
 
 
+config = ConfigManager()
+
+profiles = GameProfileManager()
 
 
+game = profiles.get_active_game()
 
 
-def main():
+if game is None:
 
-
-    print("=" * 70)
-    print(" COMBAT STATE TEST ")
-    print("=" * 70)
-
-
-
-    # ============================
-    # CAPTURE
-    # ============================
-
-
-    capture = CaptureEngine(
-
-        TITLE,
-
-        1920,
-
-        1080
-
+    raise Exception(
+        "No hay juego activo"
     )
 
 
-    capture.start()
+window_title = profiles.get_window()
 
+
+width, height = profiles.get_resolution()
+
+
+
+print(
+    "[TEST]",
+    game.get("name")
+)
+
+
+print(
+    "[WINDOW]",
+    window_title
+)
+
+
+print(
+    "[RESOLUTION]",
+    width,
+    height
+)
+
+
+
+capture = CaptureEngine(
+    window_title,
+    width,
+    height
+)
+
+
+
+templates = TemplateManager()
+
+detector = TemplateDetector()
+
+resolver = HUDResolver()
+
+
+
+capture.start()
+
+
+
+print()
+print("==============================")
+print(" TEMPLATE COORDINATES")
+print("==============================")
+print()
+print("ENTER = guardar")
+print("ESC = salir")
+print()
+
+
+
+# mismos templates que VisionManager
+
+minimap_template = templates.get(
+    "minimap"
+)
+
+
+minimap_region = templates.get(
+    "minimap_area"
+)
+
+
+
+if minimap_template is None:
+
+    raise Exception(
+        "Template minimap no encontrado"
+    )
+
+
+if minimap_region is None:
+
+    raise Exception(
+        "Region minimap_area no encontrada"
+    )
+
+
+
+
+
+while True:
 
 
     frame = capture.get_frame()
 
 
-
     if frame is None:
 
-        print("[ERROR] No frame")
-
-        return
+        continue
 
 
 
@@ -88,438 +148,123 @@ def main():
 
 
 
-    cv2.imwrite(
-
-        "combat_frame.png",
-
-        image
-
-    )
-
-
-
-    print("[OK] Frame")
-
-
-
-
-
-    # ============================
-    # SERVICES
-    # ============================
-
-
-    templates = TemplateManager()
-
-
-    detector = TemplateDetector()
-
-
-    resolver = HUDResolver()
-
-
-    validator = TargetValidator()
-
-
-    reader = BarReader()
-
-
-
-    state = CombatState()
-
-
-
-
-
-
-    # ============================
-    # PLAYER
-    # ============================
-
-
-    print()
-
-    print("========== PLAYER ==========")
-
-
-
-    player_anchor = detector.detect(
-
+    detection = detector.detect(
         image,
-
-        templates.get(
-
-            "player_anchor"
-
-        )
-
+        minimap_template
     )
 
 
 
-    if player_anchor:
-
+    if detection is None:
 
         print(
-
-            "PLAYER FOUND"
-
+            "[FAIL] minimap"
         )
 
-
-
-        hud = resolver.resolve(
-
-            player_anchor,
-
-            templates.get(
-
-                "player_hud"
-
-            )
-
-        )
-
-
-
-        hud_img = resolver.crop(
-
-            image,
-
-            hud
-
-        )
-
-
-
-        cv2.imwrite(
-
-            "state_player_hud.png",
-
-            hud_img
-
-        )
-
-
-
-
-
-        hp_img = crop_relative(
-
-            hud_img,
-
-            templates.get(
-
-                "player_hp"
-
-            )
-
-        )
-
-
-
-        mp_img = crop_relative(
-
-            hud_img,
-
-            templates.get(
-
-                "player_mp"
-
-            )
-
-        )
-
-
-
-        cv2.imwrite(
-
-            "state_player_hp.png",
-
-            hp_img
-
-        )
-
-
-        cv2.imwrite(
-
-            "state_player_mp.png",
-
-            mp_img
-
-        )
-
-
-
-        state.player_detected = True
-
-
-
-        state.player_hp = reader.read_hp(
-
-            hp_img
-
-        )
-
-
-        state.player_mp = reader.read_mp(
-
-            mp_img
-
-        )
-
-
-
-    else:
-
-
-        print(
-
-            "PLAYER NOT FOUND"
-
-        )
-
-
-
-
-
-
-
-    # ============================
-    # ENEMY
-    # ============================
-
-
-    print()
-
-    print("========== ENEMY ==========")
-
-
-
-    enemies = detector.detect_all(
-
-        image,
-
-        templates.get(
-
-            "enemy_anchor"
-
-        )
-
-    )
+        continue
 
 
 
     print(
-
-        "CANDIDATES:",
-
-        len(enemies)
-
+        "[ANCHOR]",
+        detection
     )
 
 
 
-    for enemy in enemies:
+    hud = resolver.resolve(
+        detection,
+        minimap_region
+    )
 
 
-        hud = resolver.resolve(
+    print(
+        "[HUD]",
+        hud
+    )
 
-            enemy,
 
-            templates.get(
 
-                "enemy_hud"
+    crop = resolver.crop(
+        image,
+        hud
+    )
 
-            )
 
+    # este es el mismo crop que usas para coordenadas
+
+    coordinate_box = crop[
+        177:195,
+        5:90
+    ]
+
+
+
+    cv2.imshow(
+        "coordinate_box",
+        coordinate_box
+    )
+
+
+
+    key = cv2.waitKey(1)
+
+
+
+    if key == 13:
+
+
+        x = input(
+            "X actual: "
+        )
+
+
+        y = input(
+            "Y actual: "
         )
 
 
 
-        hud_img = resolver.crop(
+        x_crop = coordinate_box[
+            0:18,
+            0:40
+        ]
 
-            image,
 
-            hud
+        y_crop = coordinate_box[
+            0:18,
+            45:80
+        ]
 
+
+
+        cv2.imwrite(
+            f"templates/coordinates/x/{x}.png",
+            x_crop
         )
 
 
-
-        valid = validator.validate_enemy(
-
-            hud_img
-
+        cv2.imwrite(
+            f"templates/coordinates/y/{y}.png",
+            y_crop
         )
 
 
 
         print(
-
-            "VALID:",
-
-            valid
-
+            "[GUARDADO]",
+            x,
+            y
         )
 
 
 
-        if not valid:
-
-            continue
-
-
-
-
-        hp_img = crop_relative(
-
-            hud_img,
-
-            templates.get(
-
-                "enemy_hp"
-
-            )
-
-        )
-
-
-
-        cv2.imwrite(
-
-            "state_enemy_hud.png",
-
-            hud_img
-
-        )
-
-
-        cv2.imwrite(
-
-            "state_enemy_hp.png",
-
-            hp_img
-
-        )
-
-
-
-        state.enemy_detected = True
-
-
-
-        state.enemy_hp = reader.read_enemy_hp(
-
-            hp_img
-
-        )
-
-
+    elif key == 27:
 
         break
 
 
 
+capture.stop()
 
-
-
-
-    # ============================
-    # RESULT
-    # ============================
-
-
-    print()
-
-    print("=" * 70)
-
-    print(" COMBAT STATE ")
-
-    print("=" * 70)
-
-
-
-    print()
-
-    print("PLAYER")
-
-    print(
-
-        "Detected:",
-
-        state.player_detected
-
-    )
-
-    print(
-
-        "HP:",
-
-        state.player_hp,
-
-        "%"
-
-    )
-
-    print(
-
-        "MP:",
-
-        state.player_mp,
-
-        "%"
-
-    )
-
-
-
-    print()
-
-    print("ENEMY")
-
-    print(
-
-        "Detected:",
-
-        state.enemy_detected
-
-    )
-
-    print(
-
-        "HP:",
-
-        state.enemy_hp,
-
-        "%"
-
-    )
-
-
-
-    print()
-
-    print(
-
-        state.to_dict()
-
-    )
-
-
-    print()
-
-    print("=" * 70)
-
-    print(" END ")
-
-    print("=" * 70)
-
-
-
-
-
-
-if __name__ == "__main__":
-
-    main()
+cv2.destroyAllWindows()

@@ -1,569 +1,327 @@
-from core.services.capture_engine import CaptureEngine
-
-from core.services.template_manager import TemplateManager
-from core.services.template_detector import TemplateDetector
-from core.services.hud_resolver import HUDResolver
-from core.services.ocr_reader import OCRReader
-
-import cv2
 import time
 
 
+from core.services.capture_engine import CaptureEngine
+from core.services.coordinate_reader import CoordinateReader
 
+from core.services.template_detector import TemplateDetector
+from core.services.template_manager import TemplateManager
+from core.services.hud_resolver import HUDResolver
 
-
-def crop_region(
-
-    image,
-
-    region
-
-):
-
-
-    if image is None:
-
-        return None
-
-
-    if region is None:
-
-        return None
-
-
-
-    x = region.get(
-
-        "x",
-
-        0
-
-    )
-
-
-    y = region.get(
-
-        "y",
-
-        0
-
-    )
-
-
-    width = region.get(
-
-        "width",
-
-        0
-
-    )
-
-
-    height = region.get(
-
-        "height",
-
-        0
-
-    )
-
-
-
-    return image[
-
-        y:y + height,
-
-        x:x + width
-
-    ]
+from core.managers.config_manager import ConfigManager
+from core.managers.game_profile_manager import GameProfileManager
 
 
 
 
 
+class CoordinateReaderQuickTest:
 
 
-def save_debug(
-
-    name,
-
-    image
-
-):
+    def __init__(self):
 
 
-    if image is None:
+        print("==============================")
+        print(" QUICK COORD TEST ")
+        print("==============================")
 
-        return
+
+        self.config = ConfigManager()
+
+        self.game_manager = GameProfileManager()
 
 
-    cv2.imwrite(
 
-        name,
+        active = self.config.get(
+            "active_game"
+        )
 
+
+        if active:
+
+            self.game_manager.set_active_game(
+                active
+            )
+
+
+
+        window = self.game_manager.get_window()
+
+
+        width,height = self.game_manager.get_resolution()
+
+
+
+        self.capture = CaptureEngine(
+            window,
+            width,
+            height
+        )
+
+
+        self.templates = TemplateManager()
+
+        self.detector = TemplateDetector()
+
+        self.hud = HUDResolver()
+
+
+        self.reader = CoordinateReader()
+
+
+
+        self.frames = 20
+
+
+        self.ok = 0
+
+        self.fail = 0
+
+
+        self.coords = []
+
+
+
+
+
+
+
+    def get_coordinate_crop(
+        self,
         image
+    ):
 
-    )
 
-
-    print(
-
-        "[SAVE]",
-
-        name
-
-    )
-
-
-
-
-
-
-
-
-def main():
-
-
-    templates = TemplateManager()
-
-
-    detector = TemplateDetector()
-
-
-    resolver = HUDResolver()
-
-
-    ocr = OCRReader()
-
-
-
-
-
-    capture = CaptureEngine(
-
-        "Kathana - The Reign of Shadow",
-
-        1920,
-
-        1080
-
-    )
-
-
-
-
-
-    capture.start()
-
-
-
-    print(
-
-        "Esperando captura..."
-
-    )
-
-
-
-    time.sleep(2)
-
-
-
-
-
-    frame = capture.get_frame()
-
-
-
-    if frame is None:
-
-        print(
-
-            "No hay frame"
-
-        )
-
-        return
-
-
-
-
-
-    image = frame.image
-
-
-
-
-
-    # ==============================
-    # PLAYER
-    # ==============================
-
-
-    print()
-
-    print(
-
-        "========== PLAYER =========="
-
-    )
-
-
-
-    player_anchor_template = templates.get(
-
-        "player_anchor"
-
-    )
-
-
-
-    player_anchor = detector.detect(
-
-        image,
-
-        player_anchor_template
-
-    )
-
-
-
-    print(
-
-        "ANCHOR:",
-
-        player_anchor
-
-    )
-
-
-
-
-
-    if player_anchor:
-
-
-        player_hud_template = templates.get(
-
-            "player_hud"
-
+        anchor = self.templates.get(
+            "minimap_anchor"
         )
 
 
-        player_hud = resolver.resolve(
-
-            player_anchor,
-
-            player_hud_template
-
-        )
-
-
-        print(
-
-            "HUD:",
-
-            player_hud
-
-        )
-
-
-
-        hud_image = resolver.crop(
-
+        detection = self.detector.detect(
             image,
-
-            player_hud
-
+            anchor
         )
 
 
+        if detection is None:
 
-        save_debug(
-
-            "live_player_hud.png",
-
-            hud_image
-
-        )
+            return None
 
 
 
-
-
-        name_region = templates.get(
-
-            "player_name"
-
-        )
-
-
-        name_image = crop_region(
-
-            hud_image,
-
-            name_region
-
-        )
-
-
-        save_debug(
-
-            "live_player_name.png",
-
-            name_image
-
-        )
-
-
-
-
-
-        print(
-
-            "PLAYER NAME:",
-
-            ocr.read_text(
-
-                name_image
-
+        hud = self.hud.resolve(
+            detection,
+            self.templates.get(
+                "minimap_hud"
             )
-
         )
 
 
 
-
-
-        level_region = templates.get(
-
-            "player_level"
-
-        )
-
-
-        level_image = crop_region(
-
-            hud_image,
-
-            level_region
-
+        coord = self.templates.get(
+            "player_coordinates"
         )
 
 
 
-        save_debug(
+        box = {
 
-            "live_player_level.png",
-
-            level_image
-
-        )
+            "x":
+            hud["x"] +
+            coord["x"],
 
 
+            "y":
+            hud["y"] +
+            coord["y"],
 
-        print(
 
-            "PLAYER LEVEL:",
+            "width":
+            coord["width"],
 
-            ocr.read_number(
 
-                level_image
+            "height":
+            coord["height"]
 
-            )
-
-        )
-
+        }
 
 
 
-
-
-
-    # ==============================
-    # ENEMY
-    # ==============================
-
-
-    print()
-
-    print(
-
-        "========== ENEMY =========="
-
-    )
-
-
-
-    enemy_anchor_template = templates.get(
-
-        "enemy_anchor"
-
-    )
-
-
-
-    enemy_anchor = detector.detect(
-
-        image,
-
-        enemy_anchor_template
-
-    )
-
-
-
-    print(
-
-        "ANCHOR:",
-
-        enemy_anchor
-
-    )
-
-
-
-
-
-    if enemy_anchor:
-
-
-        enemy_hud_template = templates.get(
-
-            "enemy_hud"
-
-        )
-
-
-        enemy_hud = resolver.resolve(
-
-            enemy_anchor,
-
-            enemy_hud_template
-
-        )
-
-
-        print(
-
-            "HUD:",
-
-            enemy_hud
-
-        )
-
-
-
-        hud_image = resolver.crop(
-
+        return self.hud.crop(
             image,
-
-            enemy_hud
-
-        )
-
-
-
-        save_debug(
-
-            "live_enemy_hud.png",
-
-            hud_image
-
+            box
         )
 
 
 
 
 
-        name_region = templates.get(
-
-            "enemy_name"
-
-        )
-
-
-        name_image = crop_region(
-
-            hud_image,
-
-            name_region
-
-        )
-
-
-        save_debug(
-
-            "live_enemy_name.png",
-
-            name_image
-
-        )
 
 
 
+
+    def run(self):
+
+
+        self.capture.start()
+
+
+        time.sleep(1)
+
+
+
+        start = time.time()
+
+
+
+        try:
+
+
+            for i in range(
+                self.frames
+            ):
+
+
+                frame = self.capture.get_frame()
+
+
+
+                crop = self.get_coordinate_crop(
+                    frame.image
+                )
+
+
+                if crop is None:
+
+                    self.fail += 1
+
+                    print(
+                        "[FAIL] crop"
+                    )
+
+                    continue
+
+
+
+                result = self.reader.read(
+                    crop
+                )
+
+
+
+                if result is None:
+
+                    self.fail += 1
+
+
+                else:
+
+                    self.ok += 1
+
+                    self.coords.append(
+                        result
+                    )
+
+
+                print(
+                    i,
+                    result
+                )
+
+
+
+        finally:
+
+
+            self.capture.stop()
+
+
+
+        elapsed = time.time() - start
+
+
+
+        print()
+        print("==============================")
+        print(" RESULTADO")
+        print("==============================")
 
 
         print(
-
-            "ENEMY NAME:",
-
-            ocr.read_text(
-
-                name_image
-
-            )
-
+            "Frames:",
+            self.frames
         )
-
-
-
-
-
-        level_region = templates.get(
-
-            "enemy_level"
-
-        )
-
-
-        level_image = crop_region(
-
-            hud_image,
-
-            level_region
-
-        )
-
-
-        save_debug(
-
-            "live_enemy_level.png",
-
-            level_image
-
-        )
-
 
 
         print(
-
-            "ENEMY LEVEL:",
-
-            ocr.read_number(
-
-                level_image
-
-            )
-
+            "OK:",
+            self.ok
         )
 
 
+        print(
+            "Fallos:",
+            self.fail
+        )
 
 
+        print(
+            "Tiempo:",
+            round(elapsed,2),
+            "seg"
+        )
 
 
-    capture.stop()
+        if self.coords:
+
+
+            xs = [
+                c["x"]
+                for c in self.coords
+            ]
+
+
+            ys = [
+                c["y"]
+                for c in self.coords
+            ]
+
+
+            print()
+
+            print(
+                "ESTABILIDAD"
+            )
+
+
+            print(
+                "X:",
+                min(xs),
+                "-",
+                max(xs)
+            )
+
+
+            print(
+                "Y:",
+                min(ys),
+                "-",
+                max(ys)
+            )
+
+
+            print(
+                "ULTIMO:",
+                self.coords[-1]
+            )
+
+
+        print()
+
+        print(
+            "FIN TEST"
+        )
+
 
 
 
@@ -571,4 +329,7 @@ def main():
 
 if __name__ == "__main__":
 
-    main()
+
+    test = CoordinateReaderQuickTest()
+
+    test.run()

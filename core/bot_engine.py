@@ -16,7 +16,9 @@ from core.models.player_profile import PlayerProfile
 
 
 
+
 class BotState(Enum):
+
 
     STOPPED = auto()
 
@@ -29,7 +31,11 @@ class BotState(Enum):
 
 
 
+
+
+
 class BotEngine:
+
 
 
     def __init__(
@@ -41,10 +47,14 @@ class BotEngine:
     ):
 
 
+
         self.state = BotState.STOPPED
 
 
         self.game_state_manager = game_state_manager
+
+
+
 
 
 
@@ -59,12 +69,15 @@ class BotEngine:
 
 
 
+
+
         # =====================================
         # Módulos
         # =====================================
 
 
         self.modules = []
+
 
 
         self.register_module(
@@ -108,6 +121,7 @@ class BotEngine:
 
 
 
+
     # =====================================
     # Gestión módulos
     # =====================================
@@ -132,6 +146,9 @@ class BotEngine:
 
 
 
+
+
+
     def unregister_module(
 
         self,
@@ -143,6 +160,7 @@ class BotEngine:
 
         if module in self.modules:
 
+
             self.modules.remove(
 
                 module
@@ -153,9 +171,16 @@ class BotEngine:
 
 
 
+
+
+
     def get_modules(self):
 
+
         return self.modules
+
+
+
 
 
 
@@ -171,6 +196,7 @@ class BotEngine:
     ):
 
 
+
         for module in self.modules:
 
 
@@ -182,11 +208,16 @@ class BotEngine:
 
             ):
 
+
                 return module
 
 
 
         return None
+
+
+
+
 
 
 
@@ -201,7 +232,11 @@ class BotEngine:
 
     def get_profile(self):
 
+
         return self.profile
+
+
+
 
 
 
@@ -226,6 +261,7 @@ class BotEngine:
     ):
 
 
+
         for module in self.modules:
 
 
@@ -236,6 +272,7 @@ class BotEngine:
                 "configure"
 
             ):
+
 
 
                 module.configure(
@@ -254,8 +291,11 @@ class BotEngine:
 
 
 
+
+
+
     # =====================================
-    # Control
+    # CONTROL BOT
     # =====================================
 
 
@@ -264,7 +304,9 @@ class BotEngine:
 
         if self.state == BotState.RUNNING:
 
+
             return
+
 
 
 
@@ -276,7 +318,8 @@ class BotEngine:
 
 
 
-        # Iniciar captura y visión
+
+        # iniciar visión
 
         self.game_state_manager.start()
 
@@ -288,6 +331,7 @@ class BotEngine:
 
 
             module.on_start()
+
 
 
 
@@ -312,7 +356,9 @@ class BotEngine:
 
         if self.state == BotState.STOPPED:
 
+
             return
+
 
 
 
@@ -324,9 +370,9 @@ class BotEngine:
 
 
 
-        # Detener captura y visión
 
         self.game_state_manager.stop()
+
 
 
 
@@ -336,6 +382,7 @@ class BotEngine:
 
 
             module.on_stop()
+
 
 
 
@@ -360,6 +407,7 @@ class BotEngine:
 
         if self.state != BotState.RUNNING:
 
+
             return
 
 
@@ -367,6 +415,8 @@ class BotEngine:
 
 
         self.state = BotState.PAUSED
+
+
 
 
 
@@ -389,6 +439,7 @@ class BotEngine:
 
         if self.state != BotState.PAUSED:
 
+
             return
 
 
@@ -396,6 +447,8 @@ class BotEngine:
 
 
         self.state = BotState.RUNNING
+
+
 
 
 
@@ -413,8 +466,54 @@ class BotEngine:
 
 
 
+
+
+
+
     # =====================================
-    # Game Loop
+    # PLAYER POSITION CONTROL
+    # =====================================
+
+
+    def lock_player_position(self):
+
+
+        self.game_state_manager.lock_player_position()
+
+
+
+
+
+
+    def unlock_player_position(self):
+
+
+        self.game_state_manager.unlock_player_position()
+
+
+
+
+
+
+    def refresh_player_position(self):
+
+
+        self.game_state_manager.refresh_player_position()
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # =====================================
+    # GAME LOOP
     # =====================================
 
 
@@ -423,15 +522,19 @@ class BotEngine:
 
         if self.state != BotState.RUNNING:
 
+
             return
 
 
 
 
 
-        # Actualizar estado del juego
+
+        # actualizar visión
+
 
         self.game_state_manager.update()
+
 
 
 
@@ -447,9 +550,12 @@ class BotEngine:
 
 
 
-        # Debug temporal de visión
+
 
         player = state.player
+
+
+
 
 
 
@@ -459,7 +565,13 @@ class BotEngine:
 
             f"HP:{player.hp_percent}% "
 
-            f"MP:{player.mp_percent}%"
+            f"MP:{player.mp_percent}% "
+
+            f"POS:{player.x},{player.y} "
+
+            f"START:{player.start_x},{player.start_y} "
+
+            f"LOCKED:{player.position_locked}"
 
         )
 
@@ -469,14 +581,18 @@ class BotEngine:
 
 
 
-        # Ejecutar módulos
+        # ejecutar módulos
+
 
         for module in self.modules:
 
 
+
             if not module.is_enabled():
 
+
                 continue
+
 
 
 
@@ -484,7 +600,9 @@ class BotEngine:
 
             if not module.should_update():
 
+
                 continue
+
 
 
 
@@ -504,12 +622,16 @@ class BotEngine:
 
 
 
+
+
+
     # =====================================
-    # Consultas
+    # CONSULTAS
     # =====================================
 
 
     def is_running(self):
+
 
         return (
 
@@ -521,7 +643,11 @@ class BotEngine:
 
 
 
+
+
+
     def is_paused(self):
+
 
         return (
 
@@ -533,7 +659,11 @@ class BotEngine:
 
 
 
+
+
+
     def is_stopped(self):
+
 
         return (
 
@@ -545,6 +675,10 @@ class BotEngine:
 
 
 
+
+
+
     def get_state(self):
+
 
         return self.state

@@ -40,6 +40,7 @@ class GameStateManager:
 
 
 
+
     # =====================================
     # START
     # =====================================
@@ -66,6 +67,8 @@ class GameStateManager:
             "[GameStateManager] iniciado"
 
         )
+
+
 
 
 
@@ -124,6 +127,78 @@ class GameStateManager:
 
 
     # =====================================
+    # POSITION CONTROL
+    # =====================================
+
+
+    def lock_player_position(self):
+
+
+        self.state.player.lock_position()
+
+
+
+        print(
+
+            "[GameStateManager] posición inicial fijada",
+
+            self.state.player.start_x,
+
+            self.state.player.start_y
+
+        )
+
+
+
+
+
+
+
+
+
+    def unlock_player_position(self):
+
+
+        self.state.player.unlock_position()
+
+
+
+        print(
+
+            "[GameStateManager] posición inicial liberada"
+
+        )
+
+
+
+
+
+
+
+
+
+    def refresh_player_position(self):
+
+
+        self.vision.reset_position_reader()
+
+
+
+        print(
+
+            "[GameStateManager] refrescando posición"
+
+        )
+
+
+
+
+
+
+
+
+
+    # =====================================
     # STOP
     # =====================================
 
@@ -149,6 +224,8 @@ class GameStateManager:
             "[GameStateManager] detenido"
 
         )
+
+
 
 
 
