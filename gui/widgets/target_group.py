@@ -1,184 +1,173 @@
 from PySide6.QtWidgets import (
-    QGroupBox,
+    QWidget,
     QLabel,
-    QGridLayout,
+    QHBoxLayout,
+    QVBoxLayout,
 )
 
-from gui.widgets.status_indicator import StatusIndicator
+
 from gui.widgets.resource_bar import ResourceBar
 
 
 
 
 
-class TargetGroup(QGroupBox):
+class TargetGroup(QWidget):
 
 
     def __init__(self):
 
-        super().__init__("OBJETIVO")
-
-        self.setup_ui()
+        super().__init__()
 
 
+        self.create_widgets()
 
-
-
-
-    def setup_ui(self):
-
-
-        layout = QGridLayout()
-
-
-        layout.setHorizontalSpacing(15)
-        layout.setVerticalSpacing(6)
+        self.create_layout()
 
 
 
 
 
-        # ==========================
+
+
+    # =====================================
+    # WIDGETS
+    # =====================================
+
+
+    def create_widgets(self):
+
+
         # Nombre
-        # ==========================
-
-
-        layout.addWidget(
-
-            QLabel("NOMBRE"),
-
-            0,
-
-            0
-
-        )
 
 
         self.target_name_label = QLabel(
 
-            "Sin objetivo"
-
-        )
-
-
-        layout.addWidget(
-
-            self.target_name_label,
-
-            0,
-
-            1
+            "TARGET: ---"
 
         )
 
 
 
-
-
-
-
-        # ==========================
         # Nivel
-        # ==========================
-
-
-        layout.addWidget(
-
-            QLabel("NIVEL"),
-
-            1,
-
-            0
-
-        )
 
 
         self.level_label = QLabel(
 
-            "-"
-
-        )
-
-
-        layout.addWidget(
-
-            self.level_label,
-
-            1,
-
-            1
+            "LVL: -"
 
         )
 
 
 
-
-
-
-
-        # ==========================
-        # Estado
-        # ==========================
-
-
-        layout.addWidget(
-
-            QLabel("ESTADO"),
-
-            2,
-
-            0
-
-        )
-
-
-        self.target_status_indicator = StatusIndicator()
-
-
-        self.target_status_indicator.disconnected()
-
-
-        layout.addWidget(
-
-            self.target_status_indicator,
-
-            2,
-
-            1
-
-        )
-
-
-
-
-
-
-
-        # ==========================
         # Vida
-        # ==========================
 
 
         self.hp_bar = ResourceBar(
 
-            "VIDA"
+            "HP"
 
         )
 
 
-        layout.addWidget(
 
-            self.hp_bar,
 
-            3,
 
-            0,
 
-            1,
 
-            2
+
+
+    # =====================================
+    # LAYOUT
+    # =====================================
+
+
+    def create_layout(self):
+
+
+        main_layout = QVBoxLayout()
+
+
+
+        main_layout.setContentsMargins(
+
+            6,
+
+            6,
+
+            6,
+
+            6
 
         )
+
+
+        main_layout.setSpacing(
+
+            8
+
+        )
+
+
+
+
+
+
+        # -----------------------------
+        # NAME + LEVEL
+        # -----------------------------
+
+
+        header_layout = QHBoxLayout()
+
+
+
+        header_layout.addWidget(
+
+            self.target_name_label
+
+        )
+
+
+        header_layout.addStretch()
+
+
+
+        header_layout.addWidget(
+
+            self.level_label
+
+        )
+
+
+
+        main_layout.addLayout(
+
+            header_layout
+
+        )
+
+
+
+
+
+
+
+
+        # -----------------------------
+        # HP
+        # -----------------------------
+
+
+        main_layout.addWidget(
+
+            self.hp_bar
+
+        )
+
+
+
+        main_layout.addStretch()
 
 
 
@@ -186,7 +175,7 @@ class TargetGroup(QGroupBox):
 
         self.setLayout(
 
-            layout
+            main_layout
 
         )
 
@@ -218,9 +207,7 @@ class TargetGroup(QGroupBox):
 
 
 
-        # ==========================
         # Sin objetivo
-        # ==========================
 
 
         if not target.exists:
@@ -228,28 +215,23 @@ class TargetGroup(QGroupBox):
 
             self.target_name_label.setText(
 
-                "Sin objetivo"
+                "TARGET: ---"
 
             )
 
 
             self.level_label.setText(
 
-                "-"
+                "LVL: -"
 
             )
 
 
-            self.hp_bar.update_value(
+            self.hp_bar.update_percent(
 
-                0,
-
-                100
+                0
 
             )
-
-
-            self.target_status_indicator.disconnected()
 
 
             return
@@ -260,20 +242,18 @@ class TargetGroup(QGroupBox):
 
 
 
-        # ==========================
         # Nombre
-        # ==========================
 
 
         self.target_name_label.setText(
 
-            target.name
+            f"TARGET: {target.name}"
 
             if target.name
 
             else
 
-            "Desconocido"
+            "TARGET: ---"
 
         )
 
@@ -283,14 +263,12 @@ class TargetGroup(QGroupBox):
 
 
 
-        # ==========================
         # Nivel
-        # ==========================
 
 
         self.level_label.setText(
 
-            str(target.level)
+            f"LVL: {target.level}"
 
         )
 
@@ -300,27 +278,11 @@ class TargetGroup(QGroupBox):
 
 
 
-        # ==========================
-        # Estado
-        # ==========================
-
-
-        self.target_status_indicator.connected()
-
-
-
-
-
-
-        # ==========================
         # Vida
-        # ==========================
 
 
-        self.hp_bar.update_value(
+        self.hp_bar.update_percent(
 
-            target.hp_percent,
-
-            100
+            target.hp_percent
 
         )

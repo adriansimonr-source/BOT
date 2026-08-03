@@ -1,16 +1,17 @@
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import (
+    QThread,
+    QTimer,
+)
 
+from PySide6.QtGui import QIcon
 
 from PySide6.QtWidgets import (
     QWidget,
     QMainWindow,
-    QStatusBar,
-    QToolBar,
     QVBoxLayout,
     QTabWidget,
     QLabel,
 )
-
 
 
 from gui.tabs.bot_tab import BotTab
@@ -20,6 +21,7 @@ from gui.tabs.process_tab import ProcessTab
 from core.process_manager import ProcessManager
 from core.managers.game_state_manager import GameStateManager
 from core.bot_engine import BotEngine
+from core.bot_worker import BotWorker
 
 
 
@@ -33,13 +35,12 @@ class MainWindow(QMainWindow):
         super().__init__()
 
 
-
         self.configure_window()
 
+        self.apply_style()
 
 
         self.process_manager = ProcessManager()
-
 
 
         self.game_state_manager = GameStateManager(
@@ -49,7 +50,6 @@ class MainWindow(QMainWindow):
         )
 
 
-
         self.bot_engine = BotEngine(
 
             self.game_state_manager
@@ -57,80 +57,15 @@ class MainWindow(QMainWindow):
         )
 
 
+        self.bot_thread = None
+
+        self.bot_worker = None
 
 
 
+        self.create_ui()
 
-        # =====================================
-        # TIMER BOT
-        # =====================================
-
-
-        self.bot_timer = QTimer(self)
-
-
-
-        self.bot_timer.setInterval(
-
-            250
-
-        )
-
-
-
-        self.bot_timer.timeout.connect(
-
-            self.bot_engine.update
-
-        )
-
-
-
-
-
-
-
-        # =====================================
-        # TIMER UI
-        # =====================================
-
-
-        self.ui_timer = QTimer(self)
-
-
-
-        self.ui_timer.setInterval(
-
-            100
-
-        )
-
-
-
-        self.ui_timer.timeout.connect(
-
-            self.update_character_ui
-
-        )
-
-
-
-
-
-
-
-
-
-
-        self.create_menu()
-
-        self.create_toolbar()
-
-        self.create_central_widget()
-
-        self.create_statusbar()
-
-
+        self.create_timer()
 
         self.connect_signals()
 
@@ -139,67 +74,32 @@ class MainWindow(QMainWindow):
 
 
 
-
-    # =====================================
-    # WINDOW
-    # =====================================
-
-
     def configure_window(self):
 
 
         self.setWindowTitle(
 
-            "Davion Automation Suite"
+            "SB Automation Suite"
 
         )
 
 
-        self.resize(
+        self.setWindowIcon(
 
-            1200,
+            QIcon(
 
-            800
+                "data/logo/Logo_cami.png"
 
-        )
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # MENU
-    # =====================================
-
-
-    def create_menu(self):
-
-
-        menu = self.menuBar()
-
-
-
-        menu.addMenu(
-
-            "Archivo"
+            )
 
         )
 
 
-        menu.addMenu(
+        self.setFixedSize(
 
-            "Configuración"
+            750,
 
-        )
-
-
-        menu.addMenu(
-
-            "Ayuda"
+            500
 
         )
 
@@ -212,16 +112,126 @@ class MainWindow(QMainWindow):
 
 
     # =====================================
-    # TOOLBAR
+    # STYLE
     # =====================================
 
 
-    def create_toolbar(self):
+    def apply_style(self):
 
 
-        self.addToolBar(
+        self.setStyleSheet(
 
-            QToolBar()
+            """
+
+            QWidget {
+
+                background-color: #FFFFFF;
+
+                color: #173B6D;
+
+                font-size: 12px;
+
+            }
+
+
+
+            QTabWidget::pane {
+
+                border: 1px solid #D7E3F2;
+
+                border-radius: 8px;
+
+                background: white;
+
+            }
+
+
+
+            QTabBar::tab {
+
+                background: #EAF2FB;
+
+                color: #173B6D;
+
+                padding: 7px 18px;
+
+                border-radius: 6px;
+
+                margin-right: 4px;
+
+            }
+
+
+
+            QTabBar::tab:selected {
+
+                background: #173B6D;
+
+                color: white;
+
+            }
+
+
+
+            QPushButton {
+
+                background-color: #173B6D;
+
+                color: white;
+
+                border-radius: 6px;
+
+                padding: 4px 8px;
+
+            }
+
+
+
+            QPushButton:hover {
+
+                background-color: #28558F;
+
+            }
+
+
+
+            QComboBox {
+
+                border: 1px solid #B9CBE3;
+
+                border-radius: 6px;
+
+                padding: 4px;
+
+                background: white;
+
+            }
+
+
+
+            QProgressBar {
+
+                border: 1px solid #B9CBE3;
+
+                border-radius: 5px;
+
+                background: #F4F7FB;
+
+                height: 12px;
+
+            }
+
+
+
+            QProgressBar::chunk {
+
+                background-color: #173B6D;
+
+                border-radius: 5px;
+
+            }
+
+            """
 
         )
 
@@ -234,11 +244,11 @@ class MainWindow(QMainWindow):
 
 
     # =====================================
-    # CENTRAL
+    # UI
     # =====================================
 
 
-    def create_central_widget(self):
+    def create_ui(self):
 
 
         central = QWidget()
@@ -251,8 +261,24 @@ class MainWindow(QMainWindow):
         )
 
 
+        layout = QVBoxLayout(
 
-        layout = QVBoxLayout()
+            central
+
+        )
+
+
+        layout.setContentsMargins(
+
+            6,
+
+            6,
+
+            6,
+
+            6
+
+        )
 
 
 
@@ -262,9 +288,7 @@ class MainWindow(QMainWindow):
 
         self.bot_tab = BotTab()
 
-
         self.process_tab = ProcessTab()
-
 
         self.log_tab = QLabel(
 
@@ -310,14 +334,6 @@ class MainWindow(QMainWindow):
 
 
 
-        central.setLayout(
-
-            layout
-
-        )
-
-
-
 
 
 
@@ -325,28 +341,26 @@ class MainWindow(QMainWindow):
 
 
     # =====================================
-    # STATUS
+    # TIMER
     # =====================================
 
 
-    def create_statusbar(self):
+    def create_timer(self):
 
 
-        status = QStatusBar()
+        self.ui_timer = QTimer(self)
 
 
+        self.ui_timer.setInterval(
 
-        status.showMessage(
-
-            "Aplicación iniciada"
+            100
 
         )
 
 
+        self.ui_timer.timeout.connect(
 
-        self.setStatusBar(
-
-            status
+            self.update_character_ui
 
         )
 
@@ -366,13 +380,11 @@ class MainWindow(QMainWindow):
     def connect_signals(self):
 
 
-
         self.bot_tab.bot_controls.start_button.clicked.connect(
 
             self.toggle_bot
 
         )
-
 
 
         self.bot_tab.game_selector.game_changed.connect(
@@ -382,7 +394,6 @@ class MainWindow(QMainWindow):
         )
 
 
-
         self.process_tab.detect_button.clicked.connect(
 
             self.detect_process
@@ -390,29 +401,21 @@ class MainWindow(QMainWindow):
         )
 
 
-
-
-
-        # POSICION JUGADOR
-
-
-        self.bot_tab.position_group.refresh_button.clicked.connect(
+        self.bot_tab.character_group.refresh_position_button.clicked.connect(
 
             self.refresh_player_position
 
         )
 
 
-
-        self.bot_tab.position_group.lock_button.clicked.connect(
+        self.bot_tab.character_group.lock_position_button.clicked.connect(
 
             self.lock_player_position
 
         )
 
 
-
-        self.bot_tab.position_group.unlock_button.clicked.connect(
+        self.bot_tab.character_group.unlock_position_button.clicked.connect(
 
             self.unlock_player_position
 
@@ -427,7 +430,7 @@ class MainWindow(QMainWindow):
 
 
     # =====================================
-    # GAME SELECT
+    # GAME
     # =====================================
 
 
@@ -447,19 +450,18 @@ class MainWindow(QMainWindow):
         )
 
 
-        name = self.bot_tab.game_selector.get_selected_name()
-
-
-
         self.process_tab.set_game(
 
-            name
+            self.bot_tab.game_selector.get_selected_name()
 
         )
 
 
-
         self.detect_process()
+
+
+
+
 
 
 
@@ -475,11 +477,7 @@ class MainWindow(QMainWindow):
     def detect_process(self):
 
 
-        found = self.process_manager.find_process()
-
-
-
-        if found:
+        if self.process_manager.find_process():
 
 
             self.process_tab.connected(
@@ -493,26 +491,12 @@ class MainWindow(QMainWindow):
             )
 
 
-            self.statusBar().showMessage(
-
-                "Proceso conectado"
-
-            )
-
-
-
         else:
 
 
             self.process_tab.disconnected()
 
 
-
-            self.statusBar().showMessage(
-
-                "Proceso no encontrado"
-
-            )
 
 
 
@@ -532,14 +516,14 @@ class MainWindow(QMainWindow):
 
         if self.bot_engine.is_running():
 
-
             self.stop_bot()
-
 
         else:
 
-
             self.start_bot()
+
+
+
 
 
 
@@ -553,18 +537,7 @@ class MainWindow(QMainWindow):
 
         if not self.process_manager.is_connected():
 
-
-            self.statusBar().showMessage(
-
-                "Proceso no conectado"
-
-            )
-
-
             return
-
-
-
 
 
 
@@ -577,16 +550,36 @@ class MainWindow(QMainWindow):
         )
 
 
-
         self.bot_tab.lock_controls()
 
 
 
-        self.bot_engine.start()
+        self.bot_thread = QThread()
 
 
+        self.bot_worker = BotWorker(
 
-        self.bot_timer.start()
+            self.bot_engine
+
+        )
+
+
+        self.bot_worker.moveToThread(
+
+            self.bot_thread
+
+        )
+
+
+        self.bot_thread.started.connect(
+
+            self.bot_worker.start
+
+        )
+
+
+        self.bot_thread.start()
+
 
 
         self.ui_timer.start()
@@ -601,17 +594,33 @@ class MainWindow(QMainWindow):
 
 
 
+
+
+
     def stop_bot(self):
-
-
-        self.bot_timer.stop()
 
 
         self.ui_timer.stop()
 
 
 
-        self.bot_engine.stop()
+        if self.bot_worker:
+
+            self.bot_worker.stop()
+
+
+
+        if self.bot_thread:
+
+            self.bot_thread.quit()
+
+            self.bot_thread.wait()
+
+
+
+        self.bot_worker = None
+
+        self.bot_thread = None
 
 
 
@@ -630,14 +639,12 @@ class MainWindow(QMainWindow):
 
 
 
-
     # =====================================
-    # PLAYER POSITION
+    # POSITION
     # =====================================
 
 
     def refresh_player_position(self):
-
 
         self.bot_engine.refresh_player_position()
 
@@ -645,29 +652,16 @@ class MainWindow(QMainWindow):
 
     def lock_player_position(self):
 
-
         self.bot_engine.lock_player_position()
 
 
 
     def unlock_player_position(self):
 
-
         self.bot_engine.unlock_player_position()
 
 
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # UI UPDATE
-    # =====================================
 
 
     def update_character_ui(self):
@@ -684,16 +678,7 @@ class MainWindow(QMainWindow):
         )
 
 
-
         self.bot_tab.target_group.update_state(
-
-            state
-
-        )
-
-
-
-        self.bot_tab.position_group.update_state(
 
             state
 

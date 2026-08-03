@@ -29,7 +29,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 22
+        "encounters": 70
     },
     "Bongbo": {
         "level": 0,
@@ -37,7 +37,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 28
+        "encounters": 86
     },
     "&@ Bongbo": {
         "level": 0,
@@ -61,7 +61,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 1
+        "encounters": 2
     },
     "ys Bongbo \\": {
         "level": 0,
@@ -96,6 +96,198 @@
         "encounters": 1
     },
     "Bongbo %\\": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Bongbo on": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Baoku an": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Baoku °": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 4
+    },
+    "a 80Ongbo": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Baoku to": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 3
+    },
+    "Baokuy Le el": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "/ Baoku Pe": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "“7 Baoku 4 \\": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 15s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 13s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 11s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 59s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 57s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 53s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 50s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 46s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 43s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 39s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 32s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 26s": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "4m 235": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Bongbo ‘A": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Patura": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "FT Baoku 7": {
         "level": 0,
         "priority": 0,
         "ignore": false,

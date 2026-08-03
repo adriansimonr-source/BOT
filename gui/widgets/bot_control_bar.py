@@ -2,8 +2,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QPushButton,
-    QLabel
 )
+
+
 
 
 
@@ -23,6 +24,8 @@ class BotControlBar(QWidget):
 
 
 
+
+
     # =====================================
     # Crear widgets
     # =====================================
@@ -31,19 +34,29 @@ class BotControlBar(QWidget):
     def create_widgets(self):
 
 
-        self.status_label = QLabel(
-            "BOT DETENIDO"
-        )
-
-
         self.start_button = QPushButton(
+
             "▶ INICIAR BOT"
+
         )
+
 
 
         self.start_button.setMinimumHeight(
-            40
+
+            36
+
         )
+
+
+        self.start_button.setMinimumWidth(
+
+            180
+
+        )
+
+
+
 
 
 
@@ -60,22 +73,46 @@ class BotControlBar(QWidget):
         layout = QHBoxLayout()
 
 
-        layout.addWidget(
-            self.status_label
+
+        layout.setContentsMargins(
+
+            5,
+
+            5,
+
+            5,
+
+            5
+
         )
+
 
 
         layout.addStretch()
 
 
+
         layout.addWidget(
+
             self.start_button
+
         )
+
+
+
+        layout.addStretch()
+
 
 
         self.setLayout(
+
             layout
+
         )
+
+
+
+
 
 
 
@@ -89,13 +126,10 @@ class BotControlBar(QWidget):
     def set_running(self):
 
 
-        self.status_label.setText(
-            "BOT EJECUTANDO"
-        )
-
-
         self.start_button.setText(
+
             "⏹ DETENER BOT"
+
         )
 
 
@@ -105,11 +139,8 @@ class BotControlBar(QWidget):
     def set_stopped(self):
 
 
-        self.status_label.setText(
-            "BOT DETENIDO"
-        )
-
-
         self.start_button.setText(
+
             "▶ INICIAR BOT"
+
         )

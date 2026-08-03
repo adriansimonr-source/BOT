@@ -21,15 +21,25 @@ class GameStateManager:
         self.process_manager = process_manager
 
 
+        # =====================================
         # Estado global del juego
+        # =====================================
 
         self.state = GameState()
 
 
 
-        # Sistema de visión
+        # =====================================
+        # Sistema visión
+        # =====================================
+        #
+        # IMPORTANTE:
+        # No crear VisionManager aquí.
+        # Este objeto debe nacer dentro
+        # del hilo del bot.
+        #
 
-        self.vision = VisionManager()
+        self.vision = None
 
 
 
@@ -55,7 +65,20 @@ class GameStateManager:
 
 
 
+
+
+        # Crear VisionManager dentro
+        # del hilo que ejecuta el bot
+
+        if self.vision is None:
+
+
+            self.vision = VisionManager()
+
+
+
         self.vision.start()
+
 
 
         self.running = True
@@ -102,6 +125,7 @@ class GameStateManager:
 
 
 
+
         if not self.running:
 
             return
@@ -110,13 +134,18 @@ class GameStateManager:
 
 
 
+
         # Actualizar visión
 
-        self.vision.update(
 
-            self.state
+        if self.vision:
 
-        )
+
+            self.vision.update(
+
+                self.state
+
+            )
 
 
 
@@ -180,7 +209,10 @@ class GameStateManager:
     def refresh_player_position(self):
 
 
-        self.vision.reset_position_reader()
+        if self.vision:
+
+
+            self.vision.reset_position_reader()
 
 
 
@@ -212,7 +244,15 @@ class GameStateManager:
 
 
 
-        self.vision.stop()
+
+
+        if self.vision:
+
+
+            self.vision.stop()
+
+
+
 
 
         self.running = False
@@ -239,5 +279,6 @@ class GameStateManager:
 
 
     def get_state(self):
+
 
         return self.state

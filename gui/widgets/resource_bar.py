@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QProgressBar,
     QLabel,
-    QHBoxLayout
+    QHBoxLayout,
 )
 
 
@@ -16,9 +16,9 @@ class ResourceBar(QWidget):
 
         super().__init__()
 
-
-        self.name = name
-
+        self.label = QLabel(name)
+        self.bar = QProgressBar()
+        self.value_label = QLabel("0%")
 
         self.setup_ui()
 
@@ -26,172 +26,118 @@ class ResourceBar(QWidget):
 
 
 
+
     def setup_ui(self):
 
-
-        layout = QHBoxLayout()
-
-
-        self.label = QLabel(
-
-            self.name
-
-        )
-
-
-        self.bar = QProgressBar()
-
-
-        self.bar.setMinimum(
-
-            0
-
-        )
-
-
-        self.bar.setMaximum(
-
-            100
-
-        )
-
-
-
-        self.value_label = QLabel(
-
-            "0%"
-
-        )
-
-
-
-        layout.addWidget(
-
-            self.label
-
-        )
-
-
-        layout.addWidget(
-
-            self.bar
-
-        )
-
-
-        layout.addWidget(
-
-            self.value_label
-
-        )
+        layout = QHBoxLayout(self)
 
 
         layout.setContentsMargins(
-
             0,
-
             0,
-
             0,
-
             0
-
         )
 
 
-        self.setLayout(
-
-            layout
-
+        layout.setSpacing(
+            5
         )
 
 
 
+        self.label.setFixedWidth(
+            25
+        )
+
+
+        self.bar.setRange(
+            0,
+            100
+        )
+
+
+        self.bar.setTextVisible(
+            False
+        )
+
+
+        self.bar.setFixedHeight(
+            12
+        )
+
+
+        self.bar.setFixedWidth(
+            350
+        )
+
+
+        self.value_label.setFixedWidth(
+            35
+        )
+
+
+
+        layout.addWidget(
+            self.label
+        )
+
+
+        layout.addWidget(
+            self.bar
+        )
+
+
+        layout.addWidget(
+            self.value_label
+        )
+
+
+        layout.addStretch()
 
 
 
 
-    # =====================================
-    # ACTUALIZAR PORCENTAJE
-    # =====================================
 
 
-    def update_percent(
 
-        self,
-
-        value
-
-    ):
+    def update_percent(self, value):
 
 
-        if value < 0:
-
-            value = 0
-
-
-        if value > 100:
-
-            value = 100
-
+        value = max(
+            0,
+            min(
+                100,
+                int(value)
+            )
+        )
 
 
         self.bar.setValue(
-
-            int(value)
-
+            value
         )
 
 
         self.value_label.setText(
-
-            f"{int(value)}%"
-
+            f"{value}%"
         )
 
 
 
 
 
-    # Compatibilidad
-    # =====================================
 
 
-    def update_value(
-
-        self,
-
-        current,
-
-        maximum
-
-    ):
+    def update_value(self, current, maximum):
 
 
         if maximum <= 0:
 
-            self.update_percent(
-
-                0
-
-            )
+            self.update_percent(0)
 
             return
 
 
-
-        percent = (
-
-            current /
-
-            maximum
-
-        ) * 100
-
-
-
         self.update_percent(
-
-            percent
-
+            current / maximum * 100
         )

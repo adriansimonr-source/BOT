@@ -1,61 +1,168 @@
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
-    QGroupBox, 
     QGridLayout,
 )
 
 from gui.widgets.skill_card import SkillCard
 
+
+
+
+
 class CenterPanel(QWidget):
 
+
     def __init__(self):
+
         super().__init__()
 
         self.create_widgets()
+
         self.create_layout()
+
+
+
+
 
     def create_widgets(self):
 
-        self.skills_group = QGroupBox("ROTACION")
 
-        self.skills = []
+        self.number_skills = [
 
-        for i in range(1, 10):
-            self.skills.append(SkillCard(i))
+            SkillCard(i)
+
+            for i in range(1, 10)
+
+        ]
+
+
+        self.function_skills = [
+
+            SkillCard(f"F{i}")
+
+            for i in range(1, 10)
+
+        ]
+
+
+        # Compatibilidad con RotationManager
+
+        self.skills = (
+
+            self.number_skills +
+
+            self.function_skills
+
+        )
+
+
+
+
+
+
 
     def create_layout(self):
 
-        skills_layout = QGridLayout()
-        skills_layout.setHorizontalSpacing(2)
-        skills_layout.setVerticalSpacing(5)
 
-        for i, skill in enumerate(self.skills):
+        layout = QVBoxLayout(
+            self
+        )
 
-            if i < 5:
-                row = 0
-                column = i
-            else:
-                row = 1
-                column = i - 5
 
-            skills_layout.addWidget(skill, row, column)
+        layout.setContentsMargins(
+            2,
+            2,
+            2,
+            2
+        )
 
-        self.skills_group.setLayout(skills_layout)
 
-        layout = QVBoxLayout(self)
+        layout.setSpacing(
+            0
+        )
 
-        layout.addWidget(self.skills_group)
-        layout.addStretch()
 
-        self.setLayout(layout)
+
+        grid = QGridLayout()
+
+
+        grid.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+
+        grid.setHorizontalSpacing(
+            12
+        )
+
+
+        grid.setVerticalSpacing(
+            2
+        )
+
+
+
+        for row in range(9):
+
+
+            grid.addWidget(
+
+                self.number_skills[row],
+
+                row,
+
+                0
+
+            )
+
+
+            grid.addWidget(
+
+                self.function_skills[row],
+
+                row,
+
+                1
+
+            )
+
+
+
+        layout.addLayout(
+            grid
+        )
+
+
+        self.setLayout(
+            layout
+        )
+
+
+
+
+
+
+
+
     def lock_controls(self):
 
+
         for skill in self.skills:
+
             skill.lock()
+
+
+
+
 
 
     def unlock_controls(self):
 
+
         for skill in self.skills:
-            skill.unlock()    
+
+            skill.unlock()

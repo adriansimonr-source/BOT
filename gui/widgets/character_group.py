@@ -1,7 +1,10 @@
 from PySide6.QtWidgets import (
-    QGroupBox,
+    QWidget,
     QLabel,
-    QGridLayout,
+    QHBoxLayout,
+    QVBoxLayout,
+    QPushButton,
+    QComboBox,
 )
 
 from gui.widgets.status_indicator import StatusIndicator
@@ -9,253 +12,305 @@ from gui.widgets.resource_bar import ResourceBar
 
 
 
-
-
-class CharacterGroup(QGroupBox):
+class CharacterGroup(QWidget):
 
 
     def __init__(self):
 
-        super().__init__("PERSONAJE")
+        super().__init__()
 
-        self.setup_ui()
-
-
-
-
-
-    def setup_ui(self):
-
-
-        layout = QGridLayout()
-
-        layout.setHorizontalSpacing(15)
-
-        layout.setVerticalSpacing(6)
+        self.create_widgets()
+        self.create_layout()
 
 
 
-
-
-        # ============================
-        # Nombre
-        # ============================
-
-
-        layout.addWidget(
-
-            QLabel("NOMBRE"),
-
-            0,
-
-            0
-
-        )
-
+    def create_widgets(self):
 
         self.character_name_label = QLabel(
-
-            "No detectado"
-
+            "NAME: ---"
         )
 
 
-        layout.addWidget(
-
-            self.character_name_label,
-
-            0,
-
-            1
-
-        )
-
-
-
-
-
-
-        # ============================
-        # Nivel
-        # ============================
-
-
-        layout.addWidget(
-
-            QLabel("NIVEL"),
-
-            1,
-
-            0
-
+        self.refresh_name_button = QPushButton(
+            "⟳"
         )
 
 
         self.level_label = QLabel(
-
-            "0"
-
-        )
-
-
-        layout.addWidget(
-
-            self.level_label,
-
-            1,
-
-            1
-
-        )
-
-
-
-
-
-
-
-        # ============================
-        # Estado
-        # ============================
-
-
-        layout.addWidget(
-
-            QLabel("ESTADO"),
-
-            2,
-
-            0
-
+            "LVL: -"
         )
 
 
         self.character_status_indicator = StatusIndicator()
 
 
-        self.character_status_indicator.disconnected()
-
-
-
-        layout.addWidget(
-
-            self.character_status_indicator,
-
-            2,
-
-            1
-
+        self.online_label = QLabel(
+            "OFFLINE"
         )
-
-
-
-
-
-
-
-        # ============================
-        # Vida
-        # ============================
 
 
         self.hp_bar = ResourceBar(
-
-            "VIDA"
-
+            "HP"
         )
-
-
-        layout.addWidget(
-
-            self.hp_bar,
-
-            3,
-
-            0,
-
-            1,
-
-            2
-
-        )
-
-
-
-
-
-
-
-        # ============================
-        # Mana
-        # ============================
 
 
         self.mp_bar = ResourceBar(
-
-            "MANA"
-
+            "MP"
         )
 
 
-        layout.addWidget(
+        self.current_position_label = QLabel(
+            "0 / 0"
+        )
 
-            self.mp_bar,
 
+        self.start_position_label = QLabel(
+            "0 / 0"
+        )
+
+
+        self.refresh_position_button = QPushButton(
+            "⟳"
+        )
+
+
+        self.lock_position_button = QPushButton(
+            "📌"
+        )
+
+
+        self.unlock_position_button = QPushButton(
+            "🔓"
+        )
+
+
+        self.mode_selector = QComboBox()
+
+        self.mode_selector.addItems(
+            [
+                "BOT STATIC",
+                "100",
+                "250",
+                "500",
+                "SIN LIMITES"
+            ]
+        )
+
+
+        self.apply_button_style()
+
+
+
+
+
+    def apply_button_style(self):
+
+        buttons = [
+            self.refresh_name_button,
+            self.refresh_position_button,
+            self.lock_position_button,
+            self.unlock_position_button,
+        ]
+
+
+        for button in buttons:
+
+            button.setFixedSize(
+                30,
+                24
+            )
+
+
+            button.setStyleSheet(
+                """
+                QPushButton {
+
+                    background-color: #173B6D;
+                    color: white;
+                    border-radius: 6px;
+                    border: none;
+                    font-size: 13px;
+
+                }
+
+                QPushButton:hover {
+
+                    background-color: #28558F;
+
+                }
+
+                QPushButton:pressed {
+
+                    background-color: #102A4D;
+
+                }
+                """
+            )
+
+
+
+
+
+
+    def create_layout(self):
+
+
+        main_layout = QVBoxLayout(
+            self
+        )
+
+
+        main_layout.setContentsMargins(
             4,
+            4,
+            4,
+            4
+        )
 
-            0,
 
-            1,
-
-            2
-
+        main_layout.setSpacing(
+            4
         )
 
 
 
+        header = QHBoxLayout()
 
 
-
-
-        # ============================
-        # Posición
-        # ============================
-
-
-        layout.addWidget(
-
-            QLabel("POSICIÓN"),
-
-            5,
-
-            0
-
+        header.setSpacing(
+            5
         )
 
 
-        self.position_label = QLabel(
-
-            "X: 0  Y: 0"
-
+        header.addWidget(
+            self.character_name_label
         )
 
 
-        layout.addWidget(
+        header.addWidget(
+            self.refresh_name_button
+        )
 
-            self.position_label,
 
-            5,
+        header.addWidget(
+            self.level_label
+        )
 
-            1
 
+        header.addWidget(
+            self.character_status_indicator
+        )
+
+
+        header.addWidget(
+            self.online_label
+        )
+
+
+        header.addStretch()
+
+
+
+        main_layout.addLayout(
+            header
+        )
+
+
+
+        main_layout.addWidget(
+            self.hp_bar
+        )
+
+
+        main_layout.addWidget(
+            self.mp_bar
+        )
+
+
+
+        position = QHBoxLayout()
+
+
+        position.setSpacing(
+            5
+        )
+
+
+        position.addWidget(
+            QLabel("X/Y ACTUAL")
+        )
+
+
+        position.addWidget(
+            self.current_position_label
+        )
+
+
+        position.addWidget(
+            self.refresh_position_button
+        )
+
+
+        position.addSpacing(
+            10
+        )
+
+
+        position.addWidget(
+            QLabel("X/Y INICIAL")
+        )
+
+
+        position.addWidget(
+            self.start_position_label
+        )
+
+
+        position.addWidget(
+            self.lock_position_button
+        )
+
+
+        position.addWidget(
+            self.unlock_position_button
+        )
+
+
+        position.addStretch()
+
+
+
+        main_layout.addLayout(
+            position
+        )
+
+
+
+        mode = QHBoxLayout()
+
+
+        mode.addWidget(
+            QLabel("MODE")
+        )
+
+
+        mode.addWidget(
+            self.mode_selector
+        )
+
+
+        mode.addStretch()
+
+
+
+        main_layout.addLayout(
+            mode
         )
 
 
 
         self.setLayout(
-
-            layout
-
+            main_layout
         )
 
 
@@ -263,186 +318,89 @@ class CharacterGroup(QGroupBox):
 
 
 
-
-    # ==================================================
-    # Actualización desde GameState
-    # ==================================================
-
-
-    def update_state(
-
-        self,
-
-        state
-
-    ):
+    def update_state(self, state):
 
 
         player = state.player
 
 
-
-
-
-
-        # Nombre
-
         self.character_name_label.setText(
-
-            player.name
-
+            f"NAME: {player.name}"
             if player.name
-
-            else "No detectado"
-
+            else "NAME: ---"
         )
 
-
-
-
-
-
-
-        # Nivel
 
         self.level_label.setText(
-
-            str(player.level)
-
+            f"LVL: {player.level}"
         )
 
 
-
-
-
-
-
-        # Estado
 
         if state.connected:
 
             self.character_status_indicator.connected()
 
+            self.online_label.setText(
+                "ONLINE"
+            )
+
         else:
 
             self.character_status_indicator.disconnected()
 
+            self.online_label.setText(
+                "OFFLINE"
+            )
 
-
-
-
-
-
-        # Recursos en porcentaje
 
 
         self.hp_bar.update_percent(
-
             player.hp_percent
-
         )
 
 
         self.mp_bar.update_percent(
-
             player.mp_percent
+        )
 
+
+        self.current_position_label.setText(
+            f"{player.x} / {player.y}"
+        )
+
+
+
+        self.start_position_label.setText(
+            f"{player.start_x} / {player.start_y}"
         )
 
 
 
 
 
-
-
-        # Posición
-
-        self.position_label.setText(
-
-            f"X: {player.x}  Y: {player.y}"
-
-        )
-
-
-
-
-
-
-
-    # ==================================================
-    # Compatibilidad anterior
-    # ==================================================
-
-
-    def set_name(
-
-        self,
-
-        name: str
-
-    ):
-
+    def set_name(self, name):
 
         self.character_name_label.setText(
-
-            name
-
+            f"NAME: {name}"
         )
-
-
 
 
 
     def clear_name(self):
 
-
         self.character_name_label.setText(
-
-            "No detectado"
-
+            "NAME: ---"
         )
-
-
 
 
 
     def connected(self):
 
-
         self.character_status_indicator.connected()
-
-
 
 
 
     def disconnected(self):
 
-
         self.character_status_indicator.disconnected()
-
-
-
-
-
-    def detecting(self):
-
-
-        self.character_status_indicator.detecting()
-
-
-
-
-
-    def running(self):
-
-
-        self.character_status_indicator.running()
-
-
-
-
-
-    def paused(self):
-
-
-        self.character_status_indicator.paused()
