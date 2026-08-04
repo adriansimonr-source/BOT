@@ -1,6 +1,7 @@
 from PySide6.QtCore import (
     QThread,
     QTimer,
+    Signal,
 )
 
 from PySide6.QtGui import QIcon
@@ -11,15 +12,18 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QTabWidget,
     QLabel,
+    QMessageBox,
 )
 
 
 from gui.tabs.bot_tab import BotTab
-from gui.tabs.process_tab import ProcessTab
+from gui.dialogs.add_game_dialog import AddGameDialog
 
 
 from core.process_manager import ProcessManager
+from core.managers.game_profile_manager import GameProfileManager
 from core.managers.game_state_manager import GameStateManager
+from core.managers.entity_database_manager import EntityDatabaseManager
 from core.bot_engine import BotEngine
 from core.bot_worker import BotWorker
 
@@ -28,6 +32,9 @@ from core.bot_worker import BotWorker
 
 
 class MainWindow(QMainWindow):
+
+
+    stop_bot_requested = Signal()
 
 
     def __init__(self):
@@ -40,7 +47,14 @@ class MainWindow(QMainWindow):
         self.apply_style()
 
 
-        self.process_manager = ProcessManager()
+        self.game_profiles = GameProfileManager()
+
+
+        self.process_manager = ProcessManager(
+
+            game_profiles=self.game_profiles
+
+        )
 
 
         self.game_state_manager = GameStateManager(
@@ -57,9 +71,14 @@ class MainWindow(QMainWindow):
         )
 
 
+        self.entity_database = EntityDatabaseManager()
+
+
         self.bot_thread = None
 
         self.bot_worker = None
+
+        self._close_pending = False
 
 
 
@@ -68,6 +87,12 @@ class MainWindow(QMainWindow):
         self.create_timer()
 
         self.connect_signals()
+
+
+        self.initialize_selected_game()
+
+
+        self.refresh_enemy_lists(force=True)
 
 
 
@@ -286,9 +311,7 @@ class MainWindow(QMainWindow):
 
 
 
-        self.bot_tab = BotTab()
-
-        self.process_tab = ProcessTab()
+        self.bot_tab = BotTab(self.game_profiles)
 
         self.log_tab = QLabel(
 
@@ -303,15 +326,6 @@ class MainWindow(QMainWindow):
             self.bot_tab,
 
             "BOT"
-
-        )
-
-
-        self.tabs.addTab(
-
-            self.process_tab,
-
-            "PROCESO"
 
         )
 
@@ -353,7 +367,7 @@ class MainWindow(QMainWindow):
 
         self.ui_timer.setInterval(
 
-            100
+            250
 
         )
 
@@ -363,6 +377,19 @@ class MainWindow(QMainWindow):
             self.update_character_ui
 
         )
+
+
+        self.enemy_database_timer = QTimer(self)
+
+        self.enemy_database_timer.setInterval(1000)
+
+        self.enemy_database_timer.timeout.connect(
+
+            self.refresh_enemy_lists
+
+        )
+
+        self.enemy_database_timer.start()
 
 
 
@@ -394,9 +421,23 @@ class MainWindow(QMainWindow):
         )
 
 
-        self.process_tab.detect_button.clicked.connect(
+        self.bot_tab.game_selector.add_game_requested.connect(
+
+            self.add_game
+
+        )
+
+
+        self.bot_tab.game_selector.update_game_requested.connect(
 
             self.detect_process
+
+        )
+
+
+        self.bot_tab.game_selector.delete_game_requested.connect(
+
+            self.delete_game
 
         )
 
@@ -404,6 +445,13 @@ class MainWindow(QMainWindow):
         self.bot_tab.character_group.refresh_position_button.clicked.connect(
 
             self.refresh_player_position
+
+        )
+
+
+        self.bot_tab.character_group.refresh_name_button.clicked.connect(
+
+            self.refresh_player_name
 
         )
 
@@ -422,6 +470,66 @@ class MainWindow(QMainWindow):
         )
 
 
+        self.bot_tab.auto_panel.enemy_ignores_changed.connect(
+
+            self.set_enemies_ignored
+
+        )
+
+
+    def refresh_enemy_lists(self, force=False):
+
+
+        changed = self.entity_database.refresh_enemies(force=force)
+
+        if not force and not changed:
+
+            return
+
+
+        enemy_names, ignored_names = self.entity_database.get_enemy_lists()
+
+        self.bot_tab.auto_panel.set_enemy_names(
+
+            enemy_names,
+
+            ignored_names,
+
+        )
+
+
+    def set_enemy_ignored(self, name, ignored):
+
+
+        self.set_enemies_ignored([name], ignored)
+
+
+    def set_enemies_ignored(self, names, ignored):
+
+
+        unique_names = list({
+
+            str(name).strip().casefold(): str(name).strip()
+
+            for name in names
+
+            if str(name).strip()
+
+        }.values())
+
+
+        for name in unique_names:
+
+
+            self.entity_database.set_enemy_ignored(name, ignored)
+
+
+        if unique_names:
+
+
+            self.refresh_enemy_lists(force=True)
+
+
 
 
 
@@ -434,67 +542,226 @@ class MainWindow(QMainWindow):
     # =====================================
 
 
-    def game_selected(
-
-        self,
-
-        game_id
-
-    ):
+    def initialize_selected_game(self):
 
 
-        self.process_manager.set_game(
+        selector = self.bot_tab.game_selector
 
-            game_id
+        active_game = self.process_manager.get_active_game()
 
-        )
+        game_id = active_game["id"] if active_game else selector.get_selected_game()
+
+        if not game_id:
+
+            selector.set_process_status(False, "Sin juegos")
+
+            return
 
 
-        self.process_tab.set_game(
+        selector.select_game(game_id)
 
-            self.bot_tab.game_selector.get_selected_name()
+        self.game_selected(game_id)
 
-        )
+
+    def game_selected(self, game_id):
+
+
+        if self.bot_engine.is_running():
+
+            active_game = self.process_manager.get_active_game()
+
+            if active_game:
+
+                self.bot_tab.game_selector.select_game(active_game["id"])
+
+            return
+
+
+        previous_game = self.process_manager.get_active_game()
+
+        previous_id = previous_game.get("id") if previous_game else None
+
+        if not self.process_manager.set_game(game_id):
+
+            self.bot_tab.game_selector.set_process_status(False, "Perfil inválido")
+
+            return
+
+
+        if previous_id != game_id:
+
+            self.game_state_manager.invalidate_vision()
 
 
         self.detect_process()
 
 
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # PROCESS
-    # =====================================
-
-
     def detect_process(self):
 
 
+        selector = self.bot_tab.game_selector
+
+        game_id = selector.get_selected_game()
+
+        if not game_id:
+
+            selector.set_process_status(False, "Sin juegos")
+
+            return
+
+
+        active_game = self.process_manager.get_active_game()
+
+        if not active_game or active_game.get("id") != game_id:
+
+            if not self.process_manager.set_game(game_id):
+
+                selector.set_process_status(False, "Perfil inválido")
+
+                return
+
+
+        selector.set_process_status(False, "Buscando...")
+
         if self.process_manager.find_process():
 
+            details = (
 
-            self.process_tab.connected(
+                f"Proceso: {self.process_manager.get_name()}\n"
 
-                self.process_manager.get_name(),
+                f"PID: {self.process_manager.get_pid()}\n"
 
-                self.process_manager.get_pid(),
-
-                self.process_manager.get_window_title()
+                f"Ventana: {self.process_manager.get_window_title()}"
 
             )
 
+            selector.set_process_status(True, "Conectado", details)
+
+            return
+
+
+        messages = {
+
+            "profile_incomplete": "Perfil incompleto",
+
+            "window_not_found": "Ventana no encontrada",
+
+            "process_mismatch": "Proceso no coincide",
+
+        }
+
+        selector.set_process_status(
+
+            False,
+
+            messages.get(self.process_manager.last_error, "No encontrado"),
+
+        )
+
+
+    def add_game(self):
+
+
+        if self.bot_engine.is_running():
+
+            return
+
+
+        dialog = AddGameDialog(self.process_manager, self)
+
+        if not dialog.exec():
+
+            return
+
+
+        data = dialog.get_game_data()
+
+        game_id = self.game_profiles.create_game_id(data["name"])
+
+        added = self.game_profiles.add_game(
+
+            game_id,
+
+            data["name"],
+
+            data["process"],
+
+            data["window"],
+
+            data["width"],
+
+            data["height"],
+
+        )
+
+        if not added:
+
+            QMessageBox.warning(self, "No se pudo agregar", "El juego ya existe.")
+
+            return
+
+
+        self.bot_tab.game_selector.refresh(game_id)
+
+        self.game_selected(game_id)
+
+
+    def delete_game(self):
+
+
+        if self.bot_engine.is_running():
+
+            return
+
+
+        selector = self.bot_tab.game_selector
+
+        game_id = selector.get_selected_game()
+
+        if not game_id:
+
+            return
+
+
+        answer = QMessageBox.question(
+
+            self,
+
+            "Eliminar juego",
+
+            f'¿Eliminar "{selector.get_selected_name()}"?',
+
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+
+            QMessageBox.StandardButton.No,
+
+        )
+
+        if answer != QMessageBox.StandardButton.Yes:
+
+            return
+
+
+        if not self.game_profiles.remove_game(game_id):
+
+            return
+
+
+        games = self.game_profiles.get_games()
+
+        if games:
+
+            next_game_id = games[0]["id"]
+
+            selector.refresh(next_game_id)
+
+            self.game_selected(next_game_id)
 
         else:
 
+            self.process_manager.clear_game()
 
-            self.process_tab.disconnected()
+            selector.refresh()
 
 
 
@@ -535,7 +802,10 @@ class MainWindow(QMainWindow):
     def start_bot(self):
 
 
-        if not self.process_manager.is_connected():
+        if (
+            not self.process_manager.is_connected()
+            or not self.process_manager.has_window()
+        ):
 
             return
 
@@ -545,12 +815,16 @@ class MainWindow(QMainWindow):
 
             self.bot_tab.auto_panel,
 
-            self.bot_tab.rotation_panel
+            self.bot_tab.rotation_panel,
+
+            self.bot_tab.character_group,
 
         )
 
 
         self.bot_tab.lock_controls()
+
+        self.bot_tab.game_selector.set_locked(True)
 
 
 
@@ -567,6 +841,48 @@ class MainWindow(QMainWindow):
         self.bot_worker.moveToThread(
 
             self.bot_thread
+
+        )
+
+
+        self.stop_bot_requested.connect(
+
+            self.bot_worker.stop
+
+        )
+
+
+        self.bot_worker.finished.connect(
+
+            self.bot_thread.quit
+
+        )
+
+
+        self.bot_worker.error.connect(
+
+            self.bot_start_failed
+
+        )
+
+
+        self.bot_worker.finished.connect(
+
+            self.bot_worker.deleteLater
+
+        )
+
+
+        self.bot_thread.finished.connect(
+
+            self.finish_bot_stop
+
+        )
+
+
+        self.bot_thread.finished.connect(
+
+            self.bot_thread.deleteLater
 
         )
 
@@ -604,31 +920,53 @@ class MainWindow(QMainWindow):
 
 
 
-        if self.bot_worker:
+        if not self.bot_worker:
 
-            self.bot_worker.stop()
-
-
-
-        if self.bot_thread:
-
-            self.bot_thread.quit()
-
-            self.bot_thread.wait()
+            return
 
 
+        self.bot_tab.bot_controls.start_button.setEnabled(False)
+
+        self.stop_bot_requested.emit()
+
+
+
+    def finish_bot_stop(self):
+
+
+        self.ui_timer.stop()
 
         self.bot_worker = None
 
         self.bot_thread = None
 
 
-
         self.bot_tab.unlock_controls()
 
-
+        self.bot_tab.game_selector.set_locked(False)
 
         self.bot_tab.bot_controls.set_stopped()
+
+        self.bot_tab.bot_controls.start_button.setEnabled(True)
+
+        if self._close_pending:
+
+            self._close_pending = False
+
+            self.close()
+
+
+    def bot_start_failed(self, message):
+
+        self.bot_tab.game_selector.set_process_status(
+
+            False,
+
+            "Error al iniciar",
+
+            message,
+
+        )
 
 
 
@@ -647,6 +985,11 @@ class MainWindow(QMainWindow):
     def refresh_player_position(self):
 
         self.bot_engine.refresh_player_position()
+
+
+    def refresh_player_name(self):
+
+        self.bot_engine.refresh_player_name()
 
 
 
@@ -683,3 +1026,20 @@ class MainWindow(QMainWindow):
             state
 
         )
+
+
+    def closeEvent(self, event):
+
+        if self.bot_thread and self.bot_thread.isRunning():
+
+            self._close_pending = True
+
+            event.ignore()
+
+            self.stop_bot()
+
+            return
+
+        self.bot_engine.input_manager.close()
+
+        event.accept()

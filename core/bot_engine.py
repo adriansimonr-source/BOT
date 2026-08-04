@@ -4,7 +4,9 @@ from core.modules.auto_target import AutoTarget
 from core.modules.auto_attack import AutoAttack
 from core.modules.auto_loot import AutoLoot
 from core.modules.auto_consumables import AutoConsumables
+from core.modules.auto_heal import AutoHeal
 from core.modules.rotation_manager import RotationManager
+from core.modules.movement_manager import MovementManager
 
 from core.input.input_manager import InputManager
 
@@ -35,34 +37,24 @@ class BotEngine:
 
         self.profile = PlayerProfile()
 
+        self.target_rules = self.profile.target_rules
+
         self.input_manager = InputManager(
             self.game_state_manager
         )
 
         self.modules = []
 
-
-        self.register_module(
-            AutoTarget()
-        )
-
-        self.register_module(
-            AutoAttack()
-        )
-
-        self.register_module(
-            AutoLoot()
-        )
-
-        self.register_module(
-            AutoConsumables(
-                self.input_manager
-            )
-        )
-
-        self.register_module(
-            RotationManager()
-        )
+        for module in (
+            AutoConsumables(self.input_manager),
+            AutoHeal(self.input_manager),
+            MovementManager(self.input_manager, self.profile.bot_settings),
+            AutoLoot(self.input_manager),
+            AutoTarget(self.input_manager, self.target_rules),
+            AutoAttack(self.input_manager, self.target_rules),
+            RotationManager(self.input_manager),
+        ):
+            self.register_module(module)
 
 
 
@@ -142,8 +134,39 @@ class BotEngine:
     def configure(
         self,
         right_panel,
-        center_panel
+        center_panel,
+        character_group=None,
     ):
+
+        if character_group is not None:
+            self.profile.bot_settings.set_mode(
+                character_group.get_bot_mode()
+            )
+            self.profile.bot_settings.set_return_delay(
+                character_group.get_quiet_seconds()
+            )
+
+        ignored_targets = right_panel.get_ignored_targets()
+        ignored_enabled = (
+            right_panel.ignore_targets.isChecked()
+            and bool(ignored_targets)
+        )
+        if not ignored_enabled:
+            ignored_targets = []
+        self.target_rules.set_blacklist(ignored_targets)
+
+        unique_targets = right_panel.get_unique_targets()
+        unique_enabled = (
+            right_panel.unique_targets_checkbox.isChecked()
+            and bool(unique_targets)
+        )
+        self.target_rules.set_unique_targets(
+            unique_targets,
+            unique_enabled,
+        )
+        self.target_rules.allow_unknown = not (
+            ignored_enabled or unique_enabled
+        )
 
         for module in self.modules:
 
@@ -157,9 +180,6 @@ class BotEngine:
                     center_panel
                 )
 
-
-
-
     # ==========================
     # BOT CONTROL
     # ==========================
@@ -171,23 +191,21 @@ class BotEngine:
 
             return
 
+        self.input_manager.enable()
+
+        try:
+            self.game_state_manager.start()
+
+            for module in self.modules:
+
+                module.on_start()
+        except Exception:
+            self.input_manager.disable()
+            self.game_state_manager.stop()
+            self.state = BotState.STOPPED
+            raise
 
         self.state = BotState.RUNNING
-
-        self.game_state_manager.start()
-
-
-        for module in self.modules:
-
-            module.on_start()
-
-
-        print(
-            "Bot iniciado"
-        )
-
-
-
 
 
     def stop(self):
@@ -199,20 +217,14 @@ class BotEngine:
 
         self.state = BotState.STOPPED
 
+        self.input_manager.disable()
+
         self.game_state_manager.stop()
 
 
         for module in self.modules:
 
             module.on_stop()
-
-
-        print(
-            "Bot detenido"
-        )
-
-
-
 
 
     def pause(self):
@@ -225,14 +237,6 @@ class BotEngine:
         self.state = BotState.PAUSED
 
 
-        print(
-            "Bot pausado"
-        )
-
-
-
-
-
     def resume(self):
 
         if self.state != BotState.PAUSED:
@@ -243,14 +247,6 @@ class BotEngine:
         self.state = BotState.RUNNING
 
 
-        print(
-            "Bot reanudado"
-        )
-
-
-
-
-
     # ==========================
     # POSITION
     # ==========================
@@ -258,7 +254,7 @@ class BotEngine:
 
     def lock_player_position(self):
 
-        self.game_state_manager.lock_player_position()
+        return self.game_state_manager.lock_player_position()
 
 
 
@@ -273,6 +269,11 @@ class BotEngine:
         self.game_state_manager.refresh_player_position()
 
 
+    def refresh_player_name(self):
+
+        self.game_state_manager.refresh_player_name()
+
+
 
 
     # ==========================
@@ -281,6 +282,9 @@ class BotEngine:
 
 
     def update(self):
+
+
+        self.input_manager.update()
 
 
         if self.state != BotState.RUNNING:
@@ -294,20 +298,10 @@ class BotEngine:
 
         state = self.game_state_manager.get_state()
 
+        if not state.connected:
+            return
 
-        player = state.player
-
-
-
-        print(
-            f"{player.name} "
-            f"HP:{player.hp_percent}% "
-            f"MP:{player.mp_percent}% "
-            f"POS:{player.x},{player.y}"
-        )
-
-
-
+        loot_sent = False
         for module in self.modules:
 
 
@@ -321,9 +315,32 @@ class BotEngine:
                 continue
 
 
-            module.update(
+            if (
+                getattr(state, "navigation_active", False)
+                and isinstance(
+                    module,
+                    (AutoLoot, AutoTarget, AutoAttack),
+                )
+            ):
+
+                continue
+
+
+            if loot_sent and isinstance(module, AutoTarget):
+
+                continue
+
+
+            action_sent = module.update(
                 state
             )
+
+            if isinstance(module, AutoLoot) and action_sent:
+
+                loot_sent = True
+
+
+        self.game_state_manager.update_auxiliary()
 
 
 

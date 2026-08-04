@@ -30,6 +30,12 @@ class GameState:
         self.in_combat = False
         self.buffs = []
 
+        self.navigation_active = False
+        self.navigation_status = "idle"
+        self.navigation_reason = ""
+        self.navigation_distance = None
+        self.navigation_key = None
+
 
     def reset(self):
 
@@ -40,3 +46,8 @@ class GameState:
         self.visible_targets.clear()
         self.in_combat = False
         self.buffs.clear()
+        self.navigation_active = False
+        self.navigation_status = "idle"
+        self.navigation_reason = ""
+        self.navigation_distance = None
+        self.navigation_key = None

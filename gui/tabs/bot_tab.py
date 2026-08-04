@@ -20,9 +20,11 @@ from gui.widgets.bot_control_bar import BotControlBar
 class BotTab(QWidget):
 
 
-    def __init__(self):
+    def __init__(self, game_profiles=None):
 
         super().__init__()
+
+        self.game_profiles = game_profiles
 
         self.create_widgets()
 
@@ -38,7 +40,7 @@ class BotTab(QWidget):
     def create_widgets(self):
 
 
-        self.game_selector = GameSelector()
+        self.game_selector = GameSelector(self.game_profiles)
 
         self.character_group = CharacterGroup()
 
@@ -242,6 +244,8 @@ class BotTab(QWidget):
 
         self.rotation_panel.lock_controls()
 
+        self.character_group.lock_settings()
+
 
 
 
@@ -253,3 +257,5 @@ class BotTab(QWidget):
         self.auto_panel.unlock_controls()
 
         self.rotation_panel.unlock_controls()
+
+        self.character_group.unlock_settings()

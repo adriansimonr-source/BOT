@@ -64,6 +64,11 @@ class EntityCacheManager:
         self.player_name_loaded = True
 
 
+    def reset_player_name(self):
+
+        self.player_name_loaded = False
+
+
 
 
 

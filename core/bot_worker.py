@@ -1,6 +1,7 @@
 from PySide6.QtCore import (
     QObject,
     Signal,
+    Slot,
     QTimer
 )
 
@@ -12,6 +13,10 @@ class BotWorker(QObject):
 
 
     finished = Signal()
+
+    error = Signal(str)
+
+    UPDATE_INTERVAL_MS = 50
 
 
 
@@ -44,6 +49,7 @@ class BotWorker(QObject):
     # =====================================
 
 
+    @Slot()
     def start(self):
 
 
@@ -57,17 +63,27 @@ class BotWorker(QObject):
 
         # Ahora estamos dentro del hilo correcto
 
-        self.bot_engine.start()
+        try:
+
+            self.bot_engine.start()
+
+        except Exception as error:
+
+            self.error.emit(str(error))
+
+            self.finished.emit()
+
+            return
 
 
 
-        self.timer = QTimer()
+        self.timer = QTimer(self)
 
 
 
         self.timer.setInterval(
 
-            250
+            self.UPDATE_INTERVAL_MS
 
         )
 
@@ -94,6 +110,7 @@ class BotWorker(QObject):
     # =====================================
 
 
+    @Slot()
     def update(self):
 
 
@@ -110,6 +127,7 @@ class BotWorker(QObject):
     # =====================================
 
 
+    @Slot()
     def stop(self):
 
 

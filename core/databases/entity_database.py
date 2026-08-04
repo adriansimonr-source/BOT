@@ -188,6 +188,11 @@ class EntityDatabase:
             return
 
 
+        if name in self.enemies:
+
+            return
+
+
 
         if data is None:
 
@@ -275,7 +280,9 @@ class EntityDatabase:
 
 
 
-        self.enemies[name]["encounters"] += 1
+        self.enemies[name]["encounters"] = (
+            self.enemies[name].get("encounters", 0) + 1
+        )
 
 
 
@@ -524,19 +531,50 @@ class EntityDatabase:
     ):
 
 
+        if not name or name in self.items:
+
+            return
+
+
         if data is None:
 
             data = {
 
                 "keep": False,
 
-                "value": 0
+                "value": 0,
+
+                "encounters": 0
 
             }
 
 
 
         self.items[name] = data
+
+
+
+
+
+    def register_item_encounter(
+
+        self,
+
+        name
+
+    ):
+
+
+        if name not in self.items:
+
+            self.add_item(name)
+
+
+        self.items[name]["encounters"] = (
+
+            self.items[name].get("encounters", 0) + 1
+
+        )
 
 
 
@@ -569,3 +607,12 @@ class EntityDatabase:
 
 
         return self.items
+
+
+
+
+
+    def is_item(self, name):
+
+
+        return name in self.items

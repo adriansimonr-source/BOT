@@ -55,9 +55,9 @@ class ProfileGroup(QGroupBox):
 
         self.bot_mode_selector.set_modes(
             [
+                BotMode.STATIC_50,
                 BotMode.STATIC_100,
-                BotMode.STATIC_250,
-                BotMode.STATIC_500,
+                BotMode.STATIC_150,
                 BotMode.OFF,
                 BotMode.STATIC_POINT,
             ]

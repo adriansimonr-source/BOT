@@ -5,8 +5,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QPushButton,
     QComboBox,
+    QSpinBox,
 )
 
+from core.models.bot_settings import BotMode
 from gui.widgets.status_indicator import StatusIndicator
 from gui.widgets.resource_bar import ResourceBar
 
@@ -85,16 +87,19 @@ class CharacterGroup(QWidget):
 
 
         self.mode_selector = QComboBox()
-
-        self.mode_selector.addItems(
-            [
-                "BOT STATIC",
-                "100",
-                "250",
-                "500",
-                "SIN LIMITES"
-            ]
+        self.mode_selector.addItem("FIJO (0)", BotMode.STATIC_POINT)
+        self.mode_selector.addItem("50", BotMode.STATIC_50)
+        self.mode_selector.addItem("100", BotMode.STATIC_100)
+        self.mode_selector.addItem("150", BotMode.STATIC_150)
+        self.mode_selector.addItem("SIN LÍMITE", BotMode.OFF)
+        self.mode_selector.setCurrentIndex(
+            self.mode_selector.findData(BotMode.STATIC_100)
         )
+
+        self.quiet_seconds = QSpinBox()
+        self.quiet_seconds.setRange(3, 120)
+        self.quiet_seconds.setValue(10)
+        self.quiet_seconds.setSuffix(" s")
 
 
         self.apply_button_style()
@@ -290,12 +295,22 @@ class CharacterGroup(QWidget):
 
 
         mode.addWidget(
-            QLabel("MODE")
+            QLabel("RADIO BOT")
         )
 
 
         mode.addWidget(
             self.mode_selector
+        )
+
+        mode.addSpacing(10)
+
+        mode.addWidget(
+            QLabel("QUIETO")
+        )
+
+        mode.addWidget(
+            self.quiet_seconds
         )
 
 
@@ -367,13 +382,39 @@ class CharacterGroup(QWidget):
 
         self.current_position_label.setText(
             f"{player.x} / {player.y}"
+            if getattr(player, "position_valid", False)
+            else "--- / ---"
         )
 
 
 
         self.start_position_label.setText(
             f"{player.start_x} / {player.start_y}"
+            if player.position_locked
+            else "--- / ---"
         )
+
+
+    def get_bot_mode(self):
+
+        return self.mode_selector.currentData()
+
+
+    def get_quiet_seconds(self):
+
+        return self.quiet_seconds.value()
+
+
+    def lock_settings(self):
+
+        self.mode_selector.setEnabled(False)
+        self.quiet_seconds.setEnabled(False)
+
+
+    def unlock_settings(self):
+
+        self.mode_selector.setEnabled(True)
+        self.quiet_seconds.setEnabled(True)
 
 
 

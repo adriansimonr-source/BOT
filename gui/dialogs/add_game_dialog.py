@@ -1,480 +1,128 @@
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
-    QSpinBox,
-    QMessageBox
+    QVBoxLayout,
 )
 
-
-
+from core.process_manager import ProcessManager
 
 
 class AddGameDialog(QDialog):
+    def __init__(self, process_manager=None, parent=None):
+        super().__init__(parent)
+        self.process_manager = process_manager or ProcessManager()
+        self.setWindowTitle("Agregar juego")
+        self.setMinimumWidth(440)
+        self.create_ui()
+        self.connect_signals()
 
-
-    def __init__(self):
-
-        super().__init__()
-
-
-        self.setWindowTitle(
-
-            "Añadir juego"
-
-        )
-
-
-        self.setMinimumWidth(
-
-            350
-
-        )
-
-
-        self.create_widgets()
-
-
-        self.create_layout()
-
-
-
-
-
-    # =====================================
-    # Crear widgets
-    # =====================================
-
-
-    def create_widgets(self):
-
-
-        # ID interno
-
-
-        self.id_input = QLineEdit()
-
-
-        self.id_input.setPlaceholderText(
-
-            "ejemplo: kathana"
-
-        )
-
-
-
-
-
-        # Nombre visible
-
+    def create_ui(self):
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
 
         self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Nombre visible del juego")
+        form.addRow("Nombre:", self.name_input)
 
-
-        self.name_input.setPlaceholderText(
-
-            "Nombre del juego"
-
-        )
-
-
-
-
-
-        # Proceso
-
-
-        self.process_input = QLineEdit()
-
-
-        self.process_input.setPlaceholderText(
-
-            "Juego.exe"
-
-        )
-
-
-
-
-
-        # Ventana
-
-
+        window_row = QHBoxLayout()
         self.window_input = QLineEdit()
+        self.window_input.setPlaceholderText("Título o parte estable del título")
+        self.detect_button = QPushButton("Detectar proceso")
+        window_row.addWidget(self.window_input, 1)
+        window_row.addWidget(self.detect_button)
+        form.addRow("Ventana:", window_row)
 
+        self.detected_combo = QComboBox()
+        self.detected_combo.setEnabled(False)
+        form.addRow("Proceso:", self.detected_combo)
+        layout.addLayout(form)
 
-        self.window_input.setPlaceholderText(
-
-            "Título de la ventana"
-
+        self.status_label = QLabel(
+            "Escribe el título de la ventana y pulsa Detectar proceso."
         )
-
-
-
-
-
-        # Resolución
-
-
-        self.width_input = QSpinBox()
-
-
-        self.width_input.setRange(
-
-            640,
-
-            7680
-
-        )
-
-
-        self.width_input.setValue(
-
-            1920
-
-        )
-
-
-
-
-
-        self.height_input = QSpinBox()
-
-
-        self.height_input.setRange(
-
-            480,
-
-            4320
-
-        )
-
-
-        self.height_input.setValue(
-
-            1080
-
-        )
-
-
-
-
-
-        # Botones
-
-
-        self.save_button = QPushButton(
-
-            "Guardar"
-
-        )
-
-
-        self.cancel_button = QPushButton(
-
-            "Cancelar"
-
-        )
-
-
-
-        self.save_button.clicked.connect(
-
-            self.validate
-
-        )
-
-
-        self.cancel_button.clicked.connect(
-
-            self.reject
-
-        )
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # Layout
-    # =====================================
-
-
-    def create_layout(self):
-
-
-        layout = QVBoxLayout()
-
-
-
-
-
-        layout.addWidget(
-
-            QLabel("ID interno")
-
-        )
-
-
-        layout.addWidget(
-
-            self.id_input
-
-        )
-
-
-
-
-
-        layout.addWidget(
-
-            QLabel("Nombre")
-
-        )
-
-
-        layout.addWidget(
-
-            self.name_input
-
-        )
-
-
-
-
-
-        layout.addWidget(
-
-            QLabel("Proceso")
-
-        )
-
-
-        layout.addWidget(
-
-            self.process_input
-
-        )
-
-
-
-
-
-        layout.addWidget(
-
-            QLabel("Ventana")
-
-        )
-
-
-        layout.addWidget(
-
-            self.window_input
-
-        )
-
-
-
-
-
-
-
-        resolution_layout = QHBoxLayout()
-
-
-
-        resolution_layout.addWidget(
-
-            QLabel("Ancho")
-
-        )
-
-
-        resolution_layout.addWidget(
-
-            self.width_input
-
-        )
-
-
-
-        resolution_layout.addWidget(
-
-            QLabel("Alto")
-
-        )
-
-
-        resolution_layout.addWidget(
-
-            self.height_input
-
-        )
-
-
-
-        layout.addLayout(
-
-            resolution_layout
-
-        )
-
-
-
-
-
-
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("color: #6B7280;")
+        layout.addWidget(self.status_label)
 
         buttons = QHBoxLayout()
+        buttons.addStretch()
+        self.cancel_button = QPushButton("Cancelar")
+        self.add_button = QPushButton("Agregar")
+        self.add_button.setEnabled(False)
+        buttons.addWidget(self.cancel_button)
+        buttons.addWidget(self.add_button)
+        layout.addLayout(buttons)
 
+    def connect_signals(self):
+        self.detect_button.clicked.connect(self.detect_process)
+        self.window_input.textChanged.connect(self.invalidate_detection)
+        self.detected_combo.currentIndexChanged.connect(self.update_add_state)
+        self.cancel_button.clicked.connect(self.reject)
+        self.add_button.clicked.connect(self.validate)
 
-        buttons.addWidget(
+    def invalidate_detection(self, _text=None):
+        self.detected_combo.clear()
+        self.detected_combo.setEnabled(False)
+        self.add_button.setEnabled(False)
+        self.status_label.setText("Pulsa Detectar proceso para validar la ventana.")
+        self.status_label.setStyleSheet("color: #6B7280;")
 
-            self.save_button
+    def detect_process(self):
+        window_title = self.window_input.text().strip()
+        if not window_title:
+            QMessageBox.warning(self, "Ventana requerida", "Introduce el título de la ventana.")
+            return
 
-        )
+        matches = self.process_manager.discover_windows(window_title)
+        self.detected_combo.clear()
+        for match in matches:
+            label = (
+                f'{match["process"]} · PID {match["pid"]} · '
+                f'{match["title"]}'
+            )
+            self.detected_combo.addItem(label, match)
 
+        found = bool(matches)
+        self.detected_combo.setEnabled(found)
+        self.add_button.setEnabled(found)
+        if found:
+            self.status_label.setText(
+                "Proceso detectado. Si hay varios resultados, selecciona el correcto."
+            )
+            self.status_label.setStyleSheet("color: #16803C;")
+        else:
+            self.status_label.setText("No se encontró una ventana compatible con ese título.")
+            self.status_label.setStyleSheet("color: #B42318;")
 
-        buttons.addWidget(
-
-            self.cancel_button
-
-        )
-
-
-        layout.addLayout(
-
-            buttons
-
-        )
-
-
-
-
-
-        self.setLayout(
-
-            layout
-
-        )
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # Validación
-    # =====================================
-
+    def update_add_state(self, _index):
+        self.add_button.setEnabled(self.detected_combo.currentData() is not None)
 
     def validate(self):
-
-
-        if not self.id_input.text():
-
-
-            QMessageBox.warning(
-
-                self,
-
-                "Error",
-
-                "El ID es obligatorio"
-
-            )
-
-
+        if not self.name_input.text().strip():
+            QMessageBox.warning(self, "Nombre requerido", "Introduce el nombre del juego.")
             return
-
-
-
-
-
-        if not self.name_input.text():
-
-
-            QMessageBox.warning(
-
-                self,
-
-                "Error",
-
-                "El nombre es obligatorio"
-
-            )
-
-
+        if not self.window_input.text().strip():
+            QMessageBox.warning(self, "Ventana requerida", "Introduce el título de la ventana.")
             return
-
-
-
-
-
-        if not self.process_input.text():
-
-
-            QMessageBox.warning(
-
-                self,
-
-                "Error",
-
-                "El proceso es obligatorio"
-
-            )
-
-
+        if self.detected_combo.currentData() is None:
+            QMessageBox.warning(self, "Proceso requerido", "Detecta primero el proceso del juego.")
             return
-
-
-
-
-
         self.accept()
 
-
-
-
-
-
-
-    # =====================================
-    # Obtener datos
-    # =====================================
-
-
     def get_game_data(self):
-
-
+        detected = self.detected_combo.currentData()
+        name = self.name_input.text().strip()
         return {
-
-
-            "id": self.id_input.text().strip(),
-
-
-            "name": self.name_input.text().strip(),
-
-
-            "process": self.process_input.text().strip(),
-
-
+            "id": self.process_manager.game_profiles.create_game_id(name),
+            "name": name,
+            "process": detected["process"],
             "window": self.window_input.text().strip(),
-
-
-            "width": self.width_input.value(),
-
-
-            "height": self.height_input.value()
-
+            "width": detected["width"],
+            "height": detected["height"],
         }

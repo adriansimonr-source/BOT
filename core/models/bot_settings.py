@@ -9,11 +9,11 @@ class BotMode(Enum):
 
     # Puede moverse dentro del radio indicado
 
+    STATIC_50 = 50
+
     STATIC_100 = 100
 
-    STATIC_250 = 250
-
-    STATIC_500 = 500
+    STATIC_150 = 150
 
 
     # Sin límite
@@ -40,7 +40,7 @@ class BotSettings:
         # Modo actual
         # =====================================
 
-        self.mode = BotMode.STATIC_250
+        self.mode = BotMode.STATIC_100
 
 
         # =====================================
@@ -61,9 +61,13 @@ class BotSettings:
         self.auto_return = True
 
 
-        # Segundos antes de iniciar retorno
+        # Segundos quieto antes de iniciar retorno
 
         self.return_delay = 10
+
+        # Duración de cada pulso de movimiento
+
+        self.movement_hold_ms = 250
 
 
 
@@ -170,3 +174,8 @@ class BotSettings:
     ):
 
         self.mode = mode
+
+
+    def set_return_delay(self, seconds):
+
+        self.return_delay = max(3, int(seconds))

@@ -1,251 +1,40 @@
 import ctypes
 
-
-
-class SizeInt32(ctypes.Structure):
-
-    _fields_ = [
-
-        (
-            "Width",
-            ctypes.c_int32
-        ),
-
-        (
-            "Height",
-            ctypes.c_int32
-        )
-
-    ]
-
-
-
+from core.managers.com_utils import close_winrt, release_com
 
 
 class WGCFrameABI:
 
-
     def __init__(self):
-
         self.frame = None
+        self._get_surface = None
 
-
-
-
-    # ======================================
-    # Asignar frame
-    # ======================================
-
-    def set_frame(
-        self,
-        frame
-    ):
-
+    def set_frame(self, frame):
         self.frame = frame
 
-
-
-
-
-    # ======================================
-    # Obtener Surface
-    # ======================================
-
-    def get_surface(
-        self
-    ):
-
-
+    def get_surface(self):
         if self.frame is None:
+            raise RuntimeError("No hay frame asignado")
 
-            raise RuntimeError(
-                "No hay frame asignado"
-            )
-
-
-
-        obj = ctypes.cast(
-
-            self.frame,
-
-            ctypes.POINTER(
-
-                ctypes.POINTER(
-                    ctypes.c_void_p
-                )
-
-            )
-
-        )
-
-
-        vtable = obj.contents
-
-
-
-        print(
-            "VTABLE FRAME"
-        )
-
-
-        for i in range(10):
-
-            print(
-
-                i,
-
-                hex(
-
-                    ctypes.cast(
-
-                        vtable[i],
-
-                        ctypes.c_void_p
-
-                    ).value
-
-                )
-
-            )
-
-
-
-
-
-        #
-        # IDirect3D11CaptureFrame
-        #
-        # 0 QueryInterface
-        # 1 AddRef
-        # 2 Release
-        # 3 GetIids
-        # 4 GetRuntimeClassName
-        # 5 GetTrustLevel
-        # 6 Surface
-        # 7 ContentSize
-        #
-
-
-
-        Surface = ctypes.WINFUNCTYPE(
-
-            ctypes.HRESULT,
-
-            ctypes.c_void_p,
-
-            ctypes.POINTER(
-                ctypes.c_void_p
-            )
-
-        )(
-
-            vtable[6]
-
-        )
-
-
+        if self._get_surface is None:
+            vtable = ctypes.cast(
+                self.frame,
+                ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)),
+            ).contents
+            self._get_surface = ctypes.WINFUNCTYPE(
+                ctypes.HRESULT,
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_void_p),
+            )(vtable[6])
 
         surface = ctypes.c_void_p()
-
-
-
-        hr = Surface(
-
-            self.frame,
-
-            ctypes.byref(
-                surface
-            )
-
-        )
-
-
-
-        print(
-
-            "Surface HRESULT:",
-
-            hex(
-                hr & 0xffffffff
-            )
-
-        )
-
-
-
+        hr = self._get_surface(self.frame, ctypes.byref(surface))
         if hr != 0:
-
-            raise OSError(
-
-                hr,
-
-                "Surface fallo"
-
-            )
-
-
-
-        print(
-
-            "SURFACE:",
-
-            surface
-
-        )
-
-
-
+            raise OSError(hr, "Surface fallo")
         return surface
 
-    def release_surface(
-
-        self,
-
-        surface
-
-    ):
-
-
-        if surface is None:
-
+    def release_surface(self, surface):
+        if not surface:
             return
-
-
-
-        obj = ctypes.cast(
-
-            surface,
-
-            ctypes.POINTER(
-
-                ctypes.POINTER(
-                    ctypes.c_void_p
-                )
-
-            )
-
-        )
-
-
-        vtable = obj.contents
-
-
-
-        Release = ctypes.WINFUNCTYPE(
-
-            ctypes.c_ulong,
-
-            ctypes.c_void_p
-
-        )(
-
-            vtable[2]
-
-        )
-
-
-        Release(
-
-            surface
-
-        )
+        close_winrt(surface)
+        release_com(surface)

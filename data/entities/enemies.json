@@ -29,7 +29,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 70
+        "encounters": 185
     },
     "Bongbo": {
         "level": 0,
@@ -37,7 +37,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 86
+        "encounters": 205
     },
     "&@ Bongbo": {
         "level": 0,
@@ -277,9 +277,17 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 1
+        "encounters": 2
     },
     "Patura": {
+        "level": 0,
+        "priority": 0,
+        "ignore": true,
+        "elite": false,
+        "boss": false,
+        "encounters": 4
+    },
+    "FT Baoku 7": {
         "level": 0,
         "priority": 0,
         "ignore": false,
@@ -287,7 +295,159 @@
         "boss": false,
         "encounters": 1
     },
-    "FT Baoku 7": {
+    "7 Ananta Pal": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "7 Branch": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 9
+    },
+    "7 Utara Pana": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 6
+    },
+    "Bongbo or *": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Pradana Sho": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 2
+    },
+    "Utara Amri": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 4
+    },
+    "» Baoku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Zastrakali G": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Vikavaka Gre": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Bongbo XX": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "B Bongho": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "7 Karyanimaya E": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Utara Panal": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 2
+    },
+    "en =710)40)": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Avatamsa of P": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 2
+    },
+    "Chandrapa": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Zonbu": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 8
+    },
+    "Red Rose": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "Kamisya": {
+        "level": 0,
+        "priority": 0,
+        "ignore": true,
+        "elite": false,
+        "boss": false,
+        "encounters": 1
+    },
+    "ae ZONDU": {
         "level": 0,
         "priority": 0,
         "ignore": false,

@@ -3,192 +3,67 @@ import time
 from core.modules.base_module import BaseModule
 
 
-
 class AutoConsumables(BaseModule):
 
-
-    def __init__(
-        self,
-        input_manager
-    ):
-
-        super().__init__(
-            "Auto Consumables"
-        )
-
-
+    def __init__(self, input_manager):
+        super().__init__("Auto Consumables", interval_ms=50)
         self.input = input_manager
-
-
-
-        self.hp_enabled = False
-        self.hp_key = "F8"
-        self.hp_threshold = 40
-        self.hp_interval = 2000
-        self.last_hp_use = 0
-
-
-
+        self.pot1_enabled = False
+        self.pot1_key = "F8"
+        self.pot1_threshold = 40
+        self.pot1_interval = 2000
+        self.last_pot1_use = None
         self.mp_enabled = False
         self.mp_key = "F9"
         self.mp_threshold = 30
         self.mp_interval = 2000
-        self.last_mp_use = 0
+        self.last_mp_use = None
 
+    def configure(self, right_panel, center_panel):
+        pot1_card = right_panel.auto_pot1
+        self.pot1_enabled = pot1_card.is_enabled()
+        self.pot1_key = pot1_card.key()
+        self.pot1_threshold = pot1_card.threshold()
+        self.pot1_interval = pot1_card.interval()
 
-
-
-
-
-    def configure(
-        self,
-        right_panel,
-        center_panel
-    ):
-
-
-        self.hp_enabled = (
-            right_panel.hp_potion.is_enabled()
-        )
-
-
-        self.hp_key = (
-            right_panel.hp_potion.key()
-        )
-
-
-        self.hp_threshold = (
-            right_panel.hp_potion.threshold()
-        )
-
-
-        self.hp_interval = (
-            right_panel.hp_potion.interval()
-        )
-
-
-
-
-
-        self.mp_enabled = (
-            right_panel.mp_potion.is_enabled()
-        )
-
-
-        self.mp_key = (
-            right_panel.mp_potion.key()
-        )
-
-
-        self.mp_threshold = (
-            right_panel.mp_potion.threshold()
-        )
-
-
-        self.mp_interval = (
-            right_panel.mp_potion.interval()
-        )
-
-
-
-
-
-
+        mp_card = right_panel.auto_mp
+        self.mp_enabled = mp_card.is_enabled()
+        self.mp_key = mp_card.key()
+        self.mp_threshold = mp_card.threshold()
+        self.mp_interval = mp_card.interval()
 
     def is_enabled(self):
-
-        return (
-            self.hp_enabled
-            or
-            self.mp_enabled
-        )
-
-
-
-
-
-
+        return self.pot1_enabled or self.mp_enabled
 
     def on_start(self):
+        super().on_start()
+        self.last_pot1_use = None
+        self.last_mp_use = None
 
-        self.last_hp_use = 0
-
-        self.last_mp_use = 0
-
-
-
-
-
-
-
-    def update(
-        self,
-        state
-    ):
-
-
+    def update(self, state):
         player = state.player
+        now = time.perf_counter() * 1000
+        hp_percent = player.hp_percent
+        mp_percent = player.mp_percent
 
+        if (
+            self.pot1_enabled
+            and 0 < hp_percent <= self.pot1_threshold
+            and (
+                self.last_pot1_use is None
+                or now - self.last_pot1_use >= self.pot1_interval
+            )
+        ):
+            if self.input.press(self.pot1_key):
+                self.last_pot1_use = now
 
-        now = time.time() * 1000
-
-
-
-
-
-
-        if self.hp_enabled:
-
-
-            if player.hp_percent <= self.hp_threshold:
-
-
-                if now - self.last_hp_use >= self.hp_interval:
-
-
-                    self.use_hp_potion()
-
-                    self.last_hp_use = now
-
-
-
-
-
-
-
-        if self.mp_enabled:
-
-
-            if player.mp_percent <= self.mp_threshold:
-
-
-                if now - self.last_mp_use >= self.mp_interval:
-
-
-                    self.use_mp_potion()
-
-                    self.last_mp_use = now
-
-
-
-
-
-
-
-    def use_hp_potion(self):
-
-        self.input.press(
-            self.hp_key
-        )
-
-
-
-
-
-
-
-    def use_mp_potion(self):
-
-        self.input.press(
-            self.mp_key
-        )
+        if (
+            self.mp_enabled
+            and 0 < mp_percent <= self.mp_threshold
+            and (
+                self.last_mp_use is None
+                or now - self.last_mp_use >= self.mp_interval
+            )
+        ):
+            if self.input.press(self.mp_key):
+                self.last_mp_use = now
