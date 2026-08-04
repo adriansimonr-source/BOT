@@ -17,6 +17,9 @@ KEY_MAP = {
 
 class WindowInputDriver:
 
+    MESSAGE_TIMEOUT_MS = 20
+    MESSAGE_FLAGS = win32con.SMTO_ABORTIFHUNG | win32con.SMTO_BLOCK
+
     @staticmethod
     def _virtual_key(key):
         return KEY_MAP.get(str(key).upper())
@@ -37,17 +40,12 @@ class WindowInputDriver:
         if vk is None:
             return False
 
-        try:
-            win32gui.PostMessage(
-                hwnd,
-                win32con.WM_KEYDOWN,
-                vk,
-                self._message_lparam(vk),
-            )
-        except win32gui.error:
-            return False
-
-        return True
+        return self._send_key_message(
+            hwnd,
+            win32con.WM_KEYDOWN,
+            vk,
+            self._message_lparam(vk),
+        )
 
     def key_up(self, hwnd, key):
         if not hwnd or not win32gui.IsWindow(hwnd):
@@ -57,14 +55,23 @@ class WindowInputDriver:
         if vk is None:
             return False
 
+        return self._send_key_message(
+            hwnd,
+            win32con.WM_KEYUP,
+            vk,
+            self._message_lparam(vk, released=True),
+        )
+
+    def _send_key_message(self, hwnd, message, vk, lparam):
         try:
-            win32gui.PostMessage(
+            delivered, _ = win32gui.SendMessageTimeout(
                 hwnd,
-                win32con.WM_KEYUP,
+                message,
                 vk,
-                self._message_lparam(vk, released=True),
+                lparam,
+                self.MESSAGE_FLAGS,
+                self.MESSAGE_TIMEOUT_MS,
             )
         except win32gui.error:
             return False
-
-        return True
+        return bool(delivered)

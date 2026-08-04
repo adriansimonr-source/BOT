@@ -1,6 +1,13 @@
 import ctypes
 
-from core.managers.com_utils import get_vtable
+import comtypes
+
+from core.managers.com_utils import get_vtable, release_com
+
+
+IID_IGRAPHICS_CAPTURE_SESSION3 = comtypes.GUID(
+    "{F2CDD966-22AE-5EA1-9596-3A289344C3BE}"
+)
 
 
 class WGCSessionABI:
@@ -36,3 +43,45 @@ class WGCSessionABI:
         hr = start_capture(self.session)
         if hr != 0:
             raise OSError(hr, "StartCapture fallo")
+
+    def try_disable_border(self):
+        if self.session is None:
+            return False
+
+        session3 = None
+        try:
+            session3 = self._query_border_session()
+            if session3 is None:
+                return False
+            return self._set_border_required(session3, False)
+        except (OSError, TypeError, ValueError):
+            return False
+        finally:
+            if session3 is not None:
+                release_com(session3)
+
+    def _query_border_session(self):
+        query_interface = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT,
+            ctypes.c_void_p,
+            ctypes.POINTER(comtypes.GUID),
+            ctypes.POINTER(ctypes.c_void_p),
+        )(get_vtable(self.session)[0])
+        session3 = ctypes.c_void_p()
+        hr = query_interface(
+            self.session,
+            ctypes.byref(IID_IGRAPHICS_CAPTURE_SESSION3),
+            ctypes.byref(session3),
+        )
+        if hr != 0 or not session3.value:
+            return None
+        return session3
+
+    @staticmethod
+    def _set_border_required(session3, required):
+        setter = ctypes.WINFUNCTYPE(
+            ctypes.HRESULT,
+            ctypes.c_void_p,
+            ctypes.c_ubyte,
+        )(get_vtable(session3)[7])
+        return setter(session3, int(bool(required))) == 0

@@ -156,6 +156,44 @@ class EnemyMonitorTests(unittest.TestCase):
         self.assertEqual(target.level, 0)
         self.assertIsNone(monitor.identity_future)
 
+    def test_stale_worker_result_never_writes_enemy_or_item_database(self):
+        for stale_type, current_type, current_selection in (
+            (EnemyMonitor.ENTITY_ENEMY, EnemyMonitor.ENTITY_ITEM, 1),
+            (EnemyMonitor.ENTITY_ITEM, EnemyMonitor.ENTITY_ITEM, 2),
+        ):
+            with self.subTest(stale_type=stale_type):
+                database = SimpleNamespace(
+                    resolve_enemy_name=MagicMock(return_value="Stale Enemy"),
+                    register_enemy_seen=MagicMock(return_value=True),
+                    resolve_item_name=MagicMock(return_value="Stale Item"),
+                    register_item_seen=MagicMock(return_value=True),
+                )
+                monitor, _ = self.create_monitor(
+                    anchor=object(),
+                    enemy_name=(
+                        "Stale Enemy"
+                        if stale_type == EnemyMonitor.ENTITY_ENEMY
+                        else "Stale Item"
+                    ),
+                    database=database,
+                )
+
+                worker_result = monitor._read_identity_data(
+                    1,
+                    None,
+                    MagicMock(),
+                    stale_type,
+                )
+                monitor.selection_id = current_selection
+                monitor.current_entity_type = current_type
+                monitor.identity_future = CompletedFuture(worker_result)
+                monitor.poll(TargetState())
+
+                database.resolve_enemy_name.assert_not_called()
+                database.register_enemy_seen.assert_not_called()
+                database.resolve_item_name.assert_not_called()
+                database.register_item_seen.assert_not_called()
+
     def test_name_without_hp_bar_is_stored_as_item_not_enemy(self):
         database = SimpleNamespace(
             resolve_enemy_name=MagicMock(

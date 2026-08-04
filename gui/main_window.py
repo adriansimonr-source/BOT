@@ -477,6 +477,13 @@ class MainWindow(QMainWindow):
         )
 
 
+        self.bot_tab.auto_panel.target_filters_save_requested.connect(
+
+            self.save_target_filters
+
+        )
+
+
     def refresh_enemy_lists(self, force=False):
 
 
@@ -499,41 +506,88 @@ class MainWindow(QMainWindow):
 
 
     def set_enemy_ignored(self, name, ignored):
-
-
         self.set_enemies_ignored([name], ignored)
 
-
     def set_enemies_ignored(self, names, ignored):
-
-
         unique_names = list({
-
             str(name).strip().casefold(): str(name).strip()
-
             for name in names
-
             if str(name).strip()
-
         }.values())
-
-
-        for name in unique_names:
-
-
-            self.entity_database.set_enemy_ignored(name, ignored)
-
-
+        set_batch = getattr(
+            self.entity_database,
+            "set_enemies_ignored",
+            None,
+        )
+        if callable(set_batch):
+            set_batch(unique_names, ignored)
+        else:
+            for name in unique_names:
+                self.entity_database.set_enemy_ignored(name, ignored)
         if unique_names:
-
-
             self.refresh_enemy_lists(force=True)
 
+    def load_target_filters(self, game_id):
+        filters = self.process_manager.config.get_game_target_filters(game_id)
+        self.bot_tab.auto_panel.set_target_filters(
+            filters["unique_targets"],
+            filters["ignore_enabled"],
+            filters["unique_enabled"],
+        )
 
+    def save_target_filters(self, game_id=None):
+        active_game = self.process_manager.get_active_game()
+        game_id = game_id or (
+            active_game.get("id") if active_game else None
+        )
+        if not game_id:
+            return False
 
+        panel = self.bot_tab.auto_panel
+        state = panel.get_target_filter_state()
+        desired = {
+            name.casefold(): name
+            for name in state["ignored_targets"]
+        }
+        current = {
+            name.casefold(): name
+            for name in self.entity_database.get_ignored_enemy_names()
+        }
 
+        try:
+            removed = [
+                name
+                for key, name in current.items()
+                if key not in desired
+            ]
+            added = [
+                name
+                for key, name in desired.items()
+                if key not in current
+            ]
+            if removed:
+                self.entity_database.set_enemies_ignored(removed, False)
+            if added:
+                self.entity_database.set_enemies_ignored(added, True)
 
+            self.process_manager.config.set_game_target_filters(
+                game_id,
+                state["unique_targets"],
+                state["ignore_enabled"],
+                state["unique_enabled"],
+            )
+        except OSError as error:
+            QMessageBox.warning(
+                self,
+                "No se pudo guardar",
+                f"No se guardaron los filtros de objetivos:\n{error}",
+            )
+            return False
 
+        if removed or added:
+            self.refresh_enemy_lists(force=True)
+        panel.mark_target_filters_saved()
+        return True
 
 
 
@@ -581,6 +635,15 @@ class MainWindow(QMainWindow):
 
         previous_id = previous_game.get("id") if previous_game else None
 
+        if (
+            previous_id
+            and previous_id != game_id
+            and self.bot_tab.auto_panel.has_unsaved_target_filters()
+        ):
+            if not self.save_target_filters(previous_id):
+                self.bot_tab.game_selector.select_game(previous_id)
+                return
+
         if not self.process_manager.set_game(game_id):
 
             self.bot_tab.game_selector.set_process_status(False, "Perfil inválido")
@@ -591,6 +654,9 @@ class MainWindow(QMainWindow):
         if previous_id != game_id:
 
             self.game_state_manager.invalidate_vision()
+
+
+        self.load_target_filters(game_id)
 
 
         self.detect_process()
@@ -747,6 +813,9 @@ class MainWindow(QMainWindow):
             return
 
 
+        self.process_manager.config.remove_game_target_filters(game_id)
+
+
         games = self.game_profiles.get_games()
 
         if games:
@@ -805,6 +874,14 @@ class MainWindow(QMainWindow):
         if (
             not self.process_manager.is_connected()
             or not self.process_manager.has_window()
+        ):
+
+            return
+
+
+        if (
+            self.bot_tab.auto_panel.has_unsaved_target_filters()
+            and not self.save_target_filters()
         ):
 
             return
@@ -1038,6 +1115,13 @@ class MainWindow(QMainWindow):
 
             self.stop_bot()
 
+            return
+
+        if (
+            self.bot_tab.auto_panel.has_unsaved_target_filters()
+            and not self.save_target_filters()
+        ):
+            event.ignore()
             return
 
         self.bot_engine.input_manager.close()

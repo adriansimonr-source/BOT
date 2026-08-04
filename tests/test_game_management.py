@@ -148,6 +148,50 @@ class GameManagementTests(unittest.TestCase):
                 "game",
             )
 
+    def test_unique_target_filters_are_atomic_and_scoped_per_game(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config_path = Path(temporary) / "config.json"
+            config_path.write_text(
+                json.dumps({"active_game": "game-a"}),
+                encoding="utf-8",
+            )
+            config = ConfigManager(str(config_path))
+
+            self.assertTrue(
+                config.set_game_target_filters(
+                    "game-a",
+                    ["Boss", "boss", "Elite"],
+                    ignore_enabled=True,
+                    unique_enabled=True,
+                )
+            )
+            self.assertTrue(
+                config.set_game_target_filters(
+                    "game-b",
+                    ["Other"],
+                    unique_enabled=False,
+                )
+            )
+
+            loaded = ConfigManager(str(config_path))
+            self.assertEqual(
+                loaded.get_game_target_filters("game-a"),
+                {
+                    "unique_targets": ["Boss", "Elite"],
+                    "ignore_enabled": True,
+                    "unique_enabled": True,
+                },
+            )
+            self.assertEqual(
+                loaded.get_game_target_filters("game-b")["unique_targets"],
+                ["Other"],
+            )
+            self.assertEqual(
+                loaded.get_game_target_filters("missing")["unique_targets"],
+                [],
+            )
+            self.assertFalse((config_path.parent / "config.json.tmp").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

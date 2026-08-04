@@ -2,7 +2,7 @@ import threading
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from core.input.input_manager import InputManager
 from core.input.window_input_driver import KEY_MAP, WindowInputDriver
@@ -76,6 +76,26 @@ class InputManagerTests(unittest.TestCase):
             ],
         )
 
+    def test_long_movement_hold_is_tracked_and_can_be_cancelled(self):
+        self.assertTrue(self.manager.press("W", hold_ms=5000))
+        self.assertTrue(self.manager.is_held("w"))
+        self.assertEqual(self.driver.events, [("down", 1234, "W")])
+
+        self.assertTrue(self.manager.release("W"))
+
+        self.assertFalse(self.manager.is_held("W"))
+        self.assertEqual(
+            self.driver.events,
+            [("down", 1234, "W"), ("up", 1234, "W")],
+        )
+
+    def test_invalid_hold_never_sends_key_down(self):
+        for hold_ms in (None, "invalid", float("inf")):
+            with self.subTest(hold_ms=hold_ms):
+                self.assertFalse(self.manager.press("W", hold_ms=hold_ms))
+
+        self.assertEqual(self.driver.events, [])
+
     def test_release_only_releases_the_requested_key(self):
         self.assertTrue(self.manager.press("W", hold_ms=250))
         self.assertFalse(self.manager.release("A"))
@@ -116,6 +136,74 @@ class InputManagerTests(unittest.TestCase):
         self.assertFalse(down & (1 << 31))
         self.assertTrue(up & (1 << 30))
         self.assertTrue(up & (1 << 31))
+
+    def test_window_driver_delivers_keys_directly_with_a_short_timeout(self):
+        driver = WindowInputDriver()
+        with (
+            patch(
+                "core.input.window_input_driver.win32gui.IsWindow",
+                return_value=True,
+            ),
+            patch(
+                "core.input.window_input_driver.win32api.MapVirtualKey",
+                return_value=0x13,
+            ),
+            patch(
+                "core.input.window_input_driver.win32gui.SendMessageTimeout",
+                return_value=(1, 0),
+            ) as send,
+            patch(
+                "core.input.window_input_driver.win32gui.PostMessage"
+            ) as post,
+        ):
+            self.assertTrue(driver.key_down(1234, "R"))
+            self.assertTrue(driver.key_up(1234, "R"))
+
+        self.assertEqual(
+            send.call_args_list,
+            [
+                call(
+                    1234,
+                    0x0100,
+                    KEY_MAP["R"],
+                    1 | (0x13 << 16),
+                    driver.MESSAGE_FLAGS,
+                    driver.MESSAGE_TIMEOUT_MS,
+                ),
+                call(
+                    1234,
+                    0x0101,
+                    KEY_MAP["R"],
+                    1 | (0x13 << 16) | (1 << 30) | (1 << 31),
+                    driver.MESSAGE_FLAGS,
+                    driver.MESSAGE_TIMEOUT_MS,
+                ),
+            ],
+        )
+        post.assert_not_called()
+
+    def test_window_driver_does_not_fallback_to_queued_text_on_timeout(self):
+        driver = WindowInputDriver()
+        with (
+            patch(
+                "core.input.window_input_driver.win32gui.IsWindow",
+                return_value=True,
+            ),
+            patch(
+                "core.input.window_input_driver.win32api.MapVirtualKey",
+                return_value=0x13,
+            ),
+            patch(
+                "core.input.window_input_driver.win32gui.SendMessageTimeout",
+                return_value=(0, 0),
+            ),
+            patch(
+                "core.input.window_input_driver.win32gui.PostMessage"
+            ) as post,
+        ):
+            self.assertFalse(driver.key_down(1234, "R"))
+
+        post.assert_not_called()
 
 
 if __name__ == "__main__":

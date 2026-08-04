@@ -29,7 +29,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 185
+        "encounters": 220
     },
     "Bongbo": {
         "level": 0,
@@ -37,7 +37,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 205
+        "encounters": 267
     },
     "&@ Bongbo": {
         "level": 0,
@@ -442,7 +442,7 @@
     "Kamisya": {
         "level": 0,
         "priority": 0,
-        "ignore": true,
+        "ignore": false,
         "elite": false,
         "boss": false,
         "encounters": 1
@@ -454,5 +454,14 @@
         "elite": false,
         "boss": false,
         "encounters": 1
+    },
+    "Yakku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1,
+        "verified": true
     }
 }

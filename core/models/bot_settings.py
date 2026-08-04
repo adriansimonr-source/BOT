@@ -9,11 +9,13 @@ class BotMode(Enum):
 
     # Puede moverse dentro del radio indicado
 
+    STATIC_25 = 25
+
     STATIC_50 = 50
 
-    STATIC_100 = 100
+    STATIC_75 = 75
 
-    STATIC_150 = 150
+    STATIC_100 = 100
 
 
     # Sin límite

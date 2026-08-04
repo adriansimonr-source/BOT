@@ -15,6 +15,7 @@ class EntityDatabaseManager:
     ENEMY_SIMILARITY_THRESHOLD = 0.90
     ENEMY_ALIAS_MAX_EXTRA_CHARS = 3
     ENEMY_CONFIRMATIONS_REQUIRED = 2
+    LEGACY_MIN_ENCOUNTERS = 3
     MAX_ENTITY_NAME_LENGTH = 64
     ALLOWED_NAME_PUNCTUATION = frozenset(" -'’().+&[]")
     TIMER_PATTERNS = (
@@ -230,19 +231,43 @@ class EntityDatabaseManager:
             )
 
     def set_enemy_ignored(self, name, ignored):
+        return self.set_enemies_ignored([name], ignored)
+
+    def set_enemies_ignored(self, names, ignored):
         with _DATABASE_LOCK:
             self.refresh_enemies(force=True)
-            canonical = self._canonical_enemy_name(name) or name
-            if not self.database.is_enemy(canonical):
-                self.database.add_enemy(canonical)
-                self.database.enemies[canonical]["verified"] = True
+            changed = False
+            normalized_by_key = {}
+            for name in names:
+                normalized = self.normalize_entity_name(name)
+                if self.is_valid_enemy_name(normalized):
+                    normalized_by_key.setdefault(
+                        normalized.casefold(),
+                        normalized,
+                    )
+            normalized_names = list(normalized_by_key.values())
 
-            canonical_name = canonical.casefold()
-            for current, data in self.database.get_enemies().items():
-                resolved = self._canonical_enemy_name(current)
-                if resolved and resolved.casefold() == canonical_name:
-                    data["ignore"] = bool(ignored)
-            self._save_enemies()
+            for name in normalized_names:
+                canonical = self._canonical_enemy_name(name) or name
+                if not self.database.is_enemy(canonical):
+                    self.database.add_enemy(canonical)
+                    self.database.enemies[canonical]["verified"] = True
+                    changed = True
+
+                canonical_name = canonical.casefold()
+                for current, data in self.database.get_enemies().items():
+                    resolved = self._canonical_enemy_name(current)
+                    if (
+                        resolved
+                        and resolved.casefold() == canonical_name
+                        and data.get("ignore", False) != bool(ignored)
+                    ):
+                        data["ignore"] = bool(ignored)
+                        changed = True
+
+            if changed:
+                self._save_enemies()
+            return changed
 
     def get_enemy(self, name):
         with _DATABASE_LOCK:
@@ -453,7 +478,7 @@ class EntityDatabaseManager:
                 or data.get("priority", 0)
                 or data.get("boss", False)
                 or data.get("elite", False)
-                or data.get("encounters", 0) >= cls.ENEMY_CONFIRMATIONS_REQUIRED
+                or data.get("encounters", 0) >= cls.LEGACY_MIN_ENCOUNTERS
             )
         )
 

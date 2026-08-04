@@ -44,14 +44,19 @@ class BotEngine:
         )
 
         self.modules = []
+        auto_target = AutoTarget(self.input_manager, self.target_rules)
 
         for module in (
             AutoConsumables(self.input_manager),
             AutoHeal(self.input_manager),
             MovementManager(self.input_manager, self.profile.bot_settings),
             AutoLoot(self.input_manager),
-            AutoTarget(self.input_manager, self.target_rules),
-            AutoAttack(self.input_manager, self.target_rules),
+            auto_target,
+            AutoAttack(
+                self.input_manager,
+                self.target_rules,
+                auto_target=auto_target,
+            ),
             RotationManager(self.input_manager),
         ):
             self.register_module(module)
@@ -236,6 +241,8 @@ class BotEngine:
 
         self.state = BotState.PAUSED
 
+        self.input_manager.disable()
+
 
     def resume(self):
 
@@ -243,6 +250,8 @@ class BotEngine:
 
             return
 
+
+        self.input_manager.enable()
 
         self.state = BotState.RUNNING
 
@@ -319,7 +328,7 @@ class BotEngine:
                 getattr(state, "navigation_active", False)
                 and isinstance(
                     module,
-                    (AutoLoot, AutoTarget, AutoAttack),
+                    (AutoLoot, AutoTarget),
                 )
             ):
 

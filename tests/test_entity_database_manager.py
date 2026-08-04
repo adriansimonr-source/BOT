@@ -36,8 +36,8 @@ class EntityDatabaseManagerTests(unittest.TestCase):
     def test_similar_legitimate_names_are_not_merged(self):
         with tempfile.TemporaryDirectory() as path:
             manager = EntityDatabaseManager(path)
-            self.add_enemy(manager, "Goblin A", encounters=2)
-            self.add_enemy(manager, "Goblin B", encounters=2)
+            self.add_enemy(manager, "Goblin A", encounters=3)
+            self.add_enemy(manager, "Goblin B", encounters=3)
             manager.save()
 
             reloaded = EntityDatabaseManager(path)
@@ -52,7 +52,7 @@ class EntityDatabaseManagerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as path:
             manager = EntityDatabaseManager(path)
             self.add_enemy(manager, "4m 59s", encounters=1)
-            self.add_enemy(manager, "Bongbo", encounters=2)
+            self.add_enemy(manager, "Bongbo", encounters=3)
             manager.save()
 
             self.assertIsNone(manager.resolve_enemy_name("4m 12s"))
@@ -109,6 +109,26 @@ class EntityDatabaseManagerTests(unittest.TestCase):
             self.assertEqual(
                 reloaded.get_enemy("Bongbo")["encounters"],
                 2,
+            )
+
+    def test_multiple_ignore_changes_are_saved_as_one_batch(self):
+        with tempfile.TemporaryDirectory() as path:
+            manager = EntityDatabaseManager(path)
+            self.add_enemy(manager, "Alpha", encounters=3)
+            self.add_enemy(manager, "Beta", encounters=3)
+            manager.save()
+
+            self.assertTrue(
+                manager.set_enemies_ignored(
+                    ["Alpha", "alpha", "Beta"],
+                    True,
+                )
+            )
+
+            reloaded = EntityDatabaseManager(path)
+            self.assertEqual(
+                reloaded.get_ignored_enemy_names(),
+                ["Alpha", "Beta"],
             )
 
     def test_unknown_enemy_requires_two_matching_observations(self):

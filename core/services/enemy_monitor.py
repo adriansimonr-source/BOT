@@ -127,15 +127,21 @@ class EnemyMonitor:
             )
         except Exception:
             return
-        if (
-            selection_id != self.selection_id
-            or not name
-            or entity_type != self.current_entity_type
+        if not self._identity_is_current(
+            selection_id,
+            signature,
+            name,
+            entity_type,
         ):
             return
-        if self._signature_changed_from(signature, self.current_signature):
-            return
 
+        try:
+            committed = self._commit_identity(name, level, entity_type)
+        except Exception:
+            return
+        if committed is None:
+            return
+        name, level, entity_type = committed
         self._remember_identity(signature, name, level, entity_type)
         target_state.identity_pending = False
         if target_state.exists and entity_type == self.ENTITY_ENEMY:
@@ -220,23 +226,8 @@ class EnemyMonitor:
         if not self.valid_name(name):
             return empty_result
 
-        if entity_type == self.ENTITY_ITEM:
-            resolver = getattr(self.entity_database, "resolve_item_name", None)
-            if not callable(resolver):
-                return empty_result
-            name = resolver(name)
-            if not name:
-                return empty_result
-            register = getattr(self.entity_database, "register_item_seen", None)
-            if callable(register):
-                register(name)
-            return selection_id, signature, name, 0, self.ENTITY_ITEM
-
-        name = self.entity_database.resolve_enemy_name(name)
-        if not name:
-            return empty_result
-        level = self.entity_cache.current_enemy_level
-        if self.entity_cache.enemy_changed(name):
+        level = 0
+        if entity_type == self.ENTITY_ENEMY:
             level_image = self.crop_region(
                 hud_image,
                 self.templates.get("enemy_level"),
@@ -246,9 +237,7 @@ class EnemyMonitor:
                 if level_image is not None
                 else 0
             )
-            self.entity_cache.update_enemy(name, level)
-        self.entity_database.register_enemy_seen(name)
-        return selection_id, signature, name, level, self.ENTITY_ENEMY
+        return selection_id, signature, name, level, entity_type
 
     def read_identity(
         self,
@@ -263,17 +252,71 @@ class EnemyMonitor:
             hud_image,
             entity_type,
         )
-        _, signature, name, level, resolved_type = (
+        selection_id, signature, name, level, resolved_type = (
             self._unpack_identity_result(result)
         )
-        if not name:
+        if not self._identity_is_current(
+            selection_id,
+            signature,
+            name,
+            resolved_type,
+        ):
             return False
+        committed = self._commit_identity(name, level, resolved_type)
+        if committed is None:
+            return False
+        name, level, resolved_type = committed
         self._remember_identity(signature, name, level, resolved_type)
         target_state.identity_pending = False
         if resolved_type == self.ENTITY_ENEMY and target_state.exists:
             target_state.name = name
             target_state.level = level
         return resolved_type == self.ENTITY_ENEMY
+
+    def _identity_is_current(
+        self,
+        selection_id,
+        signature,
+        name,
+        entity_type,
+    ):
+        return bool(
+            selection_id == self.selection_id
+            and name
+            and entity_type == self.current_entity_type
+            and not self._signature_changed_from(
+                signature,
+                self.current_signature,
+            )
+        )
+
+    def _commit_identity(self, name, level, entity_type):
+        if entity_type == self.ENTITY_ITEM:
+            resolver = getattr(self.entity_database, "resolve_item_name", None)
+            if not callable(resolver):
+                return None
+            resolved_name = resolver(name)
+            if not resolved_name:
+                return None
+            register = getattr(self.entity_database, "register_item_seen", None)
+            if callable(register):
+                register(resolved_name)
+            return resolved_name, 0, self.ENTITY_ITEM
+
+        resolver = getattr(self.entity_database, "resolve_enemy_name", None)
+        if not callable(resolver):
+            return None
+        resolved_name = resolver(name)
+        if not resolved_name:
+            return None
+        if self.entity_cache.enemy_changed(resolved_name):
+            self.entity_cache.update_enemy(resolved_name, level)
+        else:
+            level = self.entity_cache.current_enemy_level
+        register = getattr(self.entity_database, "register_enemy_seen", None)
+        if callable(register):
+            register(resolved_name)
+        return resolved_name, level, self.ENTITY_ENEMY
 
     def read_health(self, hud_image, target_state):
         has_hp_bar, hp_percent = self._read_health_data(hud_image)

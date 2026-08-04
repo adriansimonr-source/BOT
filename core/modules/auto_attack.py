@@ -5,10 +5,10 @@ from core.modules.base_module import BaseModule
 
 class AutoAttack(BaseModule):
 
-    def __init__(self, input_manager, target_rules):
+    def __init__(self, input_manager, target_rules=None, auto_target=None):
         super().__init__("Auto Attack", interval_ms=50)
         self.input = input_manager
-        self.target_rules = target_rules
+        self.auto_target = auto_target
         self.key = "R"
         self.attack_interval = 250
         self.last_attack = None
@@ -30,12 +30,13 @@ class AutoAttack(BaseModule):
         self._active_target = None
 
     def update(self, state):
-        if not self.target_rules.is_allowed(state.target):
+        target = state.target
+        if not self._is_attack_ready(target):
             self._active_target = None
             return False
 
-        selection_id = getattr(state.target, "selection_id", 0)
-        target_name = str(state.target.name or "").strip().casefold()
+        selection_id = getattr(target, "selection_id", 0)
+        target_name = str(target.name or "").strip().casefold()
         target_identity = (
             ("selection", selection_id)
             if selection_id
@@ -56,3 +57,10 @@ class AutoAttack(BaseModule):
             self.last_attack = now
             return True
         return False
+
+    def _is_attack_ready(self, target):
+        if not target.exists:
+            return False
+        if self.auto_target is None:
+            return True
+        return self.auto_target.is_attack_ready(target)

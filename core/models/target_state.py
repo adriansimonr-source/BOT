@@ -12,5 +12,7 @@ class TargetState:
         self.visible = False
         self.targetable = False
         self.identity_pending = False
+        self.auto_target_decision = None
+        self.auto_target_decision_selection_id = None
         if clear_selection:
             self.selection_id = 0

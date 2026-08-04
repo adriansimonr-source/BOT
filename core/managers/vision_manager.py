@@ -24,6 +24,9 @@ from core.system.system_info import SystemInfo
 class VisionManager:
 
     PLAYER_UPDATE_INTERVAL_SECONDS = 0.25
+    MINIMAP_UPDATE_INTERVAL_SECONDS = 1.0
+    COORDINATE_UPDATE_INTERVAL_SECONDS = 1.0
+    NAVIGATION_COORDINATE_UPDATE_INTERVAL_SECONDS = 0.5
 
     def __init__(self, game_id=None, hwnd=None, capture_size=None):
         self.config = ConfigManager()
@@ -83,8 +86,14 @@ class VisionManager:
 
         self.running = False
         self.debug_minimap_saved = False
-        self.minimap_interval = 1.0
+        self.minimap_interval = self.MINIMAP_UPDATE_INTERVAL_SECONDS
+        self.coordinate_interval = self.COORDINATE_UPDATE_INTERVAL_SECONDS
+        self.navigation_coordinate_interval = (
+            self.NAVIGATION_COORDINATE_UPDATE_INTERVAL_SECONDS
+        )
         self.last_minimap_update = 0.0
+        self.last_coordinate_update = 0.0
+        self.last_minimap_hud = None
         self.last_player_update = 0.0
         self.latest_image = None
         self.ocr_executor = None
@@ -95,6 +104,8 @@ class VisionManager:
             return
         self.coordinate_reader.reset()
         self.last_minimap_update = 0.0
+        self.last_coordinate_update = 0.0
+        self.last_minimap_hud = None
         self.last_player_update = 0.0
         self.latest_image = None
         self.debug_minimap_saved = False
@@ -147,12 +158,35 @@ class VisionManager:
         if not self.running or self.latest_image is None:
             return
         now = time.perf_counter()
-        if now - self.last_minimap_update < self.minimap_interval:
+        minimap_due = (
+            now - self.last_minimap_update >= self.minimap_interval
+        )
+        coordinate_interval = (
+            self.navigation_coordinate_interval
+            if getattr(state, "navigation_active", False)
+            else self.coordinate_interval
+        )
+        coordinate_due = (
+            now - self.last_coordinate_update >= coordinate_interval
+        )
+        if not minimap_due and not coordinate_due:
             return
-        self.update_minimap(self.latest_image, state)
-        self.last_minimap_update = now
 
-    def update_minimap(self, image, state):
+        if minimap_due:
+            self.update_minimap(
+                self.latest_image,
+                state,
+                read_coordinates=coordinate_due,
+            )
+            self.last_minimap_update = now
+        elif coordinate_due:
+            self._update_coordinates(self.latest_image)
+
+        if coordinate_due:
+            self.last_coordinate_update = now
+
+    def update_minimap(self, image, state, read_coordinates=True):
+        self.last_minimap_hud = None
         minimap_template = self.templates.get("minimap_anchor")
         if minimap_template is None:
             return
@@ -166,10 +200,28 @@ class VisionManager:
         minimap_hud = self.resolver.resolve(detection, minimap_region)
         if minimap_hud is None:
             return
+        self.last_minimap_hud = minimap_hud
         crop = self.resolver.crop(image, minimap_hud)
         if crop is None:
             return
 
+        if read_coordinates:
+            self._submit_coordinate_read(crop)
+
+        self.save_debug_minimap(crop)
+        position = self.minimap_detector.detect(image, minimap_hud)
+        if position is not None:
+            state.player.minimap_position = position
+
+    def _update_coordinates(self, image):
+        minimap_hud = self.last_minimap_hud
+        if minimap_hud is None:
+            return
+        crop = self.resolver.crop(image, minimap_hud)
+        if crop is not None:
+            self._submit_coordinate_read(crop)
+
+    def _submit_coordinate_read(self, crop):
         coordinate_region = self.templates.get("player_coordinates")
         if (
             coordinate_region is not None
@@ -186,11 +238,6 @@ class VisionManager:
                     self.coordinate_reader.read,
                     coordinate_box.copy(),
                 )
-
-        self.save_debug_minimap(crop)
-        position = self.minimap_detector.detect(image, minimap_hud)
-        if position is not None:
-            state.player.minimap_position = position
 
     def _poll_coordinate(self, state):
         future = self.coordinate_future
@@ -215,6 +262,7 @@ class VisionManager:
         self.capture.stop()
         self.running = False
         self.latest_image = None
+        self.last_minimap_hud = None
         self.coordinate_future = None
         self.player_monitor.set_executor(None)
         self.enemy_monitor.set_executor(None)

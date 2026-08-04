@@ -8,6 +8,7 @@ from core.managers.direct3d_device import Direct3DDeviceManager
 from core.managers.direct3d_map import Direct3DMapManager
 from core.managers.direct3d_staging import Direct3DStagingManager
 from core.managers.frame_cpu_reader import FrameCPUReader
+from core.managers.wgc_borderless import request_borderless_capture_access
 from core.managers.wgc_frame_abi import WGCFrameABI
 from core.managers.wgc_frame_reader_abi import WGCFrameReaderABI
 from core.managers.wgc_framepool_abi import WGCFramePoolABI
@@ -40,6 +41,7 @@ class CaptureEngine:
         if not window.is_valid() and not window.find_window_by_title(self.title):
             raise RuntimeError("Ventana no encontrada")
 
+        borderless_allowed = request_borderless_capture_access()
         try:
             self.device_manager = Direct3DDeviceManager()
             if not self.device_manager.create_device():
@@ -66,6 +68,10 @@ class CaptureEngine:
             self.session = self.session_manager.create_session(
                 self.framepool,
                 self.item,
+            )
+            self.borderless_capture = (
+                borderless_allowed
+                and self.session_manager.try_disable_border()
             )
             self.session_manager.start_capture()
 
@@ -181,3 +187,4 @@ class CaptureEngine:
         self.copy = None
         self.map = None
         self.cpu = None
+        self.borderless_capture = False

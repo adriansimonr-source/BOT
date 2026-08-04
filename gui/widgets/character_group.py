@@ -88,9 +88,10 @@ class CharacterGroup(QWidget):
 
         self.mode_selector = QComboBox()
         self.mode_selector.addItem("FIJO (0)", BotMode.STATIC_POINT)
+        self.mode_selector.addItem("25", BotMode.STATIC_25)
         self.mode_selector.addItem("50", BotMode.STATIC_50)
+        self.mode_selector.addItem("75", BotMode.STATIC_75)
         self.mode_selector.addItem("100", BotMode.STATIC_100)
-        self.mode_selector.addItem("150", BotMode.STATIC_150)
         self.mode_selector.addItem("SIN LÍMITE", BotMode.OFF)
         self.mode_selector.setCurrentIndex(
             self.mode_selector.findData(BotMode.STATIC_100)

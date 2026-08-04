@@ -24,7 +24,9 @@ class InputManager:
         self._scheduler.start()
 
     def press(self, key, hold_ms=DEFAULT_HOLD_MS):
-        if not self.enabled:
+        try:
+            hold_ms = max(1, int(hold_ms))
+        except (TypeError, ValueError, OverflowError):
             return False
 
         hwnd = self.game_state_manager.process_manager.get_window_handle()
@@ -33,14 +35,18 @@ class InputManager:
 
         normalized_key = str(key).upper()
         with self._condition:
-            if self._shutdown or not self._can_hold(normalized_key):
+            if (
+                not self.enabled
+                or self._shutdown
+                or not self._can_hold(normalized_key)
+            ):
                 return False
             if not self.window_driver.key_down(hwnd, normalized_key):
                 return False
 
             self._held_keys[normalized_key] = (
                 hwnd,
-                time.perf_counter() + max(1, int(hold_ms)) / 1000,
+                time.perf_counter() + hold_ms / 1000,
             )
             self._condition.notify_all()
         return True
@@ -92,17 +98,23 @@ class InputManager:
 
     def release_all(self):
         with self._condition:
-            for key, (hwnd, _) in tuple(self._held_keys.items()):
-                self.window_driver.key_up(hwnd, key)
-            self._held_keys.clear()
-            self._condition.notify_all()
+            self._release_all_locked()
+
+    def _release_all_locked(self):
+        for key, (hwnd, _) in tuple(self._held_keys.items()):
+            self.window_driver.key_up(hwnd, key)
+        self._held_keys.clear()
+        self._condition.notify_all()
 
     def enable(self):
-        self.enabled = True
+        with self._condition:
+            if not self._shutdown:
+                self.enabled = True
 
     def disable(self):
-        self.enabled = False
-        self.release_all()
+        with self._condition:
+            self.enabled = False
+            self._release_all_locked()
 
     def close(self):
         self.disable()
@@ -113,4 +125,10 @@ class InputManager:
             self._scheduler.join(timeout=0.2)
 
     def is_enabled(self):
-        return self.enabled
+        with self._condition:
+            return self.enabled
+
+    def is_held(self, key):
+        normalized_key = str(key).upper()
+        with self._condition:
+            return normalized_key in self._held_keys

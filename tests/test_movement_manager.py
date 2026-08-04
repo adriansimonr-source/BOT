@@ -10,29 +10,31 @@ class FakeInput:
 
     def __init__(self):
         self.presses = []
-        self.release_count = 0
+        self.releases = []
+        self.held = set()
 
     def press(self, key, hold_ms=50):
         self.presses.append((key, hold_ms))
+        self.held.add(key)
         return True
 
-    def release_all(self):
-        self.release_count += 1
+    def release(self, key):
+        self.releases.append(key)
+        was_held = key in self.held
+        self.held.discard(key)
+        return was_held
+
+    def is_held(self, key):
+        return key in self.held
 
 
 class BusyInput(FakeInput):
 
-    def __init__(self):
-        super().__init__()
-        self.busy = True
-
     def press(self, key, hold_ms=50):
-        if self.busy:
-            return False
-        return super().press(key, hold_ms)
+        return False
 
 
-def create_state(x=110, y=100, *, radius_mode=BotMode.STATIC_POINT):
+def create_state(x=120, y=100, *, radius_mode=BotMode.STATIC_POINT):
     player = SimpleNamespace(
         x=x,
         y=y,
@@ -63,165 +65,297 @@ def create_state(x=110, y=100, *, radius_mode=BotMode.STATIC_POINT):
 
 class MovementManagerTests(unittest.TestCase):
 
-    def test_first_fresh_sample_outside_radius_forces_return(self):
+    @staticmethod
+    def update_at(
+        module,
+        state,
+        now,
+        *,
+        x=None,
+        y=None,
+        new_sample=False,
+    ):
+        if x is not None:
+            state.player.x = x
+        if y is not None:
+            state.player.y = y
+        if new_sample:
+            state.player.position_revision += 1
+        with patch(
+            "core.modules.movement_manager.time.perf_counter",
+            return_value=now,
+        ):
+            return module.update(state)
+
+    def start_forced_return(self, module, state, *, first=1.0):
+        self.assertFalse(self.update_at(module, state, first))
+        self.assertEqual(module._outside_samples, 1)
+        sent = self.update_at(
+            module,
+            state,
+            first + 0.1,
+            new_sample=True,
+        )
+        self.assertTrue(sent)
+        return first + 0.1
+
+    def evaluate_current_command(
+        self,
+        module,
+        state,
+        *,
+        x=None,
+        y=None,
+    ):
+        now = module._command["observe_after"] + 0.01
+        return self.update_at(
+            module,
+            state,
+            now,
+            x=x,
+            y=y,
+            new_sample=True,
+        )
+
+    def test_outside_radius_requires_two_fresh_samples(self):
         state, settings = create_state()
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            sent = module.update(state)
+        self.assertFalse(self.update_at(module, state, 1.0))
+        self.assertEqual(input_manager.presses, [])
 
-        self.assertTrue(sent)
-        self.assertEqual(input_manager.presses, [("W", 250)])
-        self.assertTrue(state.navigation_active)
+        state.player.x = 121
+        self.assertFalse(self.update_at(module, state, 1.05))
+        self.assertEqual(input_manager.presses, [])
+
+        self.assertTrue(
+            self.update_at(module, state, 1.1, new_sample=True)
+        )
+        self.assertEqual(input_manager.presses, [("W", 400)])
+        self.assertEqual(module.status, MovementStatus.RETURNING)
         self.assertEqual(state.navigation_reason, "fuera_de_radio")
 
-    def test_repeats_a_key_that_reduces_distance_and_stops_on_arrival(self):
+    def test_target_pauses_forced_return_and_then_resumes_same_attempt(self):
         state, settings = create_state()
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
-
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-
-        state.player.x = 108
-        state.player.position_revision = 2
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=2.0):
-            module.update(state)
-
-        self.assertEqual([key for key, _ in input_manager.presses], ["W", "W"])
-
-        state.player.x = 101
-        state.player.position_revision = 3
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=3.0):
-            module.update(state)
-
-        self.assertEqual(module.status, MovementStatus.IDLE)
-        self.assertFalse(state.navigation_active)
-        self.assertEqual(state.navigation_reason, "en_posicion")
-        self.assertEqual(input_manager.release_count, 1)
-
-    def test_tries_lateral_recovery_when_no_key_moves_the_player(self):
-        state, settings = create_state()
-        input_manager = FakeInput()
-        module = MovementManager(input_manager, settings)
-
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-
-        for revision in range(2, 7):
-            state.player.position_revision = revision
-            with patch(
-                "core.modules.movement_manager.time.perf_counter",
-                return_value=float(revision),
-            ):
-                module.update(state)
-
-        self.assertEqual(
-            [key for key, _ in input_manager.presses],
-            ["W", "A", "D", "A", "D", "W"],
-        )
-        self.assertEqual(module.status, MovementStatus.RECOVERING)
-        self.assertEqual(state.navigation_reason, "bloqueado")
-
-    def test_selected_target_pauses_and_releases_navigation(self):
-        state, settings = create_state(radius_mode=BotMode.STATIC_100)
-        settings.set_return_delay(3)
-        input_manager = FakeInput()
-        module = MovementManager(input_manager, settings)
-
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-        state.player.position_revision = 2
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=4.1):
-            module.update(state)
+        self.start_forced_return(module, state)
 
         state.target.exists = True
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=4.2):
-            module.update(state)
+        self.assertFalse(self.update_at(module, state, 1.2))
 
         self.assertEqual(module.status, MovementStatus.PAUSED)
         self.assertFalse(state.navigation_active)
-        self.assertEqual(input_manager.release_count, 1)
+        self.assertEqual(state.navigation_reason, "objetivo_o_combate")
+        self.assertIn("W", input_manager.releases)
+        self.assertEqual(module._attempts, 1)
 
-    def test_outside_radius_overrides_target_and_combat(self):
-        state, settings = create_state(
-            x=131,
-            y=140,
-            radius_mode=BotMode.STATIC_50,
-        )
-        state.target.exists = True
-        state.in_combat = True
-        input_manager = FakeInput()
-        module = MovementManager(input_manager, settings)
+        state.target.exists = False
+        self.assertTrue(self.update_at(module, state, 1.3))
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            sent = module.update(state)
-
-        self.assertTrue(sent)
-        self.assertEqual(input_manager.presses, [("W", 250)])
+        self.assertEqual(module.status, MovementStatus.RETURNING)
         self.assertTrue(state.navigation_active)
         self.assertEqual(state.navigation_reason, "fuera_de_radio")
+        self.assertEqual(module._attempts, 1)
+        self.assertEqual([key for key, _ in input_manager.presses], ["W", "W"])
 
-    def test_quiet_timeout_returns_to_start_even_inside_radius(self):
-        state, settings = create_state(radius_mode=BotMode.STATIC_100)
-        settings.set_return_delay(3)
+    def test_two_reliable_improvements_confirm_a_direction(self):
+        state, settings = create_state()
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-        state.player.position_revision = 2
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=4.1):
-            module.update(state)
+        self.assertTrue(
+            self.evaluate_current_command(module, state, x=118)
+        )
+        self.assertEqual(module._candidate_key, "W")
+        self.assertIsNone(module._preferred_key)
+        self.assertEqual(module.reason, "confirmando_direccion")
 
-        self.assertEqual(input_manager.presses, [("W", 250)])
-        self.assertEqual(state.navigation_reason, "quieto")
+        self.assertTrue(
+            self.evaluate_current_command(module, state, x=116)
+        )
+        self.assertIsNone(module._candidate_key)
+        self.assertEqual(module._preferred_key, "W")
+        self.assertEqual(
+            [key for key, _ in input_manager.presses],
+            ["W", "W", "W"],
+        )
+        self.assertEqual(module._command["phase"], "follow")
 
-    def test_unlimited_or_stale_positions_never_move(self):
-        state, settings = create_state(radius_mode=BotMode.OFF)
+    def test_every_generated_movement_pulse_is_at_most_650_ms(self):
+        state, settings = create_state(x=400)
+        settings.movement_hold_ms = 10_000
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-        state.player.position_revision = 2
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=2.0):
-            module.update(state)
+        self.evaluate_current_command(module, state, x=398)
+        self.evaluate_current_command(module, state, x=396)
 
-        settings.mode = BotMode.STATIC_POINT
-        state.player.fresh = False
-        state.player.position_revision = 3
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=3.0):
-            module.update(state)
+        self.assertEqual(
+            input_manager.presses,
+            [("W", 500), ("W", 500), ("W", 650)],
+        )
+        self.assertTrue(
+            all(
+                100 <= hold_ms <= module.MAX_DRIVE_HOLD_MS
+                for _, hold_ms in input_manager.presses
+            )
+        )
 
-        self.assertEqual(input_manager.presses, [])
+    def test_coordinate_sample_during_hold_is_ignored(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        sent_at = self.start_forced_return(module, state)
+        observe_after = module._command["observe_after"]
+
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                sent_at + 0.1,
+                x=118,
+                new_sample=True,
+            )
+        )
+        self.assertLess(sent_at + 0.1, observe_after)
+        self.assertEqual(input_manager.presses, [("W", 400)])
+        self.assertEqual(module._command["revision"], 2)
+
+        self.assertFalse(self.update_at(module, state, observe_after + 0.01))
+        self.assertEqual(input_manager.presses, [("W", 400)])
+
+        self.assertTrue(
+            self.update_at(
+                module,
+                state,
+                observe_after + 0.02,
+                x=116,
+                new_sample=True,
+            )
+        )
+        self.assertEqual([key for key, _ in input_manager.presses], ["W", "W"])
+
+    def test_missing_coordinate_after_command_enters_cooldown(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+        deadline = module._command["sample_deadline"]
+
+        self.assertFalse(self.update_at(module, state, deadline + 0.01))
+
+        self.assertEqual(module.status, MovementStatus.COOLDOWN)
         self.assertFalse(state.navigation_active)
+        self.assertEqual(state.navigation_reason, "sin_coordenada_nueva")
+        self.assertIsNone(module._command)
 
-    def test_retries_when_the_input_scheduler_is_temporarily_busy(self):
+    def test_busy_input_enters_cooldown_after_750_ms(self):
         state, settings = create_state()
         input_manager = BusyInput()
         module = MovementManager(input_manager, settings)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            sent = module.update(state)
-
-        self.assertFalse(sent)
+        self.assertFalse(self.update_at(module, state, 1.0))
+        self.assertFalse(
+            self.update_at(module, state, 1.1, new_sample=True)
+        )
         self.assertEqual(module.status, MovementStatus.RETURNING)
         self.assertEqual(module.reason, "esperando_entrada")
 
-        input_manager.busy = False
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.1):
-            sent = module.update(state)
+        self.assertFalse(self.update_at(module, state, 1.84))
+        self.assertEqual(module.status, MovementStatus.RETURNING)
 
-        self.assertTrue(sent)
-        self.assertEqual(input_manager.presses, [("W", 250)])
+        self.assertFalse(self.update_at(module, state, 1.86))
+        self.assertEqual(module.status, MovementStatus.COOLDOWN)
+        self.assertEqual(module.reason, "entrada_ocupada")
+        self.assertFalse(state.navigation_active)
 
-    def test_euclidean_boundaries_for_50_100_and_150(self):
+    def test_watchdog_cools_down_retries_once_and_then_fails(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        started_at = self.start_forced_return(module, state)
+
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                started_at + module.NO_PROGRESS_SECONDS + 0.01,
+            )
+        )
+        self.assertEqual(module.status, MovementStatus.COOLDOWN)
+        self.assertEqual(module.reason, "retorno_sin_progreso")
+        self.assertFalse(state.navigation_active)
+
+        retry_at = module._retry_not_before
+        self.assertFalse(self.update_at(module, state, retry_at - 0.01))
+        self.assertEqual(len(input_manager.presses), 1)
+        self.assertTrue(self.update_at(module, state, retry_at + 0.01))
+        self.assertEqual(module._attempts, 2)
+        self.assertEqual(len(input_manager.presses), 2)
+
+        second_started_at = module._attempt_started_at
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                second_started_at + module.NO_PROGRESS_SECONDS + 0.01,
+            )
+        )
+        self.assertEqual(module.status, MovementStatus.COOLDOWN)
+
+        exhausted_at = module._retry_not_before + 0.01
+        self.assertFalse(self.update_at(module, state, exhausted_at))
+        self.assertEqual(module.status, MovementStatus.FAILED)
+        self.assertEqual(module.reason, "retorno_agotado")
+        self.assertFalse(state.navigation_active)
+        self.assertEqual(len(input_manager.presses), module.MAX_ATTEMPTS)
+
+        self.assertFalse(self.update_at(module, state, exhausted_at + 20.0))
+        self.assertEqual(len(input_manager.presses), module.MAX_ATTEMPTS)
+
+    def test_no_movement_uses_deterministic_search_then_cools_down(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+
+        for _ in range(8):
+            self.evaluate_current_command(module, state)
+
+        self.assertEqual(
+            [key for key, _ in input_manager.presses],
+            ["W", "A", "D", "A", "W", "D", "D", "W"],
+        )
+        self.assertEqual(module.status, MovementStatus.COOLDOWN)
+        self.assertEqual(module.reason, "sin_direccion_util")
+        self.assertFalse(state.navigation_active)
+
+    def test_arrival_releases_movement_and_finishes_return(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+
+        self.assertFalse(
+            self.evaluate_current_command(module, state, x=101)
+        )
+
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertEqual(module.reason, "en_posicion")
+        self.assertFalse(state.navigation_active)
+        self.assertIsNone(module._command)
+        self.assertIn("W", input_manager.releases)
+
+    def test_configured_radius_uses_euclidean_distance(self):
         cases = (
+            (BotMode.STATIC_25, (115, 120), (116, 120), 25.0),
             (BotMode.STATIC_50, (130, 140), (131, 140), 50.0),
+            (BotMode.STATIC_75, (145, 160), (146, 160), 75.0),
             (BotMode.STATIC_100, (160, 180), (161, 180), 100.0),
-            (BotMode.STATIC_150, (190, 220), (191, 220), 150.0),
         )
 
         for mode, boundary, outside, radius in cases:
@@ -233,11 +367,8 @@ class MovementManagerTests(unittest.TestCase):
                 )
                 input_manager = FakeInput()
                 module = MovementManager(input_manager, settings)
-                with patch(
-                    "core.modules.movement_manager.time.perf_counter",
-                    return_value=1.0,
-                ):
-                    module.update(state)
+                self.update_at(module, state, 1.0)
+                self.update_at(module, state, 1.1, new_sample=True)
 
                 self.assertAlmostEqual(state.navigation_distance, radius)
                 self.assertEqual(input_manager.presses, [])
@@ -250,57 +381,82 @@ class MovementManagerTests(unittest.TestCase):
                 )
                 input_manager = FakeInput()
                 module = MovementManager(input_manager, settings)
-                with patch(
-                    "core.modules.movement_manager.time.perf_counter",
-                    return_value=1.0,
-                ):
-                    module.update(state)
+                self.start_forced_return(module, state)
 
                 self.assertGreater(state.navigation_distance, radius)
-                self.assertEqual(input_manager.presses, [("W", 250)])
-                self.assertEqual(state.navigation_reason, "fuera_de_radio")
+                self.assertEqual(input_manager.presses, [("W", 400)])
+                self.assertEqual(module.reason, "fuera_de_radio")
 
-    def test_coordinate_change_without_new_revision_does_not_trigger_radius(self):
-        state, settings = create_state(
-            x=130,
-            y=140,
-            radius_mode=BotMode.STATIC_50,
-        )
+    def test_off_mode_and_stale_coordinates_never_move(self):
+        state, settings = create_state(radius_mode=BotMode.OFF)
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-        state.player.x = 131
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.1):
-            module.update(state)
+        self.assertFalse(self.update_at(module, state, 1.0))
+        self.assertFalse(
+            self.update_at(module, state, 2.0, new_sample=True)
+        )
+
+        settings.mode = BotMode.STATIC_POINT
+        state.player.fresh = False
+        self.assertFalse(
+            self.update_at(module, state, 3.0, new_sample=True)
+        )
 
         self.assertEqual(input_manager.presses, [])
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertFalse(state.navigation_active)
 
-    def test_radius_waits_for_a_fresh_sample_after_coordinate_timeout(self):
-        state, settings = create_state(
-            x=131,
-            y=140,
-            radius_mode=BotMode.STATIC_50,
-        )
+    def test_one_coordinate_of_jitter_does_not_validate_direction(self):
+        state, settings = create_state()
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
 
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=1.0):
-            module.update(state)
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=4.0):
-            module.update(state)
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=4.1):
-            module.update(state)
+        self.assertTrue(
+            self.evaluate_current_command(module, state, x=119)
+        )
 
-        self.assertEqual(input_manager.presses, [("W", 250)])
-        self.assertEqual(state.navigation_reason, "sin_coordenada_nueva")
+        self.assertIsNone(module._candidate_key)
+        self.assertIsNone(module._preferred_key)
+        self.assertEqual(
+            [key for key, _ in input_manager.presses],
+            ["W", "A"],
+        )
 
-        state.player.position_revision = 2
-        with patch("core.modules.movement_manager.time.perf_counter", return_value=5.0):
-            module.update(state)
+    def test_online_calibration_converges_with_forward_and_strafe(self):
+        state, settings = create_state(x=120, y=120)
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        handled_presses = 0
+        now = 1.0
 
-        self.assertEqual(input_manager.presses, [("W", 250), ("W", 250)])
+        for _ in range(40):
+            self.update_at(
+                module,
+                state,
+                now,
+                new_sample=now > 1.0,
+            )
+            if len(input_manager.presses) > handled_presses:
+                key, hold_ms = input_manager.presses[-1]
+                handled_presses = len(input_manager.presses)
+                distance = max(1, round(hold_ms * 6 / 1000))
+                if key == "W":
+                    state.player.x -= distance
+                elif key == "A":
+                    state.player.y -= distance
+                else:
+                    state.player.y += distance
+            if module.status == MovementStatus.IDLE and now > 1.0:
+                break
+            now += 0.75
+
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertEqual(module.reason, "en_posicion")
+        self.assertLessEqual(state.navigation_distance, module.ARRIVAL_TOLERANCE)
+        self.assertIn("W", [key for key, _ in input_manager.presses])
+        self.assertIn("A", [key for key, _ in input_manager.presses])
 
 
 if __name__ == "__main__":
