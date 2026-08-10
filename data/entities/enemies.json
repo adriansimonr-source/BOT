@@ -341,7 +341,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 4
+        "encounters": 5
     },
     "» Baoku": {
         "level": 0,
@@ -461,7 +461,43 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 1,
+        "encounters": 14,
+        "verified": true
+    },
+    "Tarantula": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 5,
+        "verified": true
+    },
+    "Heruka": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 12,
+        "verified": true
+    },
+    "Azna Heruka": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 4,
+        "verified": true
+    },
+    "Yomrabyang": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 3,
         "verified": true
     }
 }

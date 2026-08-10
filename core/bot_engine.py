@@ -31,35 +31,83 @@ class BotEngine:
         game_state_manager: GameStateManager
     ):
 
+
         self.state = BotState.STOPPED
+
 
         self.game_state_manager = game_state_manager
 
+
         self.profile = PlayerProfile()
 
+
         self.target_rules = self.profile.target_rules
+
 
         self.input_manager = InputManager(
             self.game_state_manager
         )
 
-        self.modules = []
-        auto_target = AutoTarget(self.input_manager, self.target_rules)
 
-        for module in (
-            AutoConsumables(self.input_manager),
-            AutoHeal(self.input_manager),
-            MovementManager(self.input_manager, self.profile.bot_settings),
-            AutoLoot(self.input_manager),
-            auto_target,
+        self.modules = []
+
+
+
+        self.auto_target = AutoTarget(
+            self.input_manager,
+            self.target_rules
+        )
+
+
+
+        self.register_module(
+            AutoConsumables(
+                self.input_manager
+            )
+        )
+
+
+        self.register_module(
+            AutoHeal(
+                self.input_manager
+            )
+        )
+
+
+        self.register_module(
+            MovementManager(
+                self.input_manager,
+                self.profile.bot_settings
+            )
+        )
+
+
+        self.register_module(
+            AutoLoot(
+                self.input_manager
+            )
+        )
+
+
+        self.register_module(
+            self.auto_target
+        )
+
+
+        self.register_module(
             AutoAttack(
                 self.input_manager,
-                self.target_rules,
-                auto_target=auto_target,
-            ),
-            RotationManager(self.input_manager),
-        ):
-            self.register_module(module)
+                self.target_rules
+            )
+        )
+
+
+        self.register_module(
+            RotationManager(
+                self.input_manager
+            )
+        )
+
 
 
 
@@ -104,7 +152,9 @@ class BotEngine:
         module_type
     ):
 
+
         for module in self.modules:
+
 
             if isinstance(
                 module,
@@ -115,6 +165,7 @@ class BotEngine:
 
 
         return None
+
 
 
 
@@ -131,6 +182,7 @@ class BotEngine:
 
 
 
+
     # ==========================
     # CONFIG
     # ==========================
@@ -143,88 +195,168 @@ class BotEngine:
         character_group=None,
     ):
 
+
         if character_group is not None:
+
             self.profile.bot_settings.set_mode(
                 character_group.get_bot_mode()
             )
+
+
             self.profile.bot_settings.set_return_delay(
                 character_group.get_quiet_seconds()
             )
 
+
+
+
         ignored_targets = right_panel.get_ignored_targets()
+
+
         ignored_enabled = (
+
             right_panel.ignore_targets.isChecked()
-            and bool(ignored_targets)
+
+            and
+
+            bool(ignored_targets)
+
         )
-        if not ignored_enabled:
-            ignored_targets = []
-        self.target_rules.set_blacklist(ignored_targets)
+
+
+
+        self.target_rules.set_blacklist(
+
+            ignored_targets,
+
+            ignored_enabled
+
+        )
+
+
+
+
 
         unique_targets = right_panel.get_unique_targets()
+
+
+
         unique_enabled = (
+
             right_panel.unique_targets_checkbox.isChecked()
-            and bool(unique_targets)
-        )
-        self.target_rules.set_unique_targets(
-            unique_targets,
-            unique_enabled,
-        )
-        self.target_rules.allow_unknown = not (
-            ignored_enabled or unique_enabled
+
+            and
+
+            bool(unique_targets)
+
         )
 
+
+
+        self.target_rules.set_unique_targets(
+
+            unique_targets,
+
+            unique_enabled
+
+        )
+
+
+
+
+
         for module in self.modules:
+
 
             if hasattr(
                 module,
                 "configure"
             ):
 
+
                 module.configure(
+
                     right_panel,
+
                     center_panel
+
                 )
 
+
+
+
+
+
+
     # ==========================
-    # BOT CONTROL
+    # CONTROL
     # ==========================
 
 
     def start(self):
 
+
         if self.state == BotState.RUNNING:
 
             return
 
+
+
         self.input_manager.enable()
 
+
+
         try:
+
+
             self.game_state_manager.start()
+
+
 
             for module in self.modules:
 
                 module.on_start()
+
+
+
         except Exception:
+
+
             self.input_manager.disable()
+
             self.game_state_manager.stop()
+
             self.state = BotState.STOPPED
+
             raise
+
+
 
         self.state = BotState.RUNNING
 
 
+
+
+
     def stop(self):
+
 
         if self.state == BotState.STOPPED:
 
             return
 
 
+
         self.state = BotState.STOPPED
+
+
 
         self.input_manager.disable()
 
+
+
         self.game_state_manager.stop()
+
 
 
         for module in self.modules:
@@ -232,28 +364,45 @@ class BotEngine:
             module.on_stop()
 
 
+
+
+
     def pause(self):
+
 
         if self.state != BotState.RUNNING:
 
             return
 
 
+
         self.state = BotState.PAUSED
+
 
         self.input_manager.disable()
 
 
+
+
+
     def resume(self):
+
 
         if self.state != BotState.PAUSED:
 
             return
 
 
+
         self.input_manager.enable()
 
+
         self.state = BotState.RUNNING
+
+
+
+
+
 
 
     # ==========================
@@ -278,9 +427,12 @@ class BotEngine:
         self.game_state_manager.refresh_player_position()
 
 
+
     def refresh_player_name(self):
 
         self.game_state_manager.refresh_player_name()
+
+
 
 
 
@@ -296,21 +448,35 @@ class BotEngine:
         self.input_manager.update()
 
 
+
         if self.state != BotState.RUNNING:
 
             return
 
 
 
+
+
         self.game_state_manager.update()
+
 
 
         state = self.game_state_manager.get_state()
 
+
+
         if not state.connected:
+
             return
 
+
+
+
+
         loot_sent = False
+
+
+
         for module in self.modules:
 
 
@@ -319,34 +485,83 @@ class BotEngine:
                 continue
 
 
+
             if not module.should_update():
 
                 continue
 
 
+
+
             if (
-                getattr(state, "navigation_active", False)
-                and isinstance(
-                    module,
-                    (AutoLoot, AutoTarget),
+
+                getattr(
+                    state,
+                    "navigation_active",
+                    False
                 )
+
+                and
+
+                isinstance(
+                    module,
+                    (
+                        AutoLoot,
+                        AutoTarget
+                    )
+                )
+
             ):
 
                 continue
 
 
-            if loot_sent and isinstance(module, AutoTarget):
+
+
+
+            if (
+
+                loot_sent
+
+                and
+
+                isinstance(
+                    module,
+                    AutoTarget
+                )
+
+            ):
 
                 continue
+
+
+
+
 
 
             action_sent = module.update(
                 state
             )
 
-            if isinstance(module, AutoLoot) and action_sent:
+
+
+            if (
+
+                isinstance(
+                    module,
+                    AutoLoot
+                )
+
+                and
+
+                action_sent
+
+            ):
 
                 loot_sent = True
+
+
+
 
 
         self.game_state_manager.update_auxiliary()
