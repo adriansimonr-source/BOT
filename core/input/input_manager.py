@@ -81,9 +81,6 @@ class InputManager:
                 self._held_keys.pop(key, None)
                 self._condition.notify_all()
 
-    def update(self):
-        pass
-
     def release(self, key):
         normalized_key = str(key).upper()
         with self._condition:

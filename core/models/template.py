@@ -1,27 +1,14 @@
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
 class Template:
+    name: str
+    path: str
+    template_type: str
+    threshold: float = 0.85
+    image: object = None
 
-
-    def __init__(
-
-        self,
-
-        name,
-
-        path,
-
-        template_type,
-
-        threshold=0.85
-
-    ):
-
-
-        self.name = name
-
-        self.path = path
-
-        self.type = template_type
-
-        self.threshold = threshold
-
-        self.image = None
+    @property
+    def type(self):
+        return self.template_type

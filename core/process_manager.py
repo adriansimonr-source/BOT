@@ -1,3 +1,5 @@
+import time
+
 import psutil
 
 from core.managers.config_manager import ConfigManager
@@ -6,6 +8,8 @@ from core.managers.window_manager import WindowManager
 
 
 class ProcessManager:
+    CONNECTION_CHECK_INTERVAL_SECONDS = 0.25
+
     def __init__(self, game_profiles=None, config=None):
         self.config = config or ConfigManager()
         self.game_profiles = game_profiles or GameProfileManager()
@@ -16,6 +20,8 @@ class ProcessManager:
         self.name = None
         self.window_title = None
         self.last_error = None
+        self._connection_checked_at = None
+        self._connection_cached = False
 
         active_game = self.config.get("active_game")
         if active_game:
@@ -72,6 +78,8 @@ class ProcessManager:
             self.window_title = candidate["title"]
             self.window_manager.hwnd = candidate["hwnd"]
             self.last_error = None
+            self._connection_cached = True
+            self._connection_checked_at = time.perf_counter()
             return True
 
         self.last_error = "process_mismatch"
@@ -97,19 +105,24 @@ class ProcessManager:
     def get_active_game(self):
         return self.game_profiles.get_active_game()
 
-    def find_window_only(self, title=None):
-        title = title or self.game_profiles.get_window()
-        found = self.window_manager.find_window_by_title(title)
-        self.window_title = self.window_manager.get_title() if found else None
-        return found
-
     def is_connected(self):
-        if self.process is None or not self.window_manager.is_valid():
-            return False
-        try:
-            return self.process.is_running()
-        except psutil.Error:
-            return False
+        now = time.perf_counter()
+        if (
+            self._connection_checked_at is not None
+            and now - self._connection_checked_at
+            < self.CONNECTION_CHECK_INTERVAL_SECONDS
+        ):
+            return self._connection_cached
+
+        connected = False
+        if self.process is not None and self.window_manager.is_valid():
+            try:
+                connected = self.process.is_running()
+            except psutil.Error:
+                pass
+        self._connection_cached = bool(connected)
+        self._connection_checked_at = now
+        return self._connection_cached
 
     def get_pid(self):
         return self.pid
@@ -132,18 +145,11 @@ class ProcessManager:
     def get_window_title(self):
         return self.window_title
 
-    def get_configured_process(self):
-        return self.game_profiles.get_process()
-
-    def get_configured_window(self):
-        return self.game_profiles.get_window()
-
-    def get_available_games(self):
-        return self.game_profiles.get_games()
-
     def disconnect(self):
         self.process = None
         self.pid = None
         self.name = None
         self.window_title = None
         self.window_manager.hwnd = None
+        self._connection_cached = False
+        self._connection_checked_at = None

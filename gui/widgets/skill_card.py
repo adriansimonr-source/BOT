@@ -154,16 +154,6 @@ class SkillCard(QWidget):
 
 
 
-    def set_time(self, value):
-
-        self.time_spin.setValue(
-            value
-        )
-
-
-
-
-
     def skill_number(self):
 
         return self.skill_key

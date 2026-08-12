@@ -1,3 +1,5 @@
+import time
+
 import cv2
 import numpy as np
 
@@ -10,6 +12,13 @@ class EnemyMonitor:
     ENTITY_ENEMY = "enemy"
     ENTITY_ITEM = "item"
     SIGNATURE_DIFFERENCE = 0.18
+    HEALTH_MEASURED = "measured"
+    HEALTH_EMPTY = "empty"
+    HEALTH_INVALID = "invalid"
+    HP_ACQUIRE_TIMEOUT_SECONDS = 1.0
+    HP_EMPTY_CONFIRMATIONS = 3
+    IDENTITY_RETRY_SECONDS = 1.0
+    MAX_IDENTITY_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -41,6 +50,14 @@ class EnemyMonitor:
         self.recognized_name = ""
         self.recognized_level = 0
         self.recognized_entity_type = None
+        self.selection_started_at = None
+        self.last_valid_hp = None
+        self.last_valid_hp_at = None
+        self.empty_hp_frames = 0
+        self.health_unknown_since = None
+        self.health_dead = False
+        self.identity_attempts = 0
+        self.next_identity_retry_at = 0.0
 
     def set_executor(self, executor):
         self.executor = executor
@@ -78,39 +95,41 @@ class EnemyMonitor:
             self.templates.get("enemy_name"),
         )
         signature = self._create_signature(name_image)
-        has_hp_bar, hp_percent = self._read_health_data(hud_image)
-        entity_type = (
-            self.ENTITY_ENEMY if has_hp_bar else self.ENTITY_ITEM
-        )
+        now = time.perf_counter()
+        health_status, hp_percent = self._read_health_data(hud_image)
 
         if (
             not self.target_visible
             or self._signature_changed(signature)
-            or entity_type != self.current_entity_type
         ):
-            self._new_selection(signature, entity_type)
+            self._new_selection(signature, now)
         else:
             self.current_signature = signature
 
+        self._update_health_tracking(health_status, hp_percent, now)
+        entity_type = self.current_entity_type
+
         target_state.selection_id = self.selection_id
         target_state.visible = True
-        target_state.exists = has_hp_bar
-        target_state.targetable = has_hp_bar
-        target_state.hp_percent = hp_percent if has_hp_bar else 0.0
+        self._apply_health_state(target_state, health_status, now)
         self._apply_cached_identity(target_state, signature)
 
-        if self.executor is None:
-            self.read_identity(
-                hud_image,
-                target_state,
-                signature,
-                entity_type,
-            )
+        if entity_type is None:
+            target_state.identity_pending = False
+        elif self.executor is None:
+            if self._reserve_identity_attempt(now):
+                self.read_identity(
+                    hud_image,
+                    target_state,
+                    signature,
+                    entity_type,
+                )
         else:
-            self._schedule_identity(hud_image, signature, entity_type)
+            self._schedule_identity(hud_image, signature, entity_type, now)
             target_state.identity_pending = (
                 entity_type == self.ENTITY_ENEMY
                 and self.recognized_entity_type is None
+                and self.identity_attempts < self.MAX_IDENTITY_ATTEMPTS
             )
         return True
 
@@ -154,17 +173,100 @@ class EnemyMonitor:
         self.target_visible = False
         self.current_signature = None
         self.current_entity_type = None
+        self._reset_health_tracking()
+        self._reset_identity_attempts()
         self._clear_recognized_identity()
         self._clear_enemy_cache()
 
-    def _new_selection(self, signature, entity_type):
+    def _new_selection(self, signature, now):
         self.selection_id += 1
         self.target_visible = True
         self.current_signature = signature
+        self.current_entity_type = None
+        self._reset_health_tracking(started_at=now)
+        self._reset_identity_attempts()
+        self._clear_recognized_identity()
+        self._clear_enemy_cache()
+
+    def _reset_health_tracking(self, started_at=None):
+        self.selection_started_at = started_at
+        self.last_valid_hp = None
+        self.last_valid_hp_at = None
+        self.empty_hp_frames = 0
+        self.health_unknown_since = None
+        self.health_dead = False
+
+    def _update_health_tracking(self, status, hp_percent, now):
+        if status == self.HEALTH_MEASURED:
+            self._set_entity_type(self.ENTITY_ENEMY)
+            self.last_valid_hp = hp_percent
+            self.last_valid_hp_at = now
+            self.empty_hp_frames = 0
+            self.health_unknown_since = None
+            self.health_dead = False
+            return
+
+        if status == self.HEALTH_EMPTY:
+            self.health_unknown_since = None
+            if self.current_entity_type == self.ENTITY_ENEMY:
+                self.empty_hp_frames += 1
+                self.health_dead = (
+                    self.last_valid_hp is not None
+                    and self.empty_hp_frames >= self.HP_EMPTY_CONFIRMATIONS
+                )
+            elif (
+                self.current_entity_type is None
+                and self._selection_age(now) >= self.HP_ACQUIRE_TIMEOUT_SECONDS
+            ):
+                self._set_entity_type(self.ENTITY_ITEM)
+            return
+
+        self.empty_hp_frames = 0
+        if self.health_unknown_since is None:
+            self.health_unknown_since = now
+
+    def _apply_health_state(self, target_state, status, now):
+        target_state.hp_percent = float(self.last_valid_hp or 0.0)
+        target_state.hp_observed_at = self.last_valid_hp_at
+
+        if self.current_entity_type == self.ENTITY_ENEMY:
+            unreadable = (
+                status == self.HEALTH_INVALID
+                and self.health_unknown_since is not None
+                and now - self.health_unknown_since
+                >= self.HP_ACQUIRE_TIMEOUT_SECONDS
+            )
+            target_state.exists = not unreadable
+            target_state.targetable = not unreadable and not self.health_dead
+            if self.health_dead:
+                target_state.hp_percent = 0.0
+                target_state.hp_valid = True
+                target_state.hp_observed_at = now
+            elif status == self.HEALTH_MEASURED:
+                target_state.hp_valid = True
+            return
+
+        if self.current_entity_type == self.ENTITY_ITEM:
+            return
+
+        acquiring = (
+            self._selection_age(now) < self.HP_ACQUIRE_TIMEOUT_SECONDS
+        )
+        target_state.exists = acquiring
+        target_state.targetable = acquiring
+
+    def _set_entity_type(self, entity_type):
+        if entity_type == self.current_entity_type:
+            return
         self.current_entity_type = entity_type
         self._clear_recognized_identity()
         if entity_type != self.ENTITY_ENEMY:
             self._clear_enemy_cache()
+
+    def _selection_age(self, now):
+        if self.selection_started_at is None:
+            return 0.0
+        return max(0.0, now - self.selection_started_at)
 
     def _clear_recognized_identity(self):
         self.recognized_signature = None
@@ -197,8 +299,18 @@ class EnemyMonitor:
         target_state.level = self.recognized_level
         target_state.identity_pending = False
 
-    def _schedule_identity(self, hud_image, signature, entity_type):
+    def _schedule_identity(
+        self,
+        hud_image,
+        signature,
+        entity_type,
+        now=None,
+    ):
         if self.identity_future is not None or self.recognized_entity_type:
+            return
+        if now is None:
+            now = time.perf_counter()
+        if not self._reserve_identity_attempt(now):
             return
         self.identity_future = self.executor.submit(
             self._read_identity_data,
@@ -207,6 +319,20 @@ class EnemyMonitor:
             hud_image.copy(),
             entity_type,
         )
+
+    def _reserve_identity_attempt(self, now):
+        if (
+            self.identity_attempts >= self.MAX_IDENTITY_ATTEMPTS
+            or now < self.next_identity_retry_at
+        ):
+            return False
+        self.identity_attempts += 1
+        self.next_identity_retry_at = now + self.IDENTITY_RETRY_SECONDS
+        return True
+
+    def _reset_identity_attempts(self):
+        self.identity_attempts = 0
+        self.next_identity_retry_at = 0.0
 
     def _read_identity_data(
         self,
@@ -318,19 +444,28 @@ class EnemyMonitor:
             register(resolved_name)
         return resolved_name, level, self.ENTITY_ENEMY
 
-    def read_health(self, hud_image, target_state):
-        has_hp_bar, hp_percent = self._read_health_data(hud_image)
-        target_state.hp_percent = hp_percent if has_hp_bar else 0.0
-        return has_hp_bar
-
     def _read_health_data(self, hud_image):
         hp_image = self.crop_region(
             hud_image,
             self.templates.get("enemy_hp"),
         )
-        if hp_image is None or not self.target_validator.has_red_bar(hp_image):
-            return False, 0.0
-        return True, self.bar_reader.read_enemy_hp(hp_image)
+        if (
+            not isinstance(hp_image, np.ndarray)
+            or hp_image.size == 0
+            or hp_image.ndim != 3
+        ):
+            return self.HEALTH_INVALID, None
+        if not self.target_validator.has_red_bar(hp_image):
+            return self.HEALTH_EMPTY, None
+
+        hp_percent = self.bar_reader.read_enemy_hp(hp_image)
+        try:
+            hp_percent = float(hp_percent)
+        except (TypeError, ValueError, OverflowError):
+            return self.HEALTH_INVALID, None
+        if not np.isfinite(hp_percent) or hp_percent <= 0:
+            return self.HEALTH_INVALID, None
+        return self.HEALTH_MEASURED, min(100.0, hp_percent)
 
     def valid_name(self, name):
         validator = getattr(

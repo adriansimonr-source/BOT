@@ -5,9 +5,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
-
 class ConsumableCard(QWidget):
-
 
     def __init__(
         self,
@@ -29,8 +27,6 @@ class ConsumableCard(QWidget):
 
         self.create_layout()
 
-
-
     def create_widgets(
         self,
         name,
@@ -38,11 +34,9 @@ class ConsumableCard(QWidget):
         interval
     ):
 
-
         self.checkbox = QCheckBox(
             name
         )
-
 
         self.threshold_spin = QSpinBox()
 
@@ -62,8 +56,6 @@ class ConsumableCard(QWidget):
         self.threshold_spin.setFixedWidth(
             65
         )
-
-
 
         self.interval_spin = QSpinBox()
 
@@ -88,17 +80,11 @@ class ConsumableCard(QWidget):
             90
         )
 
-
-
-
-
     def create_layout(self):
-
 
         layout = QHBoxLayout(
             self
         )
-
 
         layout.setContentsMargins(
             0,
@@ -107,62 +93,39 @@ class ConsumableCard(QWidget):
             0
         )
 
-
         layout.setSpacing(
             8
         )
-
 
         layout.addWidget(
             self.checkbox
         )
 
-
         layout.addWidget(
             self.threshold_spin
         )
-
 
         layout.addWidget(
             self.interval_spin
         )
 
-
         layout.addStretch()
-
-
-
-
-
-    # ==========================
-    # API
-    # ==========================
-
 
     def is_enabled(self):
 
         return self.checkbox.isChecked()
 
-
-
     def key(self):
 
         return self._key
-
-
 
     def threshold(self):
 
         return self.threshold_spin.value()
 
-
-
     def interval(self):
 
         return self.interval_spin.value()
-
-
-
 
     def set_enabled(
         self,
@@ -172,8 +135,6 @@ class ConsumableCard(QWidget):
         self.checkbox.setChecked(
             value
         )
-
-
 
     def lock(self):
 
@@ -188,8 +149,6 @@ class ConsumableCard(QWidget):
         self.interval_spin.setEnabled(
             False
         )
-
-
 
     def unlock(self):
 

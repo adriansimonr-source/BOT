@@ -5,41 +5,19 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-
 from gui.widgets.resource_bar import ResourceBar
 
-
-
-
-
 class TargetGroup(QWidget):
-
 
     def __init__(self):
 
         super().__init__()
 
-
         self.create_widgets()
 
         self.create_layout()
 
-
-
-
-
-
-
-    # =====================================
-    # WIDGETS
-    # =====================================
-
-
     def create_widgets(self):
-
-
-        # Nombre
-
 
         self.target_name_label = QLabel(
 
@@ -47,21 +25,11 @@ class TargetGroup(QWidget):
 
         )
 
-
-
-        # Nivel
-
-
         self.level_label = QLabel(
 
             "LVL: -"
 
         )
-
-
-
-        # Vida
-
 
         self.hp_bar = ResourceBar(
 
@@ -69,25 +37,9 @@ class TargetGroup(QWidget):
 
         )
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # LAYOUT
-    # =====================================
-
-
     def create_layout(self):
 
-
         main_layout = QVBoxLayout()
-
-
 
         main_layout.setContentsMargins(
 
@@ -101,26 +53,13 @@ class TargetGroup(QWidget):
 
         )
 
-
         main_layout.setSpacing(
 
             8
 
         )
 
-
-
-
-
-
-        # -----------------------------
-        # NAME + LEVEL
-        # -----------------------------
-
-
         header_layout = QHBoxLayout()
-
-
 
         header_layout.addWidget(
 
@@ -128,10 +67,7 @@ class TargetGroup(QWidget):
 
         )
 
-
         header_layout.addStretch()
-
-
 
         header_layout.addWidget(
 
@@ -139,25 +75,11 @@ class TargetGroup(QWidget):
 
         )
 
-
-
         main_layout.addLayout(
 
             header_layout
 
         )
-
-
-
-
-
-
-
-
-        # -----------------------------
-        # HP
-        # -----------------------------
-
 
         main_layout.addWidget(
 
@@ -165,32 +87,13 @@ class TargetGroup(QWidget):
 
         )
 
-
-
         main_layout.addStretch()
-
-
-
-
 
         self.setLayout(
 
             main_layout
 
         )
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # UPDATE STATE
-    # =====================================
-
 
     def update_state(
 
@@ -200,18 +103,9 @@ class TargetGroup(QWidget):
 
     ):
 
-
         target = state.target
 
-
-
-
-
-        # Sin objetivo
-
-
         if not target.exists:
-
 
             self.target_name_label.setText(
 
@@ -219,13 +113,11 @@ class TargetGroup(QWidget):
 
             )
 
-
             self.level_label.setText(
 
                 "LVL: -"
 
             )
-
 
             self.hp_bar.update_percent(
 
@@ -233,17 +125,7 @@ class TargetGroup(QWidget):
 
             )
 
-
             return
-
-
-
-
-
-
-
-        # Nombre
-
 
         self.target_name_label.setText(
 
@@ -257,29 +139,11 @@ class TargetGroup(QWidget):
 
         )
 
-
-
-
-
-
-
-        # Nivel
-
-
         self.level_label.setText(
 
             f"LVL: {target.level}"
 
         )
-
-
-
-
-
-
-
-        # Vida
-
 
         self.hp_bar.update_percent(
 

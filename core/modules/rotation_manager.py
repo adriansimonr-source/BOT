@@ -13,9 +13,10 @@ class SkillConfig:
 
 
 class RotationManager(BaseModule):
+    SKILL_HOLD_MS = 25
 
     def __init__(self, input_manager):
-        super().__init__("Rotation Manager", interval_ms=50)
+        super().__init__("Rotation Manager", interval_ms=25)
         self.input = input_manager
         self.skills: list[SkillConfig] = []
         self._tie_cursor = 0
@@ -39,7 +40,7 @@ class RotationManager(BaseModule):
 
     def update(self, state):
         if not self.skills:
-            return
+            return False
 
         now = time.perf_counter() * 1000
         skill_count = len(self.skills)
@@ -50,16 +51,19 @@ class RotationManager(BaseModule):
         ]
 
         if not due_skills:
-            return
+            return False
 
         index, skill = min(
             due_skills,
             key=lambda item: (
+                item[1].cooldown,
                 item[1].last_cast + item[1].cooldown,
                 (item[0] - self._tie_cursor) % skill_count,
             ),
         )
 
-        if self.input.press(skill.key):
+        if self.input.press(skill.key, hold_ms=self.SKILL_HOLD_MS):
             skill.last_cast = now
             self._tie_cursor = (index + 1) % skill_count
+            return True
+        return False

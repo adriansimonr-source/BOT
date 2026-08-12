@@ -341,7 +341,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 5
+        "encounters": 7
     },
     "» Baoku": {
         "level": 0,
@@ -498,6 +498,69 @@
         "elite": false,
         "boss": false,
         "encounters": 3,
+        "verified": true
+    },
+    "Kembo Tonyo": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1,
+        "verified": true
+    },
+    "Mlecchas Karmana": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 14,
+        "verified": true
+    },
+    "Srbinda": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 7,
+        "verified": true
+    },
+    "Zarku": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 3,
+        "verified": true
+    },
+    "Kyukrong": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 6,
+        "verified": true
+    },
+    "Kyukrong Gosu": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 5,
+        "verified": true
+    },
+    "Sobariung Gosu": {
+        "level": 0,
+        "priority": 0,
+        "ignore": false,
+        "elite": false,
+        "boss": false,
+        "encounters": 1,
         "verified": true
     }
 }

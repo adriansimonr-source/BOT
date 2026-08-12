@@ -9,6 +9,8 @@ class TargetState:
         self.name = ""
         self.level = 0
         self.hp_percent = 0.0
+        self.hp_valid = False
+        self.hp_observed_at = None
         self.visible = False
         self.targetable = False
         self.identity_pending = False

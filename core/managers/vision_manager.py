@@ -13,12 +13,10 @@ from core.services.capture_engine import CaptureEngine
 from core.services.coordinate_reader import CoordinateReader
 from core.services.enemy_monitor import EnemyMonitor
 from core.services.hud_resolver import HUDResolver
-from core.services.minimap_position_detector import MinimapPositionDetector
 from core.services.name_matcher import NameMatcher
 from core.services.player_monitor import PlayerMonitor
 from core.services.template_detector import TemplateDetector
 from core.services.template_manager import TemplateManager
-from core.system.system_info import SystemInfo
 
 
 class VisionManager:
@@ -31,7 +29,6 @@ class VisionManager:
     def __init__(self, game_id=None, hwnd=None, capture_size=None):
         self.config = ConfigManager()
         self.game_profiles = GameProfileManager()
-        self.system = SystemInfo()
 
         active_game = game_id or self.config.get("active_game")
         if active_game:
@@ -44,18 +41,12 @@ class VisionManager:
         width, height = self.game_profiles.get_resolution()
         if capture_size:
             width, height = capture_size
-        print("[Sistema]", self.system.get_info())
-        print("[Vision] Juego:", game.get("name"))
-        print("[Vision] Ventana:", window_title)
-        print("[Vision] Resolución:", width, "x", height)
-
         self.capture = CaptureEngine(window_title, width, height, hwnd=hwnd)
         self.templates = TemplateManager()
         self.detector = TemplateDetector()
         self.resolver = HUDResolver()
         self.bar_reader = BarReader()
         self.name_matcher = NameMatcher()
-        self.minimap_detector = MinimapPositionDetector()
         self.debug_enabled = bool(
             self.config.get("features", "debug_mode")
         )
@@ -63,16 +54,11 @@ class VisionManager:
         self.entity_database = EntityDatabaseManager()
         self.entity_cache = EntityCacheManager()
 
-        self.name_matcher.load_enemy_templates("data/entities/enemies")
-        self.name_matcher.load_player_templates("data/entities/players")
         self.player_monitor = PlayerMonitor(
             self.detector,
             self.resolver,
             self.bar_reader,
             self.templates,
-            self.name_matcher,
-            self.entity_cache,
-            self.entity_database,
         )
         self.enemy_monitor = EnemyMonitor(
             self.detector,
@@ -110,30 +96,23 @@ class VisionManager:
         self.latest_image = None
         self.debug_minimap_saved = False
         self.ocr_executor = ThreadPoolExecutor(
-            max_workers=3,
+            max_workers=2,
             thread_name_prefix="bot-ocr",
         )
-        self.player_monitor.set_executor(self.ocr_executor)
         self.enemy_monitor.set_executor(self.ocr_executor)
         try:
             self.capture.start()
         except Exception:
-            self.player_monitor.set_executor(None)
             self.enemy_monitor.set_executor(None)
             self.ocr_executor.shutdown(wait=False, cancel_futures=True)
             self.ocr_executor = None
             raise
         self.running = True
-        print("[VisionManager] iniciado")
 
     def reset_position_reader(self):
         self.coordinate_reader.reset()
 
-    def reset_player_name(self, player_state=None):
-        self.player_monitor.refresh_name(player_state)
-
     def poll(self, state):
-        self.player_monitor.poll(state.player)
         self.enemy_monitor.poll(state.target)
         self._poll_coordinate(state)
 
@@ -190,7 +169,7 @@ class VisionManager:
         minimap_template = self.templates.get("minimap_anchor")
         if minimap_template is None:
             return
-        detection = self.detector.detect(image, minimap_template)
+        detection = self._detect_minimap_anchor(image, minimap_template)
         if detection is None:
             return
 
@@ -209,9 +188,17 @@ class VisionManager:
             self._submit_coordinate_read(crop)
 
         self.save_debug_minimap(crop)
-        position = self.minimap_detector.detect(image, minimap_hud)
-        if position is not None:
-            state.player.minimap_position = position
+
+    def _detect_minimap_anchor(self, image, template):
+        search_area = self.templates.get("minimap_search_area")
+        search_image = self.resolver.crop(image, search_area)
+        if search_image is not None:
+            detection = self.detector.detect(search_image, template)
+            if detection is not None:
+                detection["x"] += max(0, int(search_area["x"]))
+                detection["y"] += max(0, int(search_area["y"]))
+                return detection
+        return self.detector.detect(image, template)
 
     def _update_coordinates(self, image):
         minimap_hud = self.last_minimap_hud
@@ -264,9 +251,7 @@ class VisionManager:
         self.latest_image = None
         self.last_minimap_hud = None
         self.coordinate_future = None
-        self.player_monitor.set_executor(None)
         self.enemy_monitor.set_executor(None)
         if self.ocr_executor:
             self.ocr_executor.shutdown(wait=False, cancel_futures=True)
             self.ocr_executor = None
-        print("[VisionManager] detenido")

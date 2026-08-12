@@ -6,12 +6,7 @@ from PySide6.QtWidgets import (
 
 from gui.widgets.skill_card import SkillCard
 
-
-
-
-
 class CenterPanel(QWidget):
-
 
     def __init__(self):
 
@@ -21,12 +16,7 @@ class CenterPanel(QWidget):
 
         self.create_layout()
 
-
-
-
-
     def create_widgets(self):
-
 
         self.number_skills = [
 
@@ -36,7 +26,6 @@ class CenterPanel(QWidget):
 
         ]
 
-
         self.function_skills = [
 
             SkillCard(f"F{i}")
@@ -44,7 +33,6 @@ class CenterPanel(QWidget):
             for i in range(1, 10)
 
         ]
-
 
         # Compatibilidad con RotationManager
 
@@ -56,19 +44,11 @@ class CenterPanel(QWidget):
 
         )
 
-
-
-
-
-
-
     def create_layout(self):
-
 
         layout = QVBoxLayout(
             self
         )
-
 
         layout.setContentsMargins(
             2,
@@ -77,15 +57,11 @@ class CenterPanel(QWidget):
             2
         )
 
-
         layout.setSpacing(
             0
         )
 
-
-
         grid = QGridLayout()
-
 
         grid.setContentsMargins(
             0,
@@ -94,20 +70,15 @@ class CenterPanel(QWidget):
             0
         )
 
-
         grid.setHorizontalSpacing(
             12
         )
-
 
         grid.setVerticalSpacing(
             2
         )
 
-
-
         for row in range(9):
-
 
             grid.addWidget(
 
@@ -119,7 +90,6 @@ class CenterPanel(QWidget):
 
             )
 
-
             grid.addWidget(
 
                 self.function_skills[row],
@@ -130,38 +100,21 @@ class CenterPanel(QWidget):
 
             )
 
-
-
         layout.addLayout(
             grid
         )
-
 
         self.setLayout(
             layout
         )
 
-
-
-
-
-
-
-
     def lock_controls(self):
-
 
         for skill in self.skills:
 
             skill.lock()
 
-
-
-
-
-
     def unlock_controls(self):
-
 
         for skill in self.skills:
 

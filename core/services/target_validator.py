@@ -7,13 +7,6 @@ class TargetValidator:
     MIN_BAR_HEIGHT_RATIO = 0.25
     MIN_BAR_WIDTH_RATIO = 0.008
 
-    def validate_enemy(self, hud_image, hp_image=None):
-        health_region = hp_image if hp_image is not None else hud_image
-        return (
-            self.has_red_bar(health_region)
-            and not self.has_blue_bar(hud_image)
-        )
-
     def has_red_bar(self, image):
         if not self._is_valid_image(image):
             return False
@@ -30,18 +23,6 @@ class TargetValidator:
             np.array([180, 255, 255]),
         )
         return self._has_horizontal_bar(first | second)
-
-    def has_blue_bar(self, image):
-        if not self._is_valid_image(image):
-            return False
-
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(
-            hsv,
-            np.array([90, 60, 50]),
-            np.array([140, 255, 255]),
-        )
-        return self._has_horizontal_bar(mask)
 
     @staticmethod
     def _is_valid_image(image):

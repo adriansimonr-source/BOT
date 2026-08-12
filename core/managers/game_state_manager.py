@@ -34,7 +34,6 @@ class GameStateManager:
         self.vision.start()
         self._last_vision_update = 0.0
         self.running = True
-        print("[GameStateManager] iniciado")
 
     def update(self):
         if not self.process_manager.is_connected():
@@ -45,14 +44,12 @@ class GameStateManager:
         if not self.running or not self.vision:
             return
 
-        # Los resultados OCR terminados se aplican sin esperar al siguiente frame.
         self.vision.poll(self.state)
         now = time.perf_counter()
         if now - self._last_vision_update < self.VISION_INTERVAL_SECONDS:
             return
 
         self.vision.update(self.state)
-        # Medir desde el final impide encadenar capturas si una operación se demora.
         self._last_vision_update = time.perf_counter()
 
     def update_auxiliary(self):
@@ -61,29 +58,15 @@ class GameStateManager:
 
     def lock_player_position(self):
         locked = self.state.player.lock_position()
-        if locked:
-            print(
-                "[GameStateManager] posición inicial fijada",
-                self.state.player.start_x,
-                self.state.player.start_y,
-            )
         return locked
 
     def unlock_player_position(self):
         self.state.player.unlock_position()
-        print("[GameStateManager] posición inicial liberada")
 
     def refresh_player_position(self):
         self.state.player.invalidate_position()
         if self.vision:
             self.vision.reset_position_reader()
-        print("[GameStateManager] refrescando posición")
-
-    def refresh_player_name(self):
-        self.state.player.name = ""
-        if self.vision:
-            self.vision.reset_player_name(self.state.player)
-        print("[GameStateManager] refrescando nombre")
 
     def invalidate_vision(self):
         if self.running:
@@ -97,10 +80,8 @@ class GameStateManager:
 
         if self.vision:
             self.vision.stop()
-        # La próxima ejecución debe usar el juego seleccionado en ese momento.
         self.vision = None
         self.running = False
-        print("[GameStateManager] detenido")
 
     def get_state(self):
         return self.state

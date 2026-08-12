@@ -1,21 +1,16 @@
 import time
 from abc import ABC, abstractmethod
 
-
 class BaseModule(ABC):
 
     def __init__(self, name: str, interval_ms: int = 100):
 
-        # Nombre del módulo
         self.name = name
 
-        # Estado
         self.enabled = True
 
-        # Intervalo de ejecución (ms)
         self.interval_ms = interval_ms
 
-        # Última ejecución (ms)
         self._last_update = 0.0
 
     def get_name(self):
@@ -33,9 +28,6 @@ class BaseModule(ABC):
     def set_interval(self, interval_ms: int):
         self.interval_ms = interval_ms
 
-    def get_interval(self):
-        return self.interval_ms
-
     def on_start(self):
         self._last_update = 0.0
 
@@ -51,8 +43,6 @@ class BaseModule(ABC):
             return True
 
         return False
-
-# Game Loop
 
     @abstractmethod
     def update(self, state):

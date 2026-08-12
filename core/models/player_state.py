@@ -6,8 +6,6 @@ class PlayerState:
     POSITION_MAX_AGE_SECONDS = 3.0
 
     def __init__(self):
-        self.name = ""
-        self.level = 0
         self.hp_percent = 0
         self.mp_percent = 0
         self.x = 0
@@ -19,7 +17,6 @@ class PlayerState:
         self.start_x = 0
         self.start_y = 0
         self.position_locked = False
-        self.minimap_position = None
 
     def update_position(self, x, y):
         x = int(x)
@@ -58,8 +55,6 @@ class PlayerState:
         self.start_y = 0
 
     def reset(self):
-        self.name = ""
-        self.level = 0
         self.hp_percent = 0
         self.mp_percent = 0
         self.x = 0
@@ -69,21 +64,3 @@ class PlayerState:
         self.position_updated_at = 0.0
         self.position_revision = 0
         self.unlock_position()
-        self.minimap_position = None
-
-    def to_dict(self):
-        return {
-            "name": self.name,
-            "level": self.level,
-            "hp_percent": self.hp_percent,
-            "mp_percent": self.mp_percent,
-            "x": self.x,
-            "y": self.y,
-            "z": self.z,
-            "position_valid": self.position_valid,
-            "position_updated_at": self.position_updated_at,
-            "position_revision": self.position_revision,
-            "start_x": self.start_x,
-            "start_y": self.start_y,
-            "position_locked": self.position_locked,
-        }

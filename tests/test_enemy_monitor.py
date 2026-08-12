@@ -1,6 +1,8 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import numpy as np
 
 from core.managers.entity_cache_manager import EntityCacheManager
 from core.models.target_state import TargetState
@@ -51,7 +53,7 @@ class EnemyMonitorTests(unittest.TestCase):
         detector = SimpleNamespace(detect=lambda image, template: anchor)
         resolver = SimpleNamespace(
             resolve=lambda detection, template: object(),
-            crop=lambda image, region: image,
+            crop=lambda image, region: np.zeros((2, 2, 3), dtype=np.uint8),
         )
         templates = SimpleNamespace(
             get=lambda name: {
@@ -140,6 +142,28 @@ class EnemyMonitorTests(unittest.TestCase):
         self.assertEqual(len(executor.calls), 1)
         name_matcher.read_enemy_name.assert_not_called()
 
+    def test_failed_identity_ocr_is_rate_limited_per_selection(self):
+        name_matcher = SimpleNamespace(
+            read_enemy_name=MagicMock(return_value=None),
+        )
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            name_matcher=name_matcher,
+        )
+        target = TargetState()
+
+        for now in (0.0, 0.1, 1.0, 2.0, 3.0):
+            with patch(
+                "core.services.enemy_monitor.time.perf_counter",
+                return_value=now,
+            ):
+                monitor.update(MagicMock(), target)
+
+        self.assertEqual(
+            name_matcher.read_enemy_name.call_count,
+            monitor.MAX_IDENTITY_ATTEMPTS,
+        )
+
     def test_completed_identity_from_an_old_selection_is_discarded(self):
         monitor, _ = self.create_monitor(anchor=object())
         monitor.selection_id = 2
@@ -194,7 +218,7 @@ class EnemyMonitorTests(unittest.TestCase):
                 database.resolve_item_name.assert_not_called()
                 database.register_item_seen.assert_not_called()
 
-    def test_name_without_hp_bar_is_stored_as_item_not_enemy(self):
+    def test_name_without_hp_bar_is_stored_as_item_after_acquisition_grace(self):
         database = SimpleNamespace(
             resolve_enemy_name=MagicMock(
                 side_effect=AssertionError("no debe resolver enemigo")
@@ -212,7 +236,22 @@ class EnemyMonitorTests(unittest.TestCase):
         cache.update_enemy("Previous Enemy", 10)
         target = TargetState()
 
-        self.assertTrue(monitor.update(MagicMock(), target))
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.0,
+        ):
+            self.assertTrue(monitor.update(MagicMock(), target))
+
+        self.assertTrue(target.visible)
+        self.assertTrue(target.exists)
+        self.assertFalse(target.hp_valid)
+        database.register_item_seen.assert_not_called()
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=1.0,
+        ):
+            self.assertTrue(monitor.update(MagicMock(), target))
 
         self.assertTrue(target.visible)
         self.assertFalse(target.exists)
@@ -223,7 +262,7 @@ class EnemyMonitorTests(unittest.TestCase):
         database.register_item_seen.assert_called_once_with("Healing Potion")
         database.register_enemy_seen.assert_not_called()
 
-    def test_hp_bar_classifies_enemy_even_when_percentage_reader_returns_zero(self):
+    def test_zero_reader_result_stays_unknown_until_a_valid_hp_arrives(self):
         database = SimpleNamespace(
             resolve_enemy_name=MagicMock(return_value="Bongbo"),
             register_enemy_seen=MagicMock(return_value=True),
@@ -239,15 +278,136 @@ class EnemyMonitorTests(unittest.TestCase):
         )
         target = TargetState()
 
-        monitor.update(MagicMock(), target)
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.0,
+        ):
+            monitor.update(MagicMock(), target)
 
         self.assertTrue(target.exists)
         self.assertTrue(target.targetable)
-        self.assertEqual(target.name, "Bongbo")
+        self.assertFalse(target.hp_valid)
         self.assertEqual(target.hp_percent, 0)
+        self.assertEqual(target.name, "")
+        selection_id = target.selection_id
+        database.register_enemy_seen.assert_not_called()
+        database.register_item_seen.assert_not_called()
+
+        monitor.bar_reader.read_enemy_hp = lambda image: 50
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.1,
+        ):
+            monitor.update(MagicMock(), target)
+
+        self.assertEqual(target.selection_id, selection_id)
+        self.assertTrue(target.hp_valid)
+        self.assertEqual(target.hp_percent, 50)
+        self.assertEqual(target.name, "Bongbo")
         database.resolve_enemy_name.assert_called_once_with("Bongbo")
         database.register_enemy_seen.assert_called_once_with("Bongbo")
         database.resolve_item_name.assert_not_called()
+
+    def test_persistent_invalid_hp_rotates_without_registering_an_item(self):
+        database = SimpleNamespace(
+            resolve_enemy_name=MagicMock(),
+            register_enemy_seen=MagicMock(),
+            resolve_item_name=MagicMock(),
+            register_item_seen=MagicMock(),
+        )
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            enemy_name="Unreadable",
+            has_hp_bar=True,
+            hp_percent=0,
+            database=database,
+        )
+        target = TargetState()
+
+        for now in (0.0, 1.0):
+            with patch(
+                "core.services.enemy_monitor.time.perf_counter",
+                return_value=now,
+            ):
+                monitor.update(MagicMock(), target)
+
+        self.assertTrue(target.visible)
+        self.assertFalse(target.exists)
+        self.assertFalse(target.hp_valid)
+        database.register_enemy_seen.assert_not_called()
+        database.register_item_seen.assert_not_called()
+
+    def test_three_empty_frames_confirm_death_without_changing_selection(self):
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            enemy_name="Bongbo",
+            has_hp_bar=True,
+            hp_percent=50,
+        )
+        target = TargetState()
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.0,
+        ):
+            monitor.update(MagicMock(), target)
+        selection_id = target.selection_id
+        monitor.target_validator.has_red_bar = MagicMock(
+            side_effect=[False, False, False]
+        )
+
+        for now in (0.1, 0.2):
+            with patch(
+                "core.services.enemy_monitor.time.perf_counter",
+                return_value=now,
+            ):
+                monitor.update(MagicMock(), target)
+            self.assertTrue(target.exists)
+            self.assertFalse(target.hp_valid)
+            self.assertEqual(target.hp_percent, 50)
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.3,
+        ):
+            monitor.update(MagicMock(), target)
+
+        self.assertEqual(target.selection_id, selection_id)
+        self.assertTrue(target.exists)
+        self.assertFalse(target.targetable)
+        self.assertTrue(target.hp_valid)
+        self.assertEqual(target.hp_percent, 0)
+
+    def test_valid_hp_cancels_an_empty_frame_candidate(self):
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            enemy_name="Bongbo",
+            has_hp_bar=True,
+            hp_percent=50,
+        )
+        target = TargetState()
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.0,
+        ):
+            monitor.update(MagicMock(), target)
+        monitor.target_validator.has_red_bar = MagicMock(
+            side_effect=[False, False, True]
+        )
+        monitor.bar_reader.read_enemy_hp = lambda image: 40
+
+        for now in (0.1, 0.2, 0.3):
+            with patch(
+                "core.services.enemy_monitor.time.perf_counter",
+                return_value=now,
+            ):
+                monitor.update(MagicMock(), target)
+
+        self.assertTrue(target.exists)
+        self.assertTrue(target.targetable)
+        self.assertTrue(target.hp_valid)
+        self.assertEqual(target.hp_percent, 40)
 
 
 if __name__ == "__main__":

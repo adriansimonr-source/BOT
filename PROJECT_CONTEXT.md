@@ -1,469 +1,154 @@
-# SB Automation Suite - Project Context
+# SB Automation Suite — contexto vigente
 
+Snapshot operativo del 11 de agosto de 2026. Para reglas detalladas de combate y distribución, consultar `COMBAT_SYSTEM_DESIGN.md` y `BUILDING.md`.
 
-## Descripción
+## Propósito y límites
 
-Proyecto de automatización para juegos basado en Python + PySide6.
+Suite modular para automatizar acciones de juegos mediante captura visual, OCR e input dirigido a una ventana en segundo plano. Kathana (DX11) es la implementación de referencia, pero la separación por capas debe permitir añadir otros perfiles.
 
-Objetivo:
-Crear un bot modular, genérico y no intrusivo.
+El proyecto es deliberadamente no intrusivo:
 
-No se permite:
-- lectura de memoria del juego
-- inyección DLL
-- hooks internos
-- modificaciones específicas del juego
+- Sin lectura de memoria del juego.
+- Sin inyección de DLL, hooks internos ni modificación del cliente.
+- Sin depender del foco de teclado.
+- Toda acción pasa por `InputManager` y todo estado del juego procede de visión/configuración.
 
-El sistema debe funcionar mediante:
-- visión
-- OCR
-- interacción Windows
-- se pueden explorar nuevas opciones de mejora no intrusivas que lean la memoria del juego o intenten modificarla
-- Compatible con W102h20. Pendiente implementar compatibilidad con  versiones de W11, MAC y Ubuntu.
+## Estado por fases
 
----
+| Fase | Estado |
+| --- | --- |
+| GUI genérica | Estable y funcional. Mantener distribución y estilo salvo petición expresa. |
+| Captura, visión e input de fondo | Operativa en el entorno Windows 10 de referencia; combate y navegación siguen en calibración real. |
+| Persistencia | Operativa para perfiles de juego, configuración, enemigos, ignorados e items. |
+| Build y multiplataforma | Pendiente. No existe instalador validado; Windows 11 y Ubuntu requieren trabajo descrito en `BUILDING.md`. |
 
-# Arquitectura
+## Arquitectura actual
 
+```text
+MainWindow (GUI Qt)
+  |-- ProcessManager / GameProfileManager
+  |-- EntityDatabaseManager
+  `-- BotWorker (QThread, 25 ms preciso)
+        `-- BotEngine
+              |-- GameStateManager -> VisionManager -> WGC/D3D11/OCR
+              |-- InputManager -> WindowInputDriver -> HWND
+              `-- módulos de automatización
+```
 
-## Capas principales
+Responsabilidades:
 
+- `MainWindow`: interacción, estado visible, alta/detección de juegos y lifecycle del worker; no contiene decisiones de combate.
+- `BotEngine`: configura, inicia y ordena módulos.
+- `GameStateManager`: mantiene un único `GameState` y regula visión.
+- `VisionManager`: captura, HUD, HP/MP, objetivo, OCR enemigo y coordenadas.
+- `InputManager`: entrega inmediata de `KEYDOWN`, agenda `KEYUP`, impide solapamientos incompatibles y libera teclas al pausar/parar.
+- BBDD: escrituras JSON atómicas protegidas entre GUI y visión.
 
-GUI
- |
- v
-BotEngine
- |
- +-- Modules
- |
- +-- InputManager
- |
- +-- GameStateManager
- |
- v
-Vision / Windows
+## GUI
 
+- La ventana principal usa `WindowStaysOnTopHint`: permanece visible sobre el juego y solo se oculta al minimizarla.
+- GAME permite seleccionar, añadir y borrar perfiles; el alta manual detecta ventana, PID y ejecutable. Refresh vuelve a localizar el proceso del juego seleccionado. La antigua pestaña PROCESO no existe.
+- La tarjeta `PERSONAJE` muestra únicamente HP, MP, coordenadas, origen, radio y tiempo quieto. Nombre, nivel, online y OCR de identidad del jugador fueron retirados.
+- El panel de objetivos contiene `Disponibles`, dos flechas e `Ignorados`. Admite selección múltiple y autosave. Solo existe el check `Ignorar objetivos`; objetivos únicos fue eliminado por completo.
+- AutoAttack y AutoLoot tienen intervalo editable. AutoPot1, AutoMP y AutoHeal tienen recurso, umbral e intervalo independientes.
+- La rotación expone `1..9` y `F1..F9`; solo participan los checks activos.
+- El refresco visual se limita a 250 ms y la BBDD de enemigos se consulta cada segundo solo para detectar cambios.
 
----
+## Automatización y cadencias
 
-# GUI
+Orden del engine: consumibles, heal, movimiento, loot, target, attack y rotación.
 
-Framework:
-PySide6
+- Tick del worker y rotación: 25 ms con `PreciseTimer`.
+- Objetivo/captura de visión: 100 ms.
+- HUD HP/MP del jugador: 250 ms.
+- Minimap y coordenadas normales: 1 s.
+- Coordenadas durante retorno: 500 ms, reutilizando el último HUD del minimapa.
+- Espera máxima de un frame: 10 ms.
 
-La interfaz actual está aprobada visualmente.
+Resumen funcional:
 
-IMPORTANTE:
+- AutoTarget (`E`) mantiene cada selección al menos 4 s, separa pulsaciones al menos 4 s, concede 1 s de estabilización y cambia por objetivo ausente, ignorado, muerte confirmada o 10 s sin un descenso relativo superior al 10 %.
+- AutoAttack (`R`) actúa inmediatamente sobre cada nueva selección permitida y después respeta su intervalo. No espera nombre ni HP.
+- Skills respetan solo check e intervalo; una por tick, priorizando el menor valor de ms entre las vencidas, después el deadline y finalmente un desempate circular. Usan pulsos de 25 ms.
+- F8/F9 tienen doble productor si se habilitan también como AutoPot1/AutoMP: la emergencia de recurso gana el slot y la tarjeta de rotación se reintenta en el siguiente tick.
+- F8 usa HP, F9 usa MP y F10 usa HP; se activan con `0 < valor <= umbral` y reintentan tras el intervalo solo si el envío anterior tuvo éxito.
+- AutoLoot (`F`) requiere ausencia de objetivo durante al menos 5 s.
 
-NO modificar:
-- distribución de paneles
-- colores
-- estilos
-- tamaños
+La semántica completa, incluida la validez de HP, está centralizada en `COMBAT_SYSTEM_DESIGN.md`.
 
-salvo petición explícita.
+## Visión y estado de HP
 
----
+- WGC captura el `HWND` validado; D3D11 copia y mapea el frame a CPU. Cada frame y todos los interfaces se liberan incluso ante error.
+- El detector de anchors devuelve únicamente el mejor `matchTemplate` mediante `minMaxLoc`; ya no materializa todos los píxeles coincidentes ni hace deduplicación cuadrática.
+- Solo se cargan los anchors realmente usados: jugador, enemigo y minimapa.
+- El pool OCR tiene dos workers: identidad enemiga y coordenadas. Los resultados se descartan si pertenecen a una selección/generación antigua; un nombre fallido se reintenta como máximo tres veces, con 1 s entre intentos.
+- `TargetState.hp_valid` y `hp_observed_at` separan HP desconocido, vivo y muerto. Lectura inválida o tardía nunca equivale a cero.
+- Una selección dispone de 1 s para adquirir HP. Un enemigo conocido necesita tres frames consecutivos sin barra para confirmar muerte; un HUD que nunca presenta barra se clasifica como item solo después de la gracia.
+- Coordenadas válidas tienen dos o tres dígitos por eje. Saltos grandes exigen dos lecturas coherentes y cada posición conserva revisión y antigüedad.
+- Las imágenes de diagnóstico solo se escriben con `features.debug_mode`; los artefactos generados se ignoran en Git.
 
-# BotEngine
+## Datos
 
+Archivos activos:
 
-Responsabilidad:
+- `data/config.json`: juego activo, features y estado del filtro por juego.
+- `data/games.json`: perfiles de nombre, proceso, ventana y resolución.
+- `data/entities/enemies.json`: nombres canónicos, encuentros y estado ignorado.
+- `data/entities/items.json`: nombres detectados sin barra para uso futuro.
+- `data/templates.json` y tres PNG de anchors: geometría y referencias visuales.
 
-- controlar ciclo del bot
-- registrar módulos
-- iniciar/detener módulos
-- coordinar estado global
+Los nombres OCR se normalizan y se filtran antes de persistir. Se rechazan temporizadores, coordenadas, niveles, símbolos impropios y candidatos sin suficientes letras. Un enemigo nuevo requiere dos observaciones coincidentes; los aliases se deduplican y los cambios de ignorados se escriben por lote. La GUI oculta registros legacy de baja confianza sin borrar datos activos.
 
+Se eliminaron las BBDD duplicadas y el histórico de jugadores porque la identidad del personaje ya no tiene consumidores. `data/entities/enemies.json` y `items.json` son datos de runtime y deben preservarse durante futuras limpiezas.
 
-Actualmente registra:
+## Navegación
 
-- AutoTarget
-- AutoAttack
-- AutoLoot
-- AutoConsumables
-- AutoHeal
-- RotationManager
+- RADIO BOT usa distancia euclídea desde el origen: fijo `0`, `25`, `50`, `75`, `100` o sin límite.
+- El origen solo se fija con coordenadas frescas. Dos muestras fuera del radio inician retorno; permanecer quieto el tiempo configurado es un segundo disparador.
+- `MovementManager` prueba `W/A/D`, mide si cada pulso acerca al origen y exige dos mejoras fiables antes de confiar en una dirección.
+- Pulsos de 250–500 ms en calibración y máximo de 650 ms al avanzar; búsqueda de desbloqueo determinista, sin movimiento aleatorio.
+- Watchdog sin progreso de 6,5 s, deadline de 12–25 s, límite de acciones, cooldown de 5 s y un único reintento. Después queda en `FAILED` hasta recuperar el radio o cambiar el origen.
+- Objetivo/combate pausa y libera movimiento. El retorno es heurístico porque X/Y no informa de la orientación; necesita validación dentro de Kathana.
 
+## Health check 2026-08-11
 
----
+La puntuación es una evaluación de ingeniería, no un benchmark de FPS:
 
-# GameStateManager
+| Factor | Peso | Nota | Evidencia/penalización |
+| --- | ---: | ---: | --- |
+| Rendimiento | 30 % | 88 % | Detector de anchors linealizado y cadencias acotadas; penaliza captura/visión síncrona antes de acciones. |
+| Consumo | 25 % | 91 % | Solo 3 anchors y 2 workers OCR; penalizan copia completa GPU→CPU y Tesseract. |
+| Fiabilidad | 25 % | 92 % | Suite automatizada, cleanup D3D, JSON atómico y HP triestado; falta perfil prolongado real W10/W11. |
+| Utilidad y mantenibilidad | 20 % | 94 % | Funciones actuales cubiertas y gran reducción de caminos legacy; quedan calibraciones específicas de HUD/navegación. |
 
+Resultado ponderado: **91 %**.
 
-Mantiene el estado actual del juego.
+Cambios de la auditoría:
 
-Tiene referencia a:
+- `requirements.txt`: 14 → 9 entradas directas; sin addons Qt, namespaces WinRT ni OpenCV GUI no usados.
+- Plantillas raster: 17 archivos / 1.101.278 bytes → 3 archivos / 16.766 bytes (aprox. 98,5 % menos).
+- Código Python: 125 → 92 archivos y 20.100 → 12.118 líneas; el código efectivo baja de 12.050 a 9.441 líneas, los comentarios completos de 522 a 2 y las líneas en blanco de 7.528 a 2.675. El archivo adicional es cobertura útil de barras, no runtime.
+- En muestras locales, construir `VisionManager` pasó de 86,23 ms / +5,29 MiB RSS / 18 entradas de plantilla a 23,84 ms en la primera muestra y una mediana warm de ~6,0 ms / +0,81 MiB / 13 entradas. Es una medición orientativa de arranque, no un benchmark sostenido.
+- Eliminados capturadores alternativos sin consumidores, modelos y gestores legacy, antigua GUI PROCESO/widgets huérfanos, pipeline de identidad del jugador, tools manuales, datos duplicados y debug generado.
+- `TemplateDetector` pasa de recolectar/deduplicar todos los matches a buscar solo el máximo.
+- Comentarios de separador, bloques vacíos y prints de hot path se reducen sin cambiar contratos.
+- La suite final contiene 155/155 tests automatizados en verde; el script manual de plantillas no se contabiliza como test y fue retirado.
 
-ProcessManager
+La auditoría estática y los tests no garantizan consumo máximo en una sesión real. La cifra debe recalibrarse cuando exista telemetría de CPU, GPU, latencia de acción y RSS en una prueba prolongada dentro del juego.
 
+## Riesgos y siguientes pasos
 
-Acceso:
+1. Instrumentar percentiles de captura, visión, OCR y retraso real entre acción vencida y `KEYDOWN`.
+2. Desacoplar el snapshot de captura del tick de módulos si la visión síncrona demuestra retrasar teclas.
+3. Extender el uso de ROI a los anchors de jugador/enemigo y medir si el OCR de coordenadas necesita menos variantes; identidad ya aplica backoff y el minimapa ya usa su área de búsqueda.
+4. Añadir integración completa EnemyMonitor+barra, restart/resize de captura, lifecycle completo GUI/worker y persistencia concurrente; `BarReader`, timeout sin frame y error del worker ya tienen cobertura directa.
+5. Validar retorno, umbrales de barra y sesiones prolongadas en Kathana 1920×1080.
+6. Crear y probar la build Windows descrita en `BUILDING.md`; después decidir el alcance real de Ubuntu.
 
-game_state_manager.process_manager
+## Reglas de continuidad
 
-
-Permite obtener:
-
-HWND del juego:
-
-process_manager.get_window_handle()
-
-
----
-
-# Input System
-
-
-Arquitectura:
-
-
-Modules
-
-   |
-   v
-
-InputManager
-
-   |
-   +--> WindowInputDriver
-
-
-
-## Objetivo
-
-Enviar teclas a ventanas en segundo plano.
-
-
-Actualmente funciona:
-
-- Kathana Steam
-- DX11
-- ventana completa
-
-
-Método:
-
-Windows `SendMessageTimeout` usando HWND, con entrega directa y timeout corto.
-
-
-NO usar:
-
-- keybd_event
-- soluciones dependientes del foco
-
-Si no existe un HWND válido, `InputManager` no debe enviar ninguna tecla ni
-usar como alternativa la ventana que tenga el foco.
-
-
----
-
-# Input Usage
-
-
-Los módulos nunca llaman directamente a Windows.
-
-
-Correcto:
-
-
-input.press("F8")
-
-
-Incorrecto:
-
-llamar directamente a Win32 desde un módulo
-
-
----
-
-# AutoConsumables
-
-
-Implementado:
-
-
-AutoPot1 (umbral de vida):
-
-F8 (AutoPot1)
-
-
-AutoMP (umbral de maná):
-
-F9 (AutoMP)
-
-
-Auto Heal:
-
-F10 (AutoHeal), activado mediante umbral de HP e intervalo propio.
-
-
-Configuración:
-
-- tecla
-- umbral %
-- intervalo ms
-
-
-Ejemplo:
-
-HP < 40%
-
-cada 2000ms:
-
-F8
-
-
----
-
-# AutoTarget
-
-
-Implementado mediante `InputManager`.
-
-
-Comportamiento deseado:
-
-
-1.
-Si no existe objetivo:
-
-usar tecla E
-
-
-2.
-Si objetivo está en lista ignorada:
-
-cambiar objetivo
-
-
-El juego funciona así:
-
-E selecciona enemigo más cercano y rota entre enemigos en rango.
-
-
----
-
-# AutoAttack
-
-
-Implementado mediante `InputManager`.
-
-
-Debe:
-
-- comprobar objetivo válido
-- usar tecla configurada
-- respetar intervalo
-
-
-No atacar:
-
-- sin objetivo
-- objetivo ignorado
-
-No utilizar el porcentaje de HP enemigo para decidir si se ataca.
-
-
----
-
-# AutoLoot
-
-
-Implementado mediante `InputManager`.
-
-
-No crear detector de objetos inicialmente.
-
-
-Primera versión:
-
-Si no estamos en combate:
-
-usar tecla F cada X ms
-
-El intervalo se configura en milisegundos desde la GUI.
-
-
-Motivo:
-
-El juego recoge objetos cercanos con interacción global.
-
-
----
-
-# Vision
-
-
-Sistema basado en:
-
-OCR
-captura pantalla
-
-
-No modificar salvo necesidad.
-
-
----
-
-# Código
-
-
-Mantener:
-
-- módulos independientes
-- bajo acoplamiento
-- evitar lógica en GUI
-
-
----
-
-# Regla importante
-
-
-Antes de modificar archivos:
-
-revisar arquitectura existente.
-
-No crear clases duplicadas.
-
-No cambiar nombres públicos usados por otros módulos.
-
----
-
-# Fases del proyecto
-
-
-## Fase 1 - Interfaz gráfica
-
-Objetivo:
-
-- crear una GUI estable, amigable y genérica
-- permitir incorporar distintas acciones de automatización
-
-Estado:
-
-- concluida
-- el diseño visual actual está aprobado y debe conservarse
-
-
-## Fase 2 - Visión y automatización en segundo plano
-
-Objetivo:
-
-- capturar cualquier ventana, incluso cuando esté en segundo plano
-- detectar su estado y comportamiento mediante visión
-- ejecutar acciones sin depender del foco de la ventana
-
-Implementación de referencia:
-
-- juego Kathana
-- motor gráfico DX11
-- captura mediante WinRT en Windows 10
-- OCR para funcionalidades que requieren leer texto de la imagen
-
-Estado:
-
-- la captura y la capa de visión están operativas
-- las coordenadas y el radio de acción disponen ya de una primera implementación funcional
-- el retorno por radio necesita calibración dentro del juego porque no se conoce la orientación del personaje
-- esta parte queda temporalmente cerrada para priorizar la validación de entradas
-- se ha validado el envío de F8 en segundo plano al alcanzar el umbral configurado
-
-Prioridad inmediata:
-
-- conectar y validar el resto de teclas y acciones disponibles en la GUI
-- comprobar que cada acción se comporte como se espera en segundo plano
-- mantener el uso centralizado de `InputManager`
-
-
-## Fase 3 - Persistencia de datos
-
-Objetivo:
-
-- almacenar datos obtenidos mediante capturas y detecciones
-- almacenar datos introducidos manualmente
-- utilizar el apartado de base de datos existente como capa de persistencia
-
-Estado:
-
-- fase prevista y parcialmente estructurada en el proyecto
-
----
-
-# Continuidad y documentación
-
-- El proyecto dispone de un repositorio GitHub donde se publica el código junto con su documentación.
-- Actualizar este archivo con resúmenes relevantes de los descubrimientos, decisiones, avances, limitaciones y tareas pendientes.
-- Mantener la información concisa para que `PROJECT_CONTEXT.md` permita recuperar rápidamente el contexto en futuras sesiones.
-
----
-
-# Estado de la automatización - agosto de 2026
-
-- `AutoTarget` envía la tecla configurada cuando no existe objetivo o la selección incumple Ignorados/Únicos.
-- `AutoAttack` actúa sobre el objetivo que AutoTarget ya ha aceptado, sin volver a evaluar las listas ni depender del porcentaje de HP enemigo.
-- `AutoLoot` utiliza su tecla configurada cuando no existe objetivo y ha vencido el tiempo de seguridad.
-- `RotationManager` envía las habilidades habilitadas mediante `InputManager` respetando exclusivamente el intervalo configurado; no depende de combate, objetivo, filtros nominales ni navegación.
-- La rotación solo registra habilidades con el check activo y espera su intervalo antes de la primera ejecución.
-- Cuando varias habilidades están disponibles, se ejecuta primero la que lleva más tiempo vencida.
-- Si dos habilidades vencen al mismo tiempo, se elige una mediante desempate circular y la otra queda pendiente para el ciclo siguiente.
-- F8 (AutoPot1) y F10 (AutoHeal) usan el porcentaje de HP; F9 (AutoMP) usa el porcentaje de MP. Un valor igual a cero se considera una lectura no disponible.
-- El estado `in_combat` exige un objetivo con barra física de HP. El porcentaje leído puede ser 0; un HUD seleccionado sin barra se clasifica como item, no como enemigo.
-- El refresco visual de la GUI se limita a 250 ms para evitar actualizaciones innecesarias.
-- El minimapa completo se procesa como máximo una vez por segundo. El OCR de coordenadas usa ese mismo intervalo normalmente y baja temporalmente a 500 ms durante un retorno, reutilizando la última región HUD para no repetir detección de minimapa ni aumentar el resto de lecturas.
-- Las imágenes y trazas de depuración de coordenadas quedan desactivadas salvo que `features.debug_mode` esté habilitado.
-- El ciclo ligero de acciones se ejecuta cada 50 ms. La presencia de objetivo se revisa cada 100 ms y el HUD del jugador cada 250 ms para equilibrar respuesta y consumo.
-- Auto Target busca objetivos cada 250 ms. Auto Attack se evalúa cada 50 ms y tiene un intervalo editable de 100 a 600000 ms, con 250 ms por defecto.
-- Auto Loot permite configurar en la GUI un intervalo de 100 a 600000 ms, con 500 ms por defecto.
-- Auto Loot muestra nombre, tecla F e intervalo juntos en una misma línea.
-- Auto Attack solo actúa con un objetivo seleccionado y aceptado por AutoTarget cuando existen filtros. Ataca inmediatamente al aceptar cada objetivo nuevo y después respeta los milisegundos configurados.
-- Auto Loot nunca envía F mientras exista un objetivo seleccionado. Cuando el objetivo desaparece espera al menos 5 segundos antes del primer intento y después respeta su intervalo configurado.
-- Auto Loot y Auto Target no envían F y E dentro del mismo ciclo: cuando corresponde recoger, ese intento tiene prioridad y la búsqueda continúa en el siguiente ciclo.
-- La detección crítica de jugador/objetivo ocurre antes del OCR auxiliar de minimapa para priorizar las acciones.
-- La parada del bot se solicita al hilo de trabajo de forma asíncrona; la GUI no espera bloqueada a que termine visión.
-- Los consumibles visibles son F8 (AutoPot1), F9 (AutoMP) y F10 (AutoHeal). Cada uno usa su umbral de recurso y un intervalo independientes; el primer intento al cumplirse el umbral es inmediato y un envío fallido no consume el intervalo.
-- Los checks F8/F9 de la rotación y las tarjetas AutoPot/AutoMP son automatizaciones independientes sobre la misma tecla; si se activan ambas, existirán tanto intentos periódicos como intentos condicionados por HP o MP.
-- `Disponibles` es un desplegable alimentado por la BBDD. Desde él se añade un nombre a `Ignorados` o `Únicos`; también existe alta manual, eliminación múltiple y un botón `Guardar` visible.
-- El check `Ignorar objetivos` aplica todos los nombres de `Ignorados`; el check `Atacar objetivos únicos` limita la selección a todos los nombres de `Únicos`. Solo AutoTarget evalúa ambas listas.
-- Con objetivos únicos activos, AutoTarget rota con E hasta encontrar uno permitido y bloquea esa selección hasta que `target.exists` desaparece; cambios temporales del OCR o del porcentaje de HP no rompen el bloqueo. AutoAttack recibe la aceptación de AutoTarget y no reinterpreta las listas.
-- Los nombres ignorados y únicos se comparan sin distinguir mayúsculas y minúsculas.
-- Con filtros de ignorados o únicos, cada selección nueva sin nombre dispone de hasta 2 segundos para resolver su OCR; Auto Attack no reutiliza la identidad anterior.
-- El desplegable `Disponibles` y la lista `Ignorados` se sincronizan cada segundo con `data/entities/enemies.json` cuando cambia el fichero.
-- Un enemigo desconocido requiere dos observaciones coincidentes antes de escribirse en `enemies.json`. La GUI muestra registros verificados, configurados manualmente o con al menos tres encuentros, y oculta el legado de baja confianza sin borrarlo.
-- Un HUD sin barra física de HP no crea enemigos: su nombre validado se deduplica en `data/entities/items.json` con contador de encuentros para funcionalidades futuras.
-- La validación de nombres rechaza temporizadores, coordenadas, niveles, prefijos numéricos de enemigos y símbolos OCR impropios; conserva letras Unicode, espacios, apóstrofes y guiones.
-- El estado ignorado se guarda en `enemies.json`. Se pueden mover varios nombres a la vez, se actualizan todas sus variantes OCR en una única operación y el cambio sobrevive al reinicio de la GUI.
-- Las escrituras de enemigos son atómicas y están protegidas entre los hilos de visión y GUI para no perder encuentros ni cambios de ignorados.
-- Lecturas OCR con formato de temporizador, por ejemplo `4m 59s`, no se añaden ni se muestran como enemigos. Los registros antiguos de ese tipo se conservan en el JSON, pero quedan ocultos de la lista.
-- Un nombre no puede estar simultáneamente en `Ignorados` y `Únicos`; al ignorarlo se elimina de la lista blanca.
-- `Guardar` persiste por juego la lista de objetivos únicos y los dos checks en `data/config.json`; los cambios pendientes también se guardan antes de iniciar, cambiar de juego o cerrar. Los nombres ignorados continúan persistiendo en `enemies.json`.
-
-## Cambios de respuesta, GAME y navegación - agosto de 2026
-
-- OCR de jugador, enemigo y coordenadas se ejecuta fuera del hilo del bot. Los resultados se aplican y persisten solo si siguen perteneciendo a la selección o sesión vigente.
-- La presencia de un objetivo queda disponible antes de conocer su nombre. Sin filtros nominales, Auto Attack puede enviar la primera `R` inmediatamente; con filtros espera una identidad segura.
-- Cada objetivo recibe un `selection_id`; resolver `<desconocido>` a un nombre no reinicia el intervalo de Auto Attack ni duplica `R`.
-- Las pulsaciones de fondo usan `WM_KEYDOWN/WM_KEYUP` con scan code y flags correctos para `1..9`, `F1..F10`, `E`, `R`, `F`, `A`, `D` y `W`.
-- La entrega usa `SendMessageTimeout` con un límite de 20 ms en lugar de `PostMessage`. Así Kathana recibe `WM_KEYDOWN` directamente sin que su cola SDL lo traduzca a `WM_CHAR`: las acciones automáticas no se escriben en el chat. Si la ventana se bloquea o vence el timeout, la acción falla y se reintenta; nunca se vuelve a `PostMessage` como fallback.
-- Kathana usa una única ventana `SDL_app` y el chat no es un control Win32 separado. Cuando el chat está activo, el propio juego bloquea las acciones de gameplay: no existe otro HWND al que enviar `R`. `SendInput`, Raw Input o DirectInput no permiten saltar de forma no intrusiva ese estado interno. Las alternativas pendientes de validar son reasignar AutoAttack a una tecla no textual que Kathana acepte durante el chat (por ejemplo F11/F12) o usar un binding de gamepad. No se implementará inyección dentro del proceso por fragilidad, por romper el objetivo no intrusivo y por la presencia de Easy Anti-Cheat.
-- `KEYUP` se programa fuera del ciclo del bot, por lo que el OCR no alarga la pulsación. Se mantiene una sola acción a la vez, pero puede coexistir con una tecla de movimiento; así `W/A/D` no retrasa habilidades ni curación. Una acción ocupada reintenta en el siguiente tick y sus milisegundos se registran solo al enviarse realmente.
-- La espera de un frame tiene un límite de 50 ms para que una captura detenida no bloquee el ciclo de acciones, la parada ni la GUI.
-- El lector de coordenadas procesa el texto `X/Y` completo, prioriza una máscara de blanco que elimina colores saturados y usa umbrales grises como respaldo.
-- Se rechazan ejes de un solo dígito. Los saltos grandes requieren dos lecturas coherentes y las posiciones tienen validez, antigüedad y revisión.
-- El bot captura el HWND exacto validado por ProcessManager y usa el tamaño actual de esa ventana, evitando asociar el proceso de una ventana con otra de título parecido.
-- GAME integra el alta manual, detección ventana→PID→ejecutable, refresh del juego seleccionado, estado de conexión y borrado. La pestaña PROCESO se retiró; quedan BOT y LOG.
-- El botón junto a NAME invalida el nombre almacenado y fuerza una nueva lectura OCR.
-- MODE pasa a llamarse RADIO BOT, con radios `FIJO (0)`, `25`, `50`, `75`, `100` y `SIN LÍMITE`, más un tiempo `QUIETO` configurable entre 3 y 120 segundos. El radio se mide en unidades de las coordenadas `X/Y` del juego mediante distancia euclídea desde la posición inicial; no representa píxeles.
-- Dos coordenadas nuevas y coherentes cuya distancia sea estrictamente mayor que el radio fuerzan el retorno al origen; una lectura OCR aislada ya no inicia movimiento.
-- `QUIETO` sigue siendo un segundo disparador de retorno dentro del radio. MovementManager calibra en línea `W`, `A` y `D`, evalúa solo coordenadas recibidas después del pulso y exige dos mejoras consecutivas antes de confiar en una dirección. Una variación de una unidad no valida la ruta.
-- Los pulsos de exploración duran entre 250 y 500 ms y los de avance nunca superan 650 ms. Ya no existe ningún `hold` de 5 segundos. Si la dirección deja de mejorar, se recalibra; la única búsqueda de desbloqueo es determinista (`A → W → D → D → W`) y no se repite al azar.
-- Cada intento tiene watchdog por falta de progreso (6,5 s), deadline calculado entre 12 y 25 s, límite de acciones proporcional a la distancia y timeout de entrada de 750 ms. Al fallar libera `A/D/W`, entra en cooldown 5 s y solo reintenta una vez; después queda en `FAILED` hasta volver dentro del radio o fijar otro origen. `navigation_active` es falso durante cooldown/fallo, por lo que no bloquea el bot indefinidamente.
-- Un objetivo o combate pausa incluso un retorno forzado y libera movimiento. AutoAttack ya no se veta durante navegación y puede seguir actuando sobre un objetivo seleccionado; AutoLoot y AutoTarget sí se suspenden mientras hay movimiento activo. Al pausar o entrar en cooldown vuelven a ejecutarse con normalidad.
-- El retorno sigue siendo heurístico porque `X/Y` no aporta la orientación del personaje. La simulación automatizada converge con `W` hacia delante y `A/D` laterales, pero debe validarse en Kathana. Si esas tres teclas no permiten alcanzar un origen situado detrás, el controlador abandona de forma acotada en vez de caminar al azar.
-- La ruta WinRT/D3D ya no vuelca vtables ni genera 99 mensajes por frame. Las funciones ABI se enlazan una vez, la conversión evita una copia completa intermedia y `Unmap` queda protegido incluso ante errores.
-- El marco amarillo pertenece a Windows Graphics Capture y no entra en los frames ni afecta al OCR. En este Windows 10 build 19042 no puede desactivarse: `IsBorderRequired` requiere build 20348, que en cliente equivale en la práctica a Windows 11. En sistemas compatibles se solicita permiso `Borderless` una sola vez y se intenta desactivar antes de `StartCapture`; cualquier denegación o interfaz ausente mantiene WGC con marco sin interrumpir el bot.
-- La distribución prevista separa una build Windows x64 para Windows 10 1903+ y Windows 11 de otra build nativa para Ubuntu 24.04. Ubuntu todavía no es compatible: requiere adaptadores X11 o Wayland para captura, ventanas e input. La estrategia y los bloqueos se documentan en `BUILDING.md`.
-- Cada frame libera superficie, acceso DXGI y textura; al parar se cierran session/framepool/dispositivo WinRT y se liberan staging, contexto y dispositivo D3D. La prueba real mantuvo estable la memoria durante 120 frames y eliminó el crecimiento previo de unos 13 MB por reinicio.
-- El arranque de captura es transaccional: si WinRT/D3D falla, se liberan los recursos parciales, el bot vuelve a `STOPPED`, la GUI se desbloquea y GAME muestra `Error al iniciar` con el detalle en el tooltip.
-- La validación automatizada cubre acciones, filtros, OCR asíncrono, clasificación enemigo/item, coordenadas, input directo sin `WM_CHAR`, cleanup de captura, perfiles GAME, BBDD, GUI, navegación y fallback de captura sin borde; la suite actual contiene 114 pruebas.
+- Revisar esta arquitectura antes de crear clases o pipelines nuevos.
+- No reintroducir funcionalidades eliminadas sin un caso de uso aprobado.
+- Preservar el diseño visual salvo petición expresa.
+- Actualizar este snapshot tras cambios de arquitectura, comportamiento, compatibilidad o riesgos; evitar acumular un historial cronológico.
+- Ejecutar suite, `pip check`, smoke de imports y revisión de recursos antes de cerrar una auditoría.

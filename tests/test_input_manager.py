@@ -41,7 +41,6 @@ class InputManagerTests(unittest.TestCase):
         self.assertTrue(self.manager.press("r", hold_ms=30))
 
         self.assertEqual(self.driver.events, [("down", 1234, "R")])
-        self.manager.update()
         self.assertTrue(self.driver.key_up_event.wait(0.3))
         self.assertGreaterEqual(time.perf_counter() - started, 0.02)
         self.assertEqual(

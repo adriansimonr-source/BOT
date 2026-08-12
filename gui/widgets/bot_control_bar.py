@@ -4,35 +4,17 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-
-
-
-
 class BotControlBar(QWidget):
-
 
     def __init__(self):
 
         super().__init__()
 
-
         self.create_widgets()
 
         self.create_layout()
 
-
-
-
-
-
-
-    # =====================================
-    # Crear widgets
-    # =====================================
-
-
     def create_widgets(self):
-
 
         self.start_button = QPushButton(
 
@@ -40,14 +22,11 @@ class BotControlBar(QWidget):
 
         )
 
-
-
         self.start_button.setMinimumHeight(
 
             36
 
         )
-
 
         self.start_button.setMinimumWidth(
 
@@ -55,24 +34,9 @@ class BotControlBar(QWidget):
 
         )
 
-
-
-
-
-
-
-
-    # =====================================
-    # Layout
-    # =====================================
-
-
     def create_layout(self):
 
-
         layout = QHBoxLayout()
-
-
 
         layout.setContentsMargins(
 
@@ -86,11 +50,7 @@ class BotControlBar(QWidget):
 
         )
 
-
-
         layout.addStretch()
-
-
 
         layout.addWidget(
 
@@ -98,11 +58,7 @@ class BotControlBar(QWidget):
 
         )
 
-
-
         layout.addStretch()
-
-
 
         self.setLayout(
 
@@ -110,21 +66,7 @@ class BotControlBar(QWidget):
 
         )
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # Estados
-    # =====================================
-
-
     def set_running(self):
-
 
         self.start_button.setText(
 
@@ -132,12 +74,7 @@ class BotControlBar(QWidget):
 
         )
 
-
-
-
-
     def set_stopped(self):
-
 
         self.start_button.setText(
 

@@ -31,7 +31,6 @@ class EntityDatabaseManager:
     def __init__(self, path="data/entities"):
         self.path = path
         self.database = EntityDatabase()
-        self.players_file = os.path.join(path, "players.json")
         self.enemies_file = os.path.join(path, "enemies.json")
         self.items_file = os.path.join(path, "items.json")
         self._enemies_mtime_ns = None
@@ -42,10 +41,8 @@ class EntityDatabaseManager:
 
     def load(self):
         with _DATABASE_LOCK:
-            self.database.players.clear()
             self.database.enemies.clear()
             self.database.items.clear()
-            self.load_file(self.players_file, self.database.players)
             self.load_file(self.enemies_file, self.database.enemies)
             self.load_file(self.items_file, self.database.items)
             self._enemies_mtime_ns = self._get_mtime(self.enemies_file)
@@ -69,7 +66,6 @@ class EntityDatabaseManager:
     def save(self):
         with _DATABASE_LOCK:
             os.makedirs(self.path, exist_ok=True)
-            self.save_file(self.players_file, self.database.players)
             self.save_file(self.enemies_file, self.database.enemies)
             self.save_file(self.items_file, self.database.items)
             self._enemies_mtime_ns = self._get_mtime(self.enemies_file)
@@ -153,35 +149,6 @@ class EntityDatabaseManager:
             self.database.items[normalized]["source"] = "vision_no_hp"
             self._save_items()
             return normalized
-
-    def resolve_player_name(self, name):
-        normalized = self.normalize_entity_name(name)
-        if not normalized:
-            return None
-        if self.database.is_player(normalized):
-            return normalized
-
-        similar = self.find_similar(normalized, self.database.get_players())
-        if similar:
-            return similar
-        self.database.add_player(normalized)
-        self.save_file(self.players_file, self.database.players)
-        return normalized
-
-    @staticmethod
-    def find_similar(name, collection, threshold=0.85):
-        best_name = None
-        best_score = 0.0
-        for current in collection:
-            score = SequenceMatcher(
-                None,
-                name.casefold(),
-                current.casefold(),
-            ).ratio()
-            if score > best_score:
-                best_score = score
-                best_name = current
-        return best_name if best_score >= threshold else None
 
     def get_enemy_lists(self):
         with _DATABASE_LOCK:
@@ -285,10 +252,6 @@ class EntityDatabaseManager:
         enemy = self.get_enemy(name)
         return bool(enemy and enemy.get("ignore", False))
 
-    def get_enemy_priority(self, name):
-        enemy = self.get_enemy(name)
-        return enemy.get("priority", 0) if enemy else 0
-
     def register_enemy_seen(self, name):
         if not self.is_valid_enemy_name(name):
             return False
@@ -312,9 +275,6 @@ class EntityDatabaseManager:
             self.database.register_item_encounter(canonical)
             self._save_items()
             return True
-
-    def get_player(self, name):
-        return self.database.get_player(name)
 
     def add_item(self, name, data=None):
         normalized = self.normalize_entity_name(name)

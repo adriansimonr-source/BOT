@@ -1,16 +1,19 @@
 import os
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QComboBox, QListWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QListWidget,
+    QMainWindow,
+)
 
-from core.models.bot_settings import BotMode
 from gui.main_window import MainWindow
 from gui.right_panel import RightPanel
-from gui.widgets.character_group import CharacterGroup
 
 
 class RightPanelTests(unittest.TestCase):
@@ -34,33 +37,38 @@ class RightPanelTests(unittest.TestCase):
 
         self.assertEqual(self.panel.auto_attack.interval(), 725)
 
-    def test_bot_radius_uses_compact_coordinate_ranges(self):
-        group = CharacterGroup()
+    def test_main_window_stays_above_other_windows(self):
+        window = QMainWindow()
         try:
-            self.assertEqual(
-                [
-                    group.mode_selector.itemText(index)
-                    for index in range(group.mode_selector.count())
-                ],
-                ["FIJO (0)", "25", "50", "75", "100", "SIN LÍMITE"],
+            MainWindow.configure_window(window)
+
+            self.assertTrue(
+                window.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
             )
-            self.assertEqual(
-                [
-                    group.mode_selector.itemData(index)
-                    for index in range(group.mode_selector.count())
-                ],
-                [
-                    BotMode.STATIC_POINT,
-                    BotMode.STATIC_25,
-                    BotMode.STATIC_50,
-                    BotMode.STATIC_75,
-                    BotMode.STATIC_100,
-                    BotMode.OFF,
-                ],
+            self.assertTrue(
+                window.windowFlags() & Qt.WindowType.WindowMinimizeButtonHint
             )
-            self.assertEqual(group.get_bot_mode(), BotMode.STATIC_100)
         finally:
-            group.deleteLater()
+            window.deleteLater()
+
+    def test_target_selector_has_two_multiselect_lists_and_two_arrows(self):
+        self.assertIsInstance(self.panel.available_list, QListWidget)
+        self.assertIsInstance(self.panel.ignored_list, QListWidget)
+        self.assertEqual(
+            self.panel.available_list.selectionMode(),
+            QAbstractItemView.SelectionMode.ExtendedSelection,
+        )
+        self.assertEqual(
+            self.panel.ignored_list.selectionMode(),
+            QAbstractItemView.SelectionMode.ExtendedSelection,
+        )
+        self.assertEqual(self.panel.add_ignore_button.text(), "→")
+        self.assertEqual(self.panel.remove_ignore_button.text(), "←")
+
+    def test_only_ignore_filter_controls_are_exposed(self):
+        self.assertFalse(hasattr(self.panel, "unique_targets_checkbox"))
+        self.assertFalse(hasattr(self.panel, "unique_targets_list"))
+        self.assertFalse(hasattr(self.panel, "save_targets_button"))
 
     def test_database_names_are_split_without_case_duplicates(self):
         self.panel.set_enemy_names(
@@ -68,167 +76,104 @@ class RightPanelTests(unittest.TestCase):
             ["BONGBO"],
         )
 
-        self.assertIsInstance(self.panel.available_combo, QComboBox)
-        self.assertNotIsInstance(self.panel.available_combo, QListWidget)
-        available = self._combo_items(self.panel.available_combo)
+        self.assertEqual(self._items(self.panel.available_list), ["Baoku"])
         ignored = self._items(self.panel.ignored_list)
-        self.assertEqual(available, ["Baoku"])
         self.assertEqual(len(ignored), 1)
         self.assertEqual(ignored[0].casefold(), "bongbo")
 
-    def test_unique_target_uses_database_name_and_has_no_duplicates(self):
-        self.panel.set_enemy_names(["Baoku", "Bongbo"], [])
-
-        with patch(
-            "gui.right_panel.QInputDialog.getMultiLineText",
-            side_effect=[("bONgbo", True), ("BONGBO", True)],
-        ):
-            self.panel.add_manual_unique_targets()
-            self.panel.add_manual_unique_targets()
-
-        self.assertEqual(
-            self._items(self.panel.unique_targets_list),
-            ["Bongbo"],
-        )
-
-    def test_multiple_available_targets_can_be_added_and_removed(self):
+    def test_multiple_targets_move_to_ignored_in_one_batch(self):
         self.panel.set_enemy_names(["Alpha", "Beta", "Gamma"], [])
-        self.panel.available_combo.setCurrentText("Alpha")
-        self.panel.add_unique_target()
-        self.panel.available_combo.setCurrentText("Beta")
-        self.panel.add_unique_target()
+        batches = []
+        self.panel.enemy_ignores_changed.connect(
+            lambda names, ignored: batches.append((list(names), ignored))
+        )
+        self._select_names(self.panel.available_list, "Alpha", "Beta")
 
-        self.assertEqual(
-            self._items(self.panel.unique_targets_list),
+        self.panel.add_ignore_button.click()
+
+        self.assertEqual(self._items(self.panel.available_list), ["Gamma"])
+        self.assertEqual(self._items(self.panel.ignored_list), ["Alpha", "Beta"])
+        self.assertEqual(batches, [(["Alpha", "Beta"], True)])
+
+    def test_multiple_ignored_targets_return_in_one_batch(self):
+        self.panel.set_enemy_names(
+            ["Alpha", "Beta", "Gamma"],
             ["Alpha", "Beta"],
         )
-        self.assertTrue(self.panel.unique_targets_checkbox.isEnabled())
-
-        self.panel.unique_targets_checkbox.setChecked(True)
-        for index in range(self.panel.unique_targets_list.count()):
-            self.panel.unique_targets_list.item(index).setSelected(True)
-        self.panel.remove_unique_target()
-
-        self.assertEqual(self.panel.unique_targets_list.count(), 0)
-        self.assertFalse(self.panel.unique_targets_checkbox.isChecked())
-        self.assertFalse(self.panel.unique_targets_checkbox.isEnabled())
-
-    def test_multiple_ignored_targets_move_as_one_batch_without_duplicates(self):
-        self.panel.set_enemy_names(["Alpha", "Beta", "Gamma"], [])
         batches = []
         self.panel.enemy_ignores_changed.connect(
             lambda names, ignored: batches.append((list(names), ignored))
         )
+        self._select_names(self.panel.ignored_list, "Alpha", "Beta")
 
-        self.panel.available_combo.setCurrentText("Alpha")
-        self.panel.move_to_ignored()
-        self.panel.available_combo.setCurrentText("Beta")
-        self.panel.move_to_ignored()
-
-        self.assertEqual(self._combo_items(self.panel.available_combo), ["Gamma"])
-        self.assertEqual(self._items(self.panel.ignored_list), ["Alpha", "Beta"])
-        self.assertEqual(
-            batches,
-            [(["Alpha"], True), (["Beta"], True)],
-        )
-
-        for index in range(self.panel.ignored_list.count()):
-            self.panel.ignored_list.item(index).setSelected(True)
-        self.panel.move_to_available()
+        self.panel.remove_ignore_button.click()
 
         self.assertEqual(
-            self._combo_items(self.panel.available_combo),
+            self._items(self.panel.available_list),
             ["Alpha", "Beta", "Gamma"],
         )
-        self.assertEqual(self.panel.ignored_list.count(), 0)
+        self.assertEqual(self._items(self.panel.ignored_list), [])
+        self.assertEqual(batches, [(["Alpha", "Beta"], False)])
 
-    def test_database_refresh_never_populates_the_unique_list(self):
-        self.panel.set_enemy_names(["OCR garbage", "Normal"], [])
-
-        self.assertEqual(self.panel.unique_targets_list.count(), 0)
-
-        with patch(
-            "gui.right_panel.QInputDialog.getMultiLineText",
-            return_value=("Boss A\nBoss B\nboss a", True),
-        ):
-            self.panel.add_manual_unique_targets()
-
-        self.panel.set_enemy_names(
-            ["OCR garbage", "Other garbage", "Normal"],
-            [],
-        )
-
-        self.assertEqual(
-            self._items(self.panel.unique_targets_list),
-            ["Boss A", "Boss B"],
-        )
-
-    def test_ignored_target_is_removed_from_unique_targets(self):
-        self.panel.set_enemy_names(["Bongbo"], [])
-        self.panel.unique_targets_list.addItem("Bongbo")
-
-        self.panel.set_enemy_names(["Bongbo"], ["Bongbo"])
-
-        self.assertEqual(self.panel.unique_targets_list.count(), 0)
-
-    def test_adding_an_ignored_target_to_unique_unignores_it(self):
-        self.panel.set_enemy_names(["Alpha", "Beta"], ["Beta"])
+    def test_arrow_without_selection_does_not_emit_or_change_lists(self):
+        self.panel.set_enemy_names(["Alpha"], [])
         batches = []
         self.panel.enemy_ignores_changed.connect(
             lambda names, ignored: batches.append((list(names), ignored))
         )
 
-        with patch(
-            "gui.right_panel.QInputDialog.getMultiLineText",
-            return_value=("Beta", True),
-        ):
-            self.panel.add_manual_unique_targets()
+        self.panel.add_ignore_button.click()
+        self.panel.remove_ignore_button.click()
 
-        self.assertEqual(self._items(self.panel.unique_targets_list), ["Beta"])
-        self.assertEqual(self._combo_items(self.panel.available_combo), ["Alpha"])
-        self.assertEqual(self.panel.ignored_list.count(), 0)
-        self.assertEqual(batches, [(["Beta"], False)])
+        self.assertEqual(self._items(self.panel.available_list), ["Alpha"])
+        self.assertEqual(self._items(self.panel.ignored_list), [])
+        self.assertEqual(batches, [])
 
-    def test_save_is_visible_and_emits_only_explicit_user_state(self):
-        self.panel.set_enemy_names(["Alpha", "Database garbage"], [])
+    def test_ignore_checkbox_requests_autosave_with_explicit_state(self):
         requests = []
         self.panel.target_filters_save_requested.connect(
             lambda: requests.append(self.panel.get_target_filter_state())
         )
 
-        self.assertTrue(self.panel.save_targets_button.isVisibleTo(self.panel))
-        self.assertFalse(self.panel.save_targets_button.isEnabled())
+        self.panel.ignore_targets.setChecked(True)
 
-        self.panel.available_combo.setCurrentText("Alpha")
-        self.panel.add_unique_target()
-        self.panel.unique_targets_checkbox.setChecked(True)
-        self.assertTrue(self.panel.save_targets_button.isEnabled())
-        self.panel.save_targets_button.click()
+        self.assertEqual(requests, [{"ignore_enabled": True}])
+        self.assertTrue(self.panel.has_unsaved_target_filters())
 
-        self.assertEqual(len(requests), 1)
-        self.assertEqual(requests[0]["unique_targets"], ["Alpha"])
-        self.assertNotIn("Database garbage", requests[0]["unique_targets"])
-
-    def test_explicit_persisted_unique_targets_can_be_restored(self):
-        self.panel.set_enemy_names(["Alpha", "Database garbage"], [])
-
-        self.panel.set_target_filters(
-            ["Boss", "boss", "Alpha"],
-            ignore_enabled=True,
-            unique_enabled=True,
+    def test_loading_ignore_filter_does_not_request_autosave(self):
+        requests = []
+        self.panel.target_filters_save_requested.connect(
+            lambda: requests.append(True)
         )
 
-        self.assertEqual(
-            self._items(self.panel.unique_targets_list),
-            ["Alpha", "Boss"],
-        )
+        self.panel.set_target_filters(ignore_enabled=True)
+
         self.assertTrue(self.panel.ignore_targets.isChecked())
-        self.assertTrue(self.panel.unique_targets_checkbox.isChecked())
         self.assertFalse(self.panel.has_unsaved_target_filters())
-        self.assertEqual(
-            self._combo_items(self.panel.available_combo),
-            ["Database garbage"],
-        )
+        self.assertEqual(requests, [])
+
+    def test_locking_panel_disables_target_filter_controls(self):
+        self.panel.lock_controls()
+
+        for widget in (
+            self.panel.ignore_targets,
+            self.panel.available_list,
+            self.panel.ignored_list,
+            self.panel.add_ignore_button,
+            self.panel.remove_ignore_button,
+        ):
+            self.assertFalse(widget.isEnabled())
+
+        self.panel.unlock_controls()
+
+        for widget in (
+            self.panel.ignore_targets,
+            self.panel.available_list,
+            self.panel.ignored_list,
+            self.panel.add_ignore_button,
+            self.panel.remove_ignore_button,
+        ):
+            self.assertTrue(widget.isEnabled())
 
     def test_ignore_batch_persists_each_name_and_refreshes_once(self):
         calls = []
@@ -254,18 +199,11 @@ class RightPanelTests(unittest.TestCase):
         self.assertTrue(ignored)
         self.assertEqual(refreshes, [True])
 
-    def test_save_persists_ignored_snapshot_and_unique_game_filters(self):
-        ignored_calls = []
+    def test_save_persists_only_ignore_filter_for_active_game(self):
         config_calls = []
         saved = []
-        refreshes = []
         panel = SimpleNamespace(
-            get_target_filter_state=lambda: {
-                "ignored_targets": ["Beta"],
-                "unique_targets": ["Boss A", "Boss B"],
-                "ignore_enabled": True,
-                "unique_enabled": True,
-            },
+            get_target_filter_state=lambda: {"ignore_enabled": True},
             mark_target_filters_saved=lambda: saved.append(True),
         )
         config = SimpleNamespace(
@@ -276,28 +214,13 @@ class RightPanelTests(unittest.TestCase):
                 get_active_game=lambda: {"id": "game"},
                 config=config,
             ),
-            entity_database=SimpleNamespace(
-                get_ignored_enemy_names=lambda: ["Alpha"],
-                set_enemies_ignored=lambda names, ignored: ignored_calls.append(
-                    (list(names), ignored)
-                ),
-            ),
             bot_tab=SimpleNamespace(auto_panel=panel),
-            refresh_enemy_lists=lambda force=False: refreshes.append(force),
         )
 
         result = MainWindow.save_target_filters(window)
 
         self.assertTrue(result)
-        self.assertEqual(
-            ignored_calls,
-            [(["Alpha"], False), (["Beta"], True)],
-        )
-        self.assertEqual(
-            config_calls,
-            [("game", ["Boss A", "Boss B"], True, True)],
-        )
-        self.assertEqual(refreshes, [True])
+        self.assertEqual(config_calls, [("game", True)])
         self.assertEqual(saved, [True])
 
     @staticmethod
@@ -308,8 +231,11 @@ class RightPanelTests(unittest.TestCase):
         ]
 
     @staticmethod
-    def _combo_items(combo):
-        return [combo.itemText(index) for index in range(combo.count())]
+    def _select_names(list_widget, *names):
+        selected = set(names)
+        for index in range(list_widget.count()):
+            item = list_widget.item(index)
+            item.setSelected(item.text() in selected)
 
 
 if __name__ == "__main__":

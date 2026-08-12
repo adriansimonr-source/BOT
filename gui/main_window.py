@@ -1,4 +1,5 @@
 from PySide6.QtCore import (
+    Qt,
     QThread,
     QTimer,
     Signal,
@@ -15,10 +16,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
-
 from gui.tabs.bot_tab import BotTab
 from gui.dialogs.add_game_dialog import AddGameDialog
-
 
 from core.process_manager import ProcessManager
 from core.managers.game_profile_manager import GameProfileManager
@@ -27,28 +26,19 @@ from core.managers.entity_database_manager import EntityDatabaseManager
 from core.bot_engine import BotEngine
 from core.bot_worker import BotWorker
 
-
-
-
-
 class MainWindow(QMainWindow):
 
-
     stop_bot_requested = Signal()
-
 
     def __init__(self):
 
         super().__init__()
 
-
         self.configure_window()
 
         self.apply_style()
 
-
         self.game_profiles = GameProfileManager()
-
 
         self.process_manager = ProcessManager(
 
@@ -56,13 +46,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.game_state_manager = GameStateManager(
 
             self.process_manager
 
         )
-
 
         self.bot_engine = BotEngine(
 
@@ -70,9 +58,7 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.entity_database = EntityDatabaseManager()
-
 
         self.bot_thread = None
 
@@ -80,34 +66,31 @@ class MainWindow(QMainWindow):
 
         self._close_pending = False
 
-
-
         self.create_ui()
 
         self.create_timer()
 
         self.connect_signals()
 
-
         self.initialize_selected_game()
-
 
         self.refresh_enemy_lists(force=True)
 
-
-
-
-
-
     def configure_window(self):
 
+        self.setWindowFlag(
+
+            Qt.WindowType.WindowStaysOnTopHint,
+
+            True
+
+        )
 
         self.setWindowTitle(
 
             "SB Automation Suite"
 
         )
-
 
         self.setWindowIcon(
 
@@ -119,7 +102,6 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.setFixedSize(
 
             750,
@@ -128,21 +110,7 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # STYLE
-    # =====================================
-
-
     def apply_style(self):
-
 
         self.setStyleSheet(
 
@@ -158,8 +126,6 @@ class MainWindow(QMainWindow):
 
             }
 
-
-
             QTabWidget::pane {
 
                 border: 1px solid #D7E3F2;
@@ -169,8 +135,6 @@ class MainWindow(QMainWindow):
                 background: white;
 
             }
-
-
 
             QTabBar::tab {
 
@@ -186,8 +150,6 @@ class MainWindow(QMainWindow):
 
             }
 
-
-
             QTabBar::tab:selected {
 
                 background: #173B6D;
@@ -195,8 +157,6 @@ class MainWindow(QMainWindow):
                 color: white;
 
             }
-
-
 
             QPushButton {
 
@@ -210,15 +170,11 @@ class MainWindow(QMainWindow):
 
             }
 
-
-
             QPushButton:hover {
 
                 background-color: #28558F;
 
             }
-
-
 
             QComboBox {
 
@@ -232,8 +188,6 @@ class MainWindow(QMainWindow):
 
             }
 
-
-
             QProgressBar {
 
                 border: 1px solid #B9CBE3;
@@ -245,8 +199,6 @@ class MainWindow(QMainWindow):
                 height: 12px;
 
             }
-
-
 
             QProgressBar::chunk {
 
@@ -260,24 +212,9 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # UI
-    # =====================================
-
-
     def create_ui(self):
 
-
         central = QWidget()
-
 
         self.setCentralWidget(
 
@@ -285,13 +222,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         layout = QVBoxLayout(
 
             central
 
         )
-
 
         layout.setContentsMargins(
 
@@ -305,11 +240,7 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
         self.tabs = QTabWidget()
-
-
 
         self.bot_tab = BotTab(self.game_profiles)
 
@@ -319,8 +250,6 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
         self.tabs.addTab(
 
             self.bot_tab,
@@ -328,7 +257,6 @@ class MainWindow(QMainWindow):
             "BOT"
 
         )
-
 
         self.tabs.addTab(
 
@@ -338,32 +266,15 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
         layout.addWidget(
 
             self.tabs
 
         )
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # TIMER
-    # =====================================
-
-
     def create_timer(self):
 
-
         self.ui_timer = QTimer(self)
-
 
         self.ui_timer.setInterval(
 
@@ -371,13 +282,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.ui_timer.timeout.connect(
 
             self.update_character_ui
 
         )
-
 
         self.enemy_database_timer = QTimer(self)
 
@@ -391,21 +300,7 @@ class MainWindow(QMainWindow):
 
         self.enemy_database_timer.start()
 
-
-
-
-
-
-
-
-
-    # =====================================
-    # SIGNALS
-    # =====================================
-
-
     def connect_signals(self):
-
 
         self.bot_tab.bot_controls.start_button.clicked.connect(
 
@@ -413,13 +308,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.game_selector.game_changed.connect(
 
             self.game_selected
 
         )
-
 
         self.bot_tab.game_selector.add_game_requested.connect(
 
@@ -427,13 +320,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.game_selector.update_game_requested.connect(
 
             self.detect_process
 
         )
-
 
         self.bot_tab.game_selector.delete_game_requested.connect(
 
@@ -441,20 +332,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.character_group.refresh_position_button.clicked.connect(
 
             self.refresh_player_position
 
         )
-
-
-        self.bot_tab.character_group.refresh_name_button.clicked.connect(
-
-            self.refresh_player_name
-
-        )
-
 
         self.bot_tab.character_group.lock_position_button.clicked.connect(
 
@@ -462,13 +344,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.character_group.unlock_position_button.clicked.connect(
 
             self.unlock_player_position
 
         )
-
 
         self.bot_tab.auto_panel.enemy_ignores_changed.connect(
 
@@ -476,23 +356,19 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.auto_panel.target_filters_save_requested.connect(
 
             self.save_target_filters
 
         )
 
-
     def refresh_enemy_lists(self, force=False):
-
 
         changed = self.entity_database.refresh_enemies(force=force)
 
         if not force and not changed:
 
             return
-
 
         enemy_names, ignored_names = self.entity_database.get_enemy_lists()
 
@@ -504,12 +380,8 @@ class MainWindow(QMainWindow):
 
         )
 
-
-    def set_enemy_ignored(self, name, ignored):
-        self.set_enemies_ignored([name], ignored)
-
     def set_enemies_ignored(self, names, ignored):
-        unique_names = list({
+        normalized_names = list({
             str(name).strip().casefold(): str(name).strip()
             for name in names
             if str(name).strip()
@@ -520,19 +392,17 @@ class MainWindow(QMainWindow):
             None,
         )
         if callable(set_batch):
-            set_batch(unique_names, ignored)
+            set_batch(normalized_names, ignored)
         else:
-            for name in unique_names:
+            for name in normalized_names:
                 self.entity_database.set_enemy_ignored(name, ignored)
-        if unique_names:
+        if normalized_names:
             self.refresh_enemy_lists(force=True)
 
     def load_target_filters(self, game_id):
         filters = self.process_manager.config.get_game_target_filters(game_id)
         self.bot_tab.auto_panel.set_target_filters(
-            filters["unique_targets"],
             filters["ignore_enabled"],
-            filters["unique_enabled"],
         )
 
     def save_target_filters(self, game_id=None):
@@ -545,36 +415,11 @@ class MainWindow(QMainWindow):
 
         panel = self.bot_tab.auto_panel
         state = panel.get_target_filter_state()
-        desired = {
-            name.casefold(): name
-            for name in state["ignored_targets"]
-        }
-        current = {
-            name.casefold(): name
-            for name in self.entity_database.get_ignored_enemy_names()
-        }
 
         try:
-            removed = [
-                name
-                for key, name in current.items()
-                if key not in desired
-            ]
-            added = [
-                name
-                for key, name in desired.items()
-                if key not in current
-            ]
-            if removed:
-                self.entity_database.set_enemies_ignored(removed, False)
-            if added:
-                self.entity_database.set_enemies_ignored(added, True)
-
             self.process_manager.config.set_game_target_filters(
                 game_id,
-                state["unique_targets"],
                 state["ignore_enabled"],
-                state["unique_enabled"],
             )
         except OSError as error:
             QMessageBox.warning(
@@ -584,20 +429,10 @@ class MainWindow(QMainWindow):
             )
             return False
 
-        if removed or added:
-            self.refresh_enemy_lists(force=True)
         panel.mark_target_filters_saved()
         return True
 
-
-
-    # =====================================
-    # GAME
-    # =====================================
-
-
     def initialize_selected_game(self):
-
 
         selector = self.bot_tab.game_selector
 
@@ -611,14 +446,11 @@ class MainWindow(QMainWindow):
 
             return
 
-
         selector.select_game(game_id)
 
         self.game_selected(game_id)
 
-
     def game_selected(self, game_id):
-
 
         if self.bot_engine.is_running():
 
@@ -629,7 +461,6 @@ class MainWindow(QMainWindow):
                 self.bot_tab.game_selector.select_game(active_game["id"])
 
             return
-
 
         previous_game = self.process_manager.get_active_game()
 
@@ -650,20 +481,15 @@ class MainWindow(QMainWindow):
 
             return
 
-
         if previous_id != game_id:
 
             self.game_state_manager.invalidate_vision()
 
-
         self.load_target_filters(game_id)
-
 
         self.detect_process()
 
-
     def detect_process(self):
-
 
         selector = self.bot_tab.game_selector
 
@@ -675,7 +501,6 @@ class MainWindow(QMainWindow):
 
             return
 
-
         active_game = self.process_manager.get_active_game()
 
         if not active_game or active_game.get("id") != game_id:
@@ -685,7 +510,6 @@ class MainWindow(QMainWindow):
                 selector.set_process_status(False, "Perfil inválido")
 
                 return
-
 
         selector.set_process_status(False, "Buscando...")
 
@@ -705,7 +529,6 @@ class MainWindow(QMainWindow):
 
             return
 
-
         messages = {
 
             "profile_incomplete": "Perfil incompleto",
@@ -724,21 +547,17 @@ class MainWindow(QMainWindow):
 
         )
 
-
     def add_game(self):
-
 
         if self.bot_engine.is_running():
 
             return
-
 
         dialog = AddGameDialog(self.process_manager, self)
 
         if not dialog.exec():
 
             return
-
 
         data = dialog.get_game_data()
 
@@ -766,19 +585,15 @@ class MainWindow(QMainWindow):
 
             return
 
-
         self.bot_tab.game_selector.refresh(game_id)
 
         self.game_selected(game_id)
 
-
     def delete_game(self):
-
 
         if self.bot_engine.is_running():
 
             return
-
 
         selector = self.bot_tab.game_selector
 
@@ -787,7 +602,6 @@ class MainWindow(QMainWindow):
         if not game_id:
 
             return
-
 
         answer = QMessageBox.question(
 
@@ -807,14 +621,11 @@ class MainWindow(QMainWindow):
 
             return
 
-
         if not self.game_profiles.remove_game(game_id):
 
             return
 
-
         self.process_manager.config.remove_game_target_filters(game_id)
-
 
         games = self.game_profiles.get_games()
 
@@ -832,23 +643,7 @@ class MainWindow(QMainWindow):
 
             selector.refresh()
 
-
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # BOT
-    # =====================================
-
-
     def toggle_bot(self):
-
 
         if self.bot_engine.is_running():
 
@@ -858,18 +653,7 @@ class MainWindow(QMainWindow):
 
             self.start_bot()
 
-
-
-
-
-
-
-
-
-
-
     def start_bot(self):
-
 
         if (
             not self.process_manager.is_connected()
@@ -878,15 +662,12 @@ class MainWindow(QMainWindow):
 
             return
 
-
         if (
             self.bot_tab.auto_panel.has_unsaved_target_filters()
             and not self.save_target_filters()
         ):
 
             return
-
-
 
         self.bot_engine.configure(
 
@@ -898,15 +679,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.lock_controls()
 
         self.bot_tab.game_selector.set_locked(True)
 
-
-
         self.bot_thread = QThread()
-
 
         self.bot_worker = BotWorker(
 
@@ -914,13 +691,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_worker.moveToThread(
 
             self.bot_thread
 
         )
-
 
         self.stop_bot_requested.connect(
 
@@ -928,13 +703,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_worker.finished.connect(
 
             self.bot_thread.quit
 
         )
-
 
         self.bot_worker.error.connect(
 
@@ -942,13 +715,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_worker.finished.connect(
 
             self.bot_worker.deleteLater
 
         )
-
 
         self.bot_thread.finished.connect(
 
@@ -956,13 +727,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_thread.finished.connect(
 
             self.bot_thread.deleteLater
 
         )
-
 
         self.bot_thread.started.connect(
 
@@ -970,53 +739,31 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_thread.start()
-
-
 
         self.ui_timer.start()
 
-
-
         self.bot_tab.bot_controls.set_running()
-
-
-
-
-
-
-
-
-
 
     def stop_bot(self):
 
-
         self.ui_timer.stop()
-
-
 
         if not self.bot_worker:
 
             return
 
-
         self.bot_tab.bot_controls.start_button.setEnabled(False)
 
         self.stop_bot_requested.emit()
 
-
-
     def finish_bot_stop(self):
-
 
         self.ui_timer.stop()
 
         self.bot_worker = None
 
         self.bot_thread = None
-
 
         self.bot_tab.unlock_controls()
 
@@ -1032,7 +779,6 @@ class MainWindow(QMainWindow):
 
             self.close()
 
-
     def bot_start_failed(self, message):
 
         self.bot_tab.game_selector.set_process_status(
@@ -1045,51 +791,21 @@ class MainWindow(QMainWindow):
 
         )
 
-
-
-
-
-
-
-
-
-
-    # =====================================
-    # POSITION
-    # =====================================
-
-
     def refresh_player_position(self):
 
         self.bot_engine.refresh_player_position()
-
-
-    def refresh_player_name(self):
-
-        self.bot_engine.refresh_player_name()
-
-
 
     def lock_player_position(self):
 
         self.bot_engine.lock_player_position()
 
-
-
     def unlock_player_position(self):
 
         self.bot_engine.unlock_player_position()
 
-
-
-
-
     def update_character_ui(self):
 
-
         state = self.game_state_manager.get_state()
-
-
 
         self.bot_tab.character_group.update_state(
 
@@ -1097,13 +813,11 @@ class MainWindow(QMainWindow):
 
         )
 
-
         self.bot_tab.target_group.update_state(
 
             state
 
         )
-
 
     def closeEvent(self, event):
 

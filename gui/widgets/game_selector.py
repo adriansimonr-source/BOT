@@ -58,10 +58,6 @@ class GameSelector(QWidget):
         self.refresh_button.clicked.connect(self.update_game_requested.emit)
         self.delete_button.clicked.connect(self.delete_game_requested.emit)
 
-    def set_manager(self, manager, selected_game_id=None):
-        self.manager = manager
-        self.load_games(selected_game_id)
-
     def load_games(self, selected_game_id=None):
         selected_game_id = selected_game_id or self.get_selected_game()
         blocker = QSignalBlocker(self.combo)

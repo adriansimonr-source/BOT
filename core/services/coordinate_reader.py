@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 import pytesseract
 
-
 class CoordinateReader:
 
     OCR_CONFIG = (

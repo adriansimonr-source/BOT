@@ -2,10 +2,7 @@ import time
 
 from core.modules.base_module import BaseModule
 
-
-
 class AutoAttack(BaseModule):
-
 
     def __init__(
         self,
@@ -18,32 +15,17 @@ class AutoAttack(BaseModule):
             interval_ms=50
         )
 
-
         self.input = input_manager
 
         self.target_rules = target_rules
 
-
         self.key = "R"
-
 
         self.attack_interval = 250
 
-
         self.last_attack = None
 
-
         self._active_target = None
-
-
-
-
-
-
-    # =====================================
-    # CONFIG
-    # =====================================
-
 
     def configure(
         self,
@@ -51,16 +33,11 @@ class AutoAttack(BaseModule):
         center_panel
     ):
 
-
         card = right_panel.auto_attack
-
 
         self.key = card.key()
 
-
         self.attack_interval = card.interval()
-
-
 
         if card.is_enabled():
 
@@ -70,46 +47,20 @@ class AutoAttack(BaseModule):
 
             self.disable()
 
-
-
-
-
-
-
-    # =====================================
-    # START
-    # =====================================
-
-
     def on_start(self):
 
         super().on_start()
 
-
         self.last_attack = None
 
         self._active_target = None
-
-
-
-
-
-
-
-    # =====================================
-    # UPDATE
-    # =====================================
-
 
     def update(
         self,
         state
     ):
 
-
         target = state.target
-
-
 
         if not self._is_attack_allowed(
             target
@@ -117,25 +68,15 @@ class AutoAttack(BaseModule):
 
             return False
 
-
-
-
-
         self._update_target_identity(
             target
         )
-
-
-
-
 
         now = (
             time.perf_counter()
             *
             1000
         )
-
-
 
         if (
             self.last_attack is not None
@@ -147,100 +88,40 @@ class AutoAttack(BaseModule):
 
             return False
 
-
-
-
-
         if self.input.press(
             self.key
         ):
 
-
             self.last_attack = now
-
-
-            print(
-                "[AUTO ATTACK]",
-                self.key
-            )
-
-
             return True
 
-
-
-
         return False
-
-
-
-
-
-
-
-    # =====================================
-    # VALIDATION
-    # =====================================
-
 
     def _is_attack_allowed(
         self,
         target
     ):
 
-
-        # No target seleccionado
-
         if not target.exists:
 
             return False
-
-
-
-
-
-        # Si no hay reglas activas:
-
-        # atacar directamente
 
         if self.target_rules is None:
 
             return True
 
-
-
         if not self.target_rules.has_filters():
 
             return True
-
-
-
-
-
-
-        # Hay filtros activos
 
         return self.target_rules.is_allowed(
             target
         )
 
-
-
-
-
-
-
-
-    # =====================================
-    # TARGET TRACKING
-    # =====================================
-
-
     def _update_target_identity(
         self,
         target
     ):
-
 
         selection_id = getattr(
             target,
@@ -248,13 +129,9 @@ class AutoAttack(BaseModule):
             0
         )
 
-
-
         name = str(
             target.name or ""
         ).strip().casefold()
-
-
 
         identity = (
 
@@ -268,14 +145,8 @@ class AutoAttack(BaseModule):
 
         )
 
-
-
         if identity != self._active_target:
 
-
             self._active_target = identity
-
-
-            # nuevo objetivo
 
             self.last_attack = None

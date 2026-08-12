@@ -2,7 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from core.managers.config_manager import ConfigManager
 from core.managers.game_profile_manager import GameProfileManager
@@ -148,7 +149,28 @@ class GameManagementTests(unittest.TestCase):
                 "game",
             )
 
-    def test_unique_target_filters_are_atomic_and_scoped_per_game(self):
+    def test_connection_status_is_cached_for_a_quarter_second(self):
+        manager = ProcessManager()
+        manager.process = SimpleNamespace(
+            is_running=MagicMock(return_value=True),
+        )
+        manager.window_manager = SimpleNamespace(
+            hwnd=123,
+            is_valid=MagicMock(return_value=True),
+        )
+
+        with patch(
+            "core.process_manager.time.perf_counter",
+            side_effect=(10.0, 10.1, 10.3),
+        ):
+            self.assertTrue(manager.is_connected())
+            self.assertTrue(manager.is_connected())
+            self.assertTrue(manager.is_connected())
+
+        self.assertEqual(manager.process.is_running.call_count, 2)
+        self.assertEqual(manager.window_manager.is_valid.call_count, 2)
+
+    def test_ignore_filter_is_atomic_and_scoped_per_game(self):
         with tempfile.TemporaryDirectory() as temporary:
             config_path = Path(temporary) / "config.json"
             config_path.write_text(
@@ -160,35 +182,72 @@ class GameManagementTests(unittest.TestCase):
             self.assertTrue(
                 config.set_game_target_filters(
                     "game-a",
-                    ["Boss", "boss", "Elite"],
                     ignore_enabled=True,
-                    unique_enabled=True,
                 )
             )
             self.assertTrue(
                 config.set_game_target_filters(
                     "game-b",
-                    ["Other"],
-                    unique_enabled=False,
+                    ignore_enabled=False,
+                )
+            )
+            self.assertFalse(
+                config.set_game_target_filters(
+                    "game-a",
+                    ignore_enabled=True,
                 )
             )
 
             loaded = ConfigManager(str(config_path))
             self.assertEqual(
                 loaded.get_game_target_filters("game-a"),
-                {
-                    "unique_targets": ["Boss", "Elite"],
-                    "ignore_enabled": True,
-                    "unique_enabled": True,
-                },
+                {"ignore_enabled": True},
             )
             self.assertEqual(
-                loaded.get_game_target_filters("game-b")["unique_targets"],
-                ["Other"],
+                loaded.get_game_target_filters("game-b"),
+                {"ignore_enabled": False},
             )
             self.assertEqual(
-                loaded.get_game_target_filters("missing")["unique_targets"],
-                [],
+                loaded.get_game_target_filters("missing"),
+                {"ignore_enabled": False},
+            )
+            self.assertFalse((config_path.parent / "config.json.tmp").exists())
+
+    def test_legacy_unique_filters_are_ignored_and_removed_when_saved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config_path = Path(temporary) / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "active_game": "game-a",
+                        "target_filters": {
+                            "game-a": {
+                                "unique_targets": ["Boss", "Elite"],
+                                "ignore_enabled": True,
+                                "unique_enabled": True,
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = ConfigManager(str(config_path))
+
+            self.assertEqual(
+                config.get_game_target_filters("game-a"),
+                {"ignore_enabled": True},
+            )
+            self.assertTrue(
+                config.set_game_target_filters(
+                    "game-a",
+                    ignore_enabled=True,
+                )
+            )
+
+            saved = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                saved["target_filters"]["game-a"],
+                {"ignore_enabled": True},
             )
             self.assertFalse((config_path.parent / "config.json.tmp").exists())
 

@@ -2,12 +2,7 @@ import cv2
 import pytesseract
 import numpy as np
 
-
-
-
-
 class OCRReader:
-
 
     def __init__(self):
 
@@ -16,20 +11,11 @@ class OCRReader:
             "--psm 7"
         )
 
-
         self.number_config = (
             "--oem 3 "
             "--psm 7 "
             "-c tessedit_char_whitelist=0123456789"
         )
-
-
-
-
-
-    # =====================================
-    # LEER TEXTO
-    # =====================================
 
     def read_text(
 
@@ -39,19 +25,15 @@ class OCRReader:
 
     ):
 
-
         processed = self.preprocess_text(
 
             image
 
         )
 
-
         if processed is None:
 
             return ""
-
-
 
         result = pytesseract.image_to_string(
 
@@ -61,22 +43,11 @@ class OCRReader:
 
         )
 
-
-
         return self.clean(
 
             result
 
         )
-
-
-
-
-
-
-    # =====================================
-    # LEER NUMERO
-    # =====================================
 
     def read_number(
 
@@ -86,19 +57,15 @@ class OCRReader:
 
     ):
 
-
         processed = self.preprocess_number(
 
             image
 
         )
 
-
         if processed is None:
 
             return 0
-
-
 
         result = pytesseract.image_to_string(
 
@@ -108,32 +75,19 @@ class OCRReader:
 
         )
 
-
-
         result = self.clean(
 
             result
 
         )
 
-
         try:
 
             return int(result)
 
-
         except ValueError:
 
             return 0
-
-
-
-
-
-
-    # =====================================
-    # PREPROCESADO TEXTO
-    # =====================================
 
     def preprocess_text(
 
@@ -143,20 +97,13 @@ class OCRReader:
 
     ):
 
-
         if image is None:
 
             return None
 
-
-
         if image.size == 0:
 
             return None
-
-
-
-
 
         gray = cv2.cvtColor(
 
@@ -165,10 +112,6 @@ class OCRReader:
             cv2.COLOR_BGR2GRAY
 
         )
-
-
-
-
 
         gray = cv2.resize(
 
@@ -184,12 +127,6 @@ class OCRReader:
 
         )
 
-
-
-
-
-        # Máscara para texto claro del HUD
-
         mask = cv2.inRange(
 
             gray,
@@ -200,10 +137,6 @@ class OCRReader:
 
         )
 
-
-
-
-
         kernel = np.ones(
 
             (2,2),
@@ -211,8 +144,6 @@ class OCRReader:
             np.uint8
 
         )
-
-
 
         mask = cv2.morphologyEx(
 
@@ -224,19 +155,7 @@ class OCRReader:
 
         )
 
-
-
         return mask
-
-
-
-
-
-
-
-    # =====================================
-    # PREPROCESADO NUMEROS
-    # =====================================
 
     def preprocess_number(
 
@@ -246,20 +165,13 @@ class OCRReader:
 
     ):
 
-
         if image is None:
 
             return None
 
-
-
         if image.size == 0:
 
             return None
-
-
-
-
 
         gray = cv2.cvtColor(
 
@@ -268,10 +180,6 @@ class OCRReader:
             cv2.COLOR_BGR2GRAY
 
         )
-
-
-
-
 
         gray = cv2.resize(
 
@@ -287,10 +195,6 @@ class OCRReader:
 
         )
 
-
-
-
-
         _, thresh = cv2.threshold(
 
             gray,
@@ -303,18 +207,7 @@ class OCRReader:
 
         )
 
-
-
         return thresh
-
-
-
-
-
-
-    # =====================================
-    # LIMPIEZA
-    # =====================================
 
     def clean(
 
@@ -324,12 +217,9 @@ class OCRReader:
 
     ):
 
-
         if not text:
 
             return ""
-
-
 
         text = text.replace(
 
@@ -339,9 +229,6 @@ class OCRReader:
 
         )
 
-
         text = text.strip()
-
-
 
         return text

@@ -1,32 +1,11 @@
 {
-    "system": {
-        "preferred_platform": "auto"
-    },
     "active_game": "kathana",
-    "capture": {
-        "method": "auto",
-        "debug": false
-    },
     "features": {
-        "ocr": true,
-        "object_detection": true,
-        "auto_target": false,
-        "loot_detection": false,
         "debug_mode": false
-    },
-    "vision": {
-        "update_interval_ms": 50,
-        "save_debug_images": false
-    },
-    "database": {
-        "auto_save": true,
-        "save_interval_minutes": 5
     },
     "target_filters": {
         "kathana": {
-            "unique_targets": [],
-            "ignore_enabled": false,
-            "unique_enabled": false
+            "ignore_enabled": false
         }
     }
 }

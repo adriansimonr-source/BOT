@@ -1,283 +1,103 @@
 {
-    "anchors": {
-
-        "player_anchor": {
-            "file": "player_anchor.png",
-            "threshold": 0.90
-        },
-
-
-        "enemy_anchor": {
-            "file": "enemy_anchor.png",
-            "threshold": 0.75
-        },
-
-
-        "minimap_anchor": {
-            "file": "minimap_anchor.png",
-            "threshold": 0.85
-        },
-
-
-        "skill_bar": {
-            "file": "skill_bar.png",
-            "threshold": 0.80
-        },
-
-
-        "player_buffs": {
-            "file": "player_buffs.png",
-            "threshold": 0.80
-        },
-
-
-        "inventory": {
-            "file": "inventory.png",
-            "threshold": 0.80
-        },
-
-
-        "chat": {
-            "file": "chat.png",
-            "threshold": 0.80
-        }
-
+  "anchors": {
+    "player_anchor": {
+      "file": "player_anchor.png",
+      "threshold": 0.9
     },
-
-
-    "regions": {
-
-
-        "minimap_search_area": {
-
-            "type": "search",
-
-            "x": 1680,
-
-            "y": 0,
-
-            "width": 240,
-
-            "height": 240
-
-        },
-
-
-        "minimap_hud": {
-
-            "type": "hud",
-
-            "parent": "minimap_anchor",
-
-            "x": -95,
-
-            "y": -195,
-
-            "width": 200,
-
-            "height": 200
-
-        },
-
-
-        "player_coordinates": {
-
-            "type": "text",
-
-            "parent": "minimap_hud",
-
-            "x": 5,
-
-            "y": 177,
-
-            "width": 85,
-
-            "height": 18
-
-        },
-
-
-        "player_direction": {
-
-            "type": "detector",
-
-            "parent": "minimap_hud",
-
-            "x": 85,
-
-            "y": 85,
-
-            "width": 50,
-
-            "height": 50
-
-        },
-
-
-
-        "player_hud": {
-
-            "type": "hud",
-
-            "parent": "player_anchor",
-
-            "x": 11,
-
-            "y": -75,
-
-            "width": 258,
-
-            "height": 70
-
-        },
-
-
-        "enemy_hud": {
-
-            "type": "hud",
-
-            "parent": "enemy_anchor",
-
-            "x": -10,
-
-            "y": -70,
-
-            "width": 275,
-
-            "height": 55
-
-        },
-
-
-        "player_name": {
-
-            "type": "text",
-
-            "parent": "player_hud",
-
-            "x": 0,
-
-            "y": 0,
-
-            "width": 120,
-
-            "height": 20
-
-        },
-
-
-        "player_level": {
-
-            "type": "text",
-
-            "parent": "player_hud",
-
-            "x": 202,
-
-            "y": 0,
-
-            "width": 50,
-
-            "height": 18
-
-        },
-
-
-        "player_hp": {
-
-            "type": "bar",
-
-            "parent": "player_hud",
-
-            "x": 3,
-
-            "y": 22,
-
-            "width": 255,
-
-            "height": 19,
-
-            "bar_type": "player_hp",
-
-            "color": "red"
-
-        },
-
-
-        "player_mp": {
-
-            "type": "bar",
-
-            "parent": "player_hud",
-
-            "x": 0,
-
-            "y": 42,
-
-            "width": 258,
-
-            "height": 18,
-
-            "bar_type": "player_mp",
-
-            "color": "blue"
-
-        },
-
-
-        "enemy_name": {
-
-            "type": "text",
-
-            "parent": "enemy_hud",
-
-            "x": 12,
-
-            "y": 17,
-
-            "width": 170,
-
-            "height": 18
-
-        },
-
-
-        "enemy_level": {
-
-            "type": "text",
-
-            "parent": "enemy_hud",
-
-            "x": 225,
-
-            "y": 16,
-
-            "width": 135,
-
-            "height": 20
-
-        },
-
-
-        "enemy_hp": {
-
-            "type": "bar",
-
-            "parent": "enemy_hud",
-
-            "x": 15,
-
-            "y": 32,
-
-            "width": 259,
-
-            "height": 19,
-
-            "bar_type": "enemy_hp",
-
-            "color": "red"
-
-        }
-
+    "enemy_anchor": {
+      "file": "enemy_anchor.png",
+      "threshold": 0.75
+    },
+    "minimap_anchor": {
+      "file": "minimap_anchor.png",
+      "threshold": 0.85
     }
+  },
+  "regions": {
+    "minimap_search_area": {
+      "type": "search",
+      "x": 1680,
+      "y": 0,
+      "width": 240,
+      "height": 240
+    },
+    "minimap_hud": {
+      "type": "hud",
+      "parent": "minimap_anchor",
+      "x": -95,
+      "y": -195,
+      "width": 200,
+      "height": 200
+    },
+    "player_coordinates": {
+      "type": "text",
+      "parent": "minimap_hud",
+      "x": 5,
+      "y": 177,
+      "width": 85,
+      "height": 18
+    },
+    "player_hud": {
+      "type": "hud",
+      "parent": "player_anchor",
+      "x": 11,
+      "y": -75,
+      "width": 258,
+      "height": 70
+    },
+    "enemy_hud": {
+      "type": "hud",
+      "parent": "enemy_anchor",
+      "x": -10,
+      "y": -70,
+      "width": 275,
+      "height": 55
+    },
+    "player_hp": {
+      "type": "bar",
+      "parent": "player_hud",
+      "x": 3,
+      "y": 22,
+      "width": 255,
+      "height": 19,
+      "bar_type": "player_hp",
+      "color": "red"
+    },
+    "player_mp": {
+      "type": "bar",
+      "parent": "player_hud",
+      "x": 0,
+      "y": 42,
+      "width": 258,
+      "height": 18,
+      "bar_type": "player_mp",
+      "color": "blue"
+    },
+    "enemy_name": {
+      "type": "text",
+      "parent": "enemy_hud",
+      "x": 12,
+      "y": 17,
+      "width": 170,
+      "height": 18
+    },
+    "enemy_level": {
+      "type": "text",
+      "parent": "enemy_hud",
+      "x": 225,
+      "y": 16,
+      "width": 135,
+      "height": 20
+    },
+    "enemy_hp": {
+      "type": "bar",
+      "parent": "enemy_hud",
+      "x": 15,
+      "y": 32,
+      "width": 259,
+      "height": 19,
+      "bar_type": "enemy_hp",
+      "color": "red"
+    }
+  }
 }

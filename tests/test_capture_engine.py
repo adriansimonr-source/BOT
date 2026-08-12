@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
@@ -101,6 +102,22 @@ class CaptureEngineTests(unittest.TestCase):
         self.assertEqual(engine.surface_manager.released, ["texture", "access"])
         self.assertEqual(engine.frame_manager.released, ["surface"])
         self.assertEqual(engine.reader.released, ["frame"])
+
+    def test_missing_frame_returns_after_the_short_timeout(self):
+        engine = CaptureEngine("Window", 100, 100)
+        engine.running = True
+        engine.reader = SimpleNamespace(try_get_next_frame=lambda: None)
+
+        with (
+            patch(
+                "core.services.capture_engine.time.perf_counter",
+                side_effect=(0.0, 0.0, 0.011),
+            ),
+            patch("core.services.capture_engine.time.sleep") as sleep,
+        ):
+            self.assertIsNone(engine.get_frame())
+
+        sleep.assert_called_once_with(0.005)
 
 
 if __name__ == "__main__":

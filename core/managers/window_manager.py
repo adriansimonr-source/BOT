@@ -55,15 +55,6 @@ class WindowManager:
             ),
         )
 
-    def find_window_by_pid(self, pid, window_title=None):
-        for window in self.list_windows(window_title):
-            if window["pid"] == pid:
-                self.hwnd = window["hwnd"]
-                return True
-
-        self.hwnd = None
-        return False
-
     def find_window_by_title(self, title):
         windows = self.list_windows(title)
         self.hwnd = windows[0]["hwnd"] if windows else None
@@ -86,16 +77,6 @@ class WindowManager:
             "width": right - left,
             "height": bottom - top,
         }
-
-    def get_title(self):
-        if self.hwnd is None or not win32gui.IsWindow(self.hwnd):
-            return None
-        return win32gui.GetWindowText(self.hwnd)
-
-    def get_pid(self):
-        if self.hwnd is None or not win32gui.IsWindow(self.hwnd):
-            return None
-        return win32process.GetWindowThreadProcessId(self.hwnd)[1]
 
     def is_valid(self):
         return self.hwnd is not None and bool(win32gui.IsWindow(self.hwnd))

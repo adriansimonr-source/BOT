@@ -28,7 +28,3 @@ class FrameCPUReader:
             strides=(row_pitch, 4, 1),
         )
         return cv2.cvtColor(bgra, cv2.COLOR_BGRA2BGR)
-
-    @staticmethod
-    def save_png(image, filename):
-        return cv2.imwrite(filename, image)

@@ -1,95 +1,31 @@
 class HUDResolver:
-
-
-
-    def resolve(
-        self,
-        detection,
-        region
-    ):
-
-
-        if detection is None:
-
+    @staticmethod
+    def resolve(detection, region):
+        if detection is None or region is None:
             return None
 
-
-
-        # =====================================
-        # Si viene de un anchor detectado
-        # =====================================
-
-
-        if "matched" in detection:
-
-
-            base_x = detection["x"]
-
-            base_y = (
-                detection["y"]
-                +
-                detection["height"]
-            )
-
-
-
-        # =====================================
-        # Si viene de otra region resuelta
-        # =====================================
-
-
-        else:
-
-
-            base_x = detection["x"]
-
-            base_y = detection["y"]
-
-
-
-
+        base_x = detection["x"]
+        base_y = detection["y"]
+        if detection.get("matched"):
+            base_y += detection["height"]
 
         return {
-
-
             "x": base_x + region["x"],
-
-
             "y": base_y + region["y"],
-
-
             "width": region["width"],
-
-
-            "height": region["height"]
-
+            "height": region["height"],
         }
 
+    @staticmethod
+    def crop(image, hud):
+        if image is None or hud is None:
+            return None
 
-
-
-
-    def crop(
-        self,
-        image,
-        hud
-    ):
-
-
-        x = hud["x"]
-
-        y = hud["y"]
-
-        w = hud["width"]
-
-        h = hud["height"]
-
-
-
-        return image[
-
-            y:y+h,
-
-            x:x+w
-
-        ]
+        image_height, image_width = image.shape[:2]
+        x1 = max(0, int(hud["x"]))
+        y1 = max(0, int(hud["y"]))
+        x2 = min(image_width, int(hud["x"] + hud["width"]))
+        y2 = min(image_height, int(hud["y"] + hud["height"]))
+        if x1 >= x2 or y1 >= y2:
+            return None
+        return image[y1:y2, x1:x2]

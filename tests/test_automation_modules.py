@@ -16,9 +16,11 @@ class FakeInput:
 
     def __init__(self):
         self.keys = []
+        self.hold_times = []
 
-    def press(self, key):
+    def press(self, key, hold_ms=None):
         self.keys.append(key)
+        self.hold_times.append(hold_ms)
         return True
 
     def update(self):
@@ -31,8 +33,9 @@ class ScriptedInput(FakeInput):
         super().__init__()
         self.outcomes = iter(outcomes)
 
-    def press(self, key):
+    def press(self, key, hold_ms=None):
         self.keys.append(key)
+        self.hold_times.append(hold_ms)
         return next(self.outcomes)
 
 
@@ -41,6 +44,8 @@ def create_state(
     target_exists=False,
     target_name="",
     target_hp=0,
+    target_hp_valid=False,
+    target_hp_observed_at=None,
     selection_id=0,
     hp=100,
     mp=100,
@@ -51,6 +56,8 @@ def create_state(
             exists=target_exists,
             name=target_name,
             hp_percent=target_hp,
+            hp_valid=target_hp_valid,
+            hp_observed_at=target_hp_observed_at,
             level=1,
             selection_id=selection_id,
         ),
@@ -73,7 +80,7 @@ class AutomationModuleTests(unittest.TestCase):
     def test_auto_target_skips_ignored_target(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_blacklist(["ignored"])
+        rules.set_blacklist(["ignored"], enabled=True)
         module = AutoTarget(input_manager, rules)
 
         module.update(
@@ -82,69 +89,74 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["E"])
 
-    def test_ignored_target_is_cycled_quickly_and_never_attacked(self):
+    def test_ignored_target_is_retried_after_settling_and_never_attacked(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_blacklist(["Ignored"])
+        rules.set_blacklist(["Ignored"], enabled=True)
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
             target_name="Ignored",
+            target_hp=100,
             selection_id=1,
         )
 
         with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
             target_module.update(state)
-        state.target.auto_target_decision = None
-        state.target.auto_target_decision_selection_id = None
         attack_module.update(state)
         with patch("core.modules.auto_target.time.perf_counter", return_value=1.1):
             target_module.update(state)
         attack_module.update(state)
-        with patch("core.modules.auto_target.time.perf_counter", return_value=1.25):
+        with patch("core.modules.auto_target.time.perf_counter", return_value=2.0):
+            target_module.update(state)
+        attack_module.update(state)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=5.0):
             target_module.update(state)
         attack_module.update(state)
 
         self.assertEqual(input_manager.keys, ["E", "E"])
 
-    def test_attack_gate_survives_target_decision_reset_between_ticks(self):
+    def test_attack_filter_does_not_depend_on_an_auto_target_tick(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_blacklist(["Ignored"])
-        target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        rules.set_blacklist(["Ignored"], enabled=True)
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
             target_name="Ignored",
+            target_hp=100,
             selection_id=11,
         )
 
-        target_module.update(state)
-        input_manager.keys.clear()
-        state.target.auto_target_decision = None
-        state.target.auto_target_decision_selection_id = None
         attack_module.update(state)
 
         self.assertEqual(input_manager.keys, [])
 
-    def test_auto_target_does_not_depend_on_target_hp(self):
+    def test_unknown_target_hp_allows_attack_and_skills_without_cycling(self):
         input_manager = FakeInput()
-        module = AutoTarget(input_manager, TargetRules())
-
-        module.update(
-            create_state(target_exists=True, target_name="Enemy", target_hp=0)
+        state = create_state(
+            target_exists=True,
+            target_name="Enemy",
+            target_hp=0,
+            target_hp_valid=False,
+            target_hp_observed_at=None,
+            selection_id=1,
         )
 
-        self.assertEqual(input_manager.keys, [])
+        target_module = AutoTarget(input_manager, TargetRules())
+        attack_module = AutoAttack(input_manager, TargetRules())
+        rotation = RotationManager(input_manager)
+        rotation.skills = [SkillConfig(True, "1", 0)]
+
+        with patch("core.modules.auto_target.time.perf_counter", return_value=0.0):
+            target_module.update(state)
+        with patch("core.modules.auto_attack.time.perf_counter", return_value=0.0):
+            attack_module.update(state)
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.0):
+            rotation.update(state)
+
+        self.assertEqual(input_manager.keys, ["R", "1"])
 
     def test_auto_attack_requires_an_allowed_target(self):
         input_manager = FakeInput()
@@ -159,11 +171,10 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["R"])
 
-    def test_auto_attack_does_not_reevaluate_ignore_or_unique_lists(self):
+    def test_auto_attack_respects_blacklist_and_allows_other_names(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_blacklist(["Enemy"])
-        rules.set_unique_targets(["Boss"], enabled=True)
+        rules.set_blacklist(["Enemy"], enabled=True)
         module = AutoAttack(input_manager, rules)
 
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
@@ -174,8 +185,22 @@ class AutomationModuleTests(unittest.TestCase):
                     selection_id=1,
                 )
             )
+            module.update(
+                create_state(
+                    target_exists=True,
+                    target_name="Normal",
+                    selection_id=2,
+                )
+            )
+            module.update(
+                create_state(
+                    target_exists=True,
+                    target_name="",
+                    selection_id=3,
+                )
+            )
 
-        self.assertEqual(input_manager.keys, ["R"])
+        self.assertEqual(input_manager.keys, ["R", "R"])
 
     def test_auto_attack_is_immediate_then_respects_its_interval(self):
         input_manager = FakeInput()
@@ -244,123 +269,113 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["R", "R"])
 
-    def test_unknown_identity_is_pending_when_target_name_is_required(self):
+    def test_active_blacklist_allows_unknown_identity(self):
         rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
+        rules.set_blacklist(["Ignored"], enabled=True)
 
         decision = rules.evaluate(
             create_state(target_exists=True, target_name="").target
         )
 
-        self.assertIs(decision, TargetDecision.PENDING)
+        self.assertIs(decision, TargetDecision.ALLOW)
 
-    def test_unique_targets_filter_selection_and_attack(self):
+    def test_blacklist_filters_selection_and_attack_case_insensitively(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
+        rules.set_blacklist(["Ignored"], enabled=True)
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
 
-        wrong_target = create_state(
+        ignored_target = create_state(
             target_exists=True,
-            target_name="Normal",
+            target_name="iGnOrEd",
+            target_hp=100,
             selection_id=1,
         )
-        target_module.update(wrong_target)
-        attack_module.update(wrong_target)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
+            target_module.update(ignored_target)
+        attack_module.update(ignored_target)
 
         self.assertEqual(input_manager.keys, ["E"])
 
         allowed_target = create_state(
             target_exists=True,
-            target_name="boss",
+            target_name="Normal",
+            target_hp=100,
             selection_id=2,
         )
-        target_module.update(allowed_target)
-        with patch("core.modules.auto_attack.time.perf_counter", return_value=10.0):
+        with patch("core.modules.auto_target.time.perf_counter", return_value=1.1):
+            target_module.update(allowed_target)
+        with patch("core.modules.auto_attack.time.perf_counter", return_value=1.1):
             attack_module.update(allowed_target)
 
         self.assertEqual(input_manager.keys, ["E", "R"])
 
-    def test_unique_target_is_locked_until_it_disappears(self):
+    def test_allowed_target_is_held_while_damage_progresses(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
             target_name="Boss",
             target_hp=100,
+            target_hp_valid=True,
+            target_hp_observed_at=0.0,
             selection_id=7,
         )
 
-        target_module.update(state)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=0.0):
+            target_module.update(state)
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
             attack_module.update(state)
 
-        state.target.name = "Lectura OCR temporal"
-        state.target.hp_percent = 0
-        target_module.update(state)
+        state.target.hp_percent = 50
+        state.target.hp_observed_at = 5.0
+        with patch("core.modules.auto_target.time.perf_counter", return_value=5.0):
+            target_module.update(state)
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.25):
             attack_module.update(state)
 
         state.target.exists = False
-        with patch("core.modules.auto_target.time.perf_counter", return_value=2.0):
+        with patch("core.modules.auto_target.time.perf_counter", return_value=6.0):
             target_module.update(state)
         attack_module.update(state)
 
         self.assertEqual(input_manager.keys, ["R", "R", "E"])
 
-    def test_unique_lock_fallback_does_not_confuse_zero_id_targets(self):
+    def test_zero_selection_id_still_applies_blacklist_filter(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
+        rules.set_blacklist(["Ignored"], enabled=True)
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
-            target_name="Boss",
+            target_name="Normal",
+            target_hp=100,
             selection_id=0,
         )
 
-        target_module.update(state)
-        state.target.name = "Normal"
-        target_module.update(state)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
+            target_module.update(state)
+        state.target.name = "Ignored"
+        with patch("core.modules.auto_target.time.perf_counter", return_value=1.1):
+            target_module.update(state)
         attack_module.update(state)
 
         self.assertEqual(input_manager.keys, ["E"])
 
-    def test_unique_search_blocks_pending_ocr_then_attacks_immediately(self):
+    def test_unknown_name_is_allowed_then_resolved_ignored_name_is_rejected(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
+        rules.set_blacklist(["Ignored"], enabled=True)
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
             target_name="",
+            target_hp=100,
             selection_id=9,
         )
 
@@ -369,48 +384,43 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
             attack_module.update(state)
 
-        state.target.name = "Boss"
+        state.target.name = "Ignored"
         with patch("core.modules.auto_target.time.perf_counter", return_value=1.1):
             target_module.update(state)
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.1):
             attack_module.update(state)
 
-        self.assertEqual(input_manager.keys, ["R"])
+        self.assertEqual(input_manager.keys, ["R", "E"])
 
-    def test_new_selection_waits_for_auto_target_then_attacks(self):
+    def test_new_allowed_selection_attacks_before_auto_target_updates(self):
         input_manager = FakeInput()
         rules = TargetRules()
-        rules.set_blacklist(["Ignored"])
+        rules.set_blacklist(["Ignored"], enabled=True)
         target_module = AutoTarget(input_manager, rules)
-        attack_module = AutoAttack(
-            input_manager,
-            rules,
-            auto_target=target_module,
-        )
+        attack_module = AutoAttack(input_manager, rules)
         state = create_state(
             target_exists=True,
             target_name="Ignored",
+            target_hp=100,
             selection_id=1,
         )
 
-        target_module.update(state)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=0.0):
+            target_module.update(state)
         state.target.selection_id = 2
         state.target.name = "New Target"
-        with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
+        with patch("core.modules.auto_attack.time.perf_counter", return_value=0.1):
             attack_module.update(state)
-        target_module.update(state)
-        with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
-            attack_module.update(state)
+        with patch("core.modules.auto_target.time.perf_counter", return_value=0.1):
+            target_module.update(state)
 
         self.assertEqual(input_manager.keys, ["E", "R"])
 
-    def test_engine_configures_multiple_unique_targets_for_target_and_attack(self):
+    def test_engine_configures_only_blacklist_for_target_and_attack(self):
         enabled = SimpleNamespace(isChecked=lambda: True)
         panel = SimpleNamespace(
             get_ignored_targets=lambda: ["Ignored", "ignored"],
-            get_unique_targets=lambda: ["Boss A", "boss a", "Boss B"],
             ignore_targets=enabled,
-            unique_targets_checkbox=enabled,
         )
         engine = BotEngine.__new__(BotEngine)
         engine.target_rules = TargetRules()
@@ -419,42 +429,32 @@ class AutomationModuleTests(unittest.TestCase):
         engine.configure(panel, None)
 
         self.assertEqual(engine.target_rules.blacklist, ["ignored"])
-        self.assertEqual(
-            engine.target_rules.unique_targets,
-            ["boss a", "boss b"],
-        )
-        self.assertTrue(engine.target_rules.unique_targets_enabled)
-        self.assertFalse(engine.target_rules.allow_unknown)
+        self.assertTrue(engine.target_rules.blacklist_enabled)
+        self.assertTrue(engine.target_rules.has_filters())
 
         input_manager = FakeInput()
         target_module = AutoTarget(input_manager, engine.target_rules)
-        attack_module = AutoAttack(
-            input_manager,
-            engine.target_rules,
-            auto_target=target_module,
-        )
-        rejected = create_state(target_exists=True, target_name="Normal")
-        target_module.update(rejected)
-        attack_module.update(rejected)
-
-        boss_a = create_state(
+        attack_module = AutoAttack(input_manager, engine.target_rules)
+        rejected = create_state(
             target_exists=True,
-            target_name="BOSS A",
+            target_name="IGNORED",
+            target_hp=100,
             selection_id=1,
         )
-        target_module.update(boss_a)
-        with patch("core.modules.auto_attack.time.perf_counter", return_value=1.0):
-            attack_module.update(boss_a)
-        boss_b = create_state(
+        with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
+            target_module.update(rejected)
+        attack_module.update(rejected)
+
+        unknown = create_state(
             target_exists=True,
-            target_name="boss b",
+            target_name="",
+            target_hp=100,
             selection_id=2,
         )
-        target_module.update(boss_b)
         with patch("core.modules.auto_attack.time.perf_counter", return_value=1.1):
-            attack_module.update(boss_b)
+            attack_module.update(unknown)
 
-        self.assertEqual(input_manager.keys, ["E", "R", "R"])
+        self.assertEqual(input_manager.keys, ["E", "R"])
 
     def test_pause_releases_long_inputs_and_resume_enables_them(self):
         calls = []
@@ -471,13 +471,11 @@ class AutomationModuleTests(unittest.TestCase):
         self.assertEqual(calls, ["disable", "enable"])
         self.assertEqual(engine.state, BotState.RUNNING)
 
-    def test_empty_checked_filters_do_not_block_unknown_targets(self):
+    def test_empty_checked_blacklist_does_not_block_unknown_targets(self):
         enabled = SimpleNamespace(isChecked=lambda: True)
         panel = SimpleNamespace(
             get_ignored_targets=lambda: [],
-            get_unique_targets=lambda: [],
             ignore_targets=enabled,
-            unique_targets_checkbox=enabled,
         )
         engine = BotEngine.__new__(BotEngine)
         engine.target_rules = TargetRules()
@@ -485,8 +483,14 @@ class AutomationModuleTests(unittest.TestCase):
 
         engine.configure(panel, None)
 
-        self.assertFalse(engine.target_rules.unique_targets_enabled)
-        self.assertTrue(engine.target_rules.allow_unknown)
+        self.assertFalse(engine.target_rules.blacklist_enabled)
+        self.assertFalse(engine.target_rules.has_filters())
+        self.assertIs(
+            engine.target_rules.evaluate(
+                create_state(target_exists=True, target_name="").target
+            ),
+            TargetDecision.ALLOW,
+        )
 
     def test_auto_loot_waits_five_seconds_after_target_disappears(self):
         input_manager = FakeInput()
@@ -546,54 +550,6 @@ class AutomationModuleTests(unittest.TestCase):
             engine.update()
 
         self.assertEqual(input_manager.keys, ["F"])
-
-    def test_auto_target_waits_for_pending_ocr_until_timeout(self):
-        input_manager = FakeInput()
-        rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
-        module = AutoTarget(input_manager, rules)
-        state = create_state(target_exists=True, target_name="")
-
-        with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
-            module.update(state)
-        timeout = module.UNKNOWN_NAME_TIMEOUT_SECONDS
-        with patch(
-            "core.modules.auto_target.time.perf_counter",
-            return_value=1.0 + timeout - 0.001,
-        ):
-            module.update(state)
-        with patch(
-            "core.modules.auto_target.time.perf_counter",
-            return_value=1.0 + timeout,
-        ):
-            module.update(state)
-
-        self.assertEqual(input_manager.keys, ["E"])
-
-    def test_each_new_selection_gets_its_own_ocr_wait_window(self):
-        input_manager = FakeInput()
-        rules = TargetRules()
-        rules.set_unique_targets(["Boss"], enabled=True)
-        rules.allow_unknown = False
-        module = AutoTarget(input_manager, rules)
-        state = create_state(
-            target_exists=True,
-            target_name="",
-            selection_id=1,
-        )
-
-        with patch("core.modules.auto_target.time.perf_counter", return_value=1.0):
-            module.update(state)
-        with patch("core.modules.auto_target.time.perf_counter", return_value=3.0):
-            module.update(state)
-
-        state.target.selection_id = 2
-        with patch("core.modules.auto_target.time.perf_counter", return_value=3.1):
-            module.update(state)
-
-        self.assertEqual(input_manager.keys, ["E"])
-        self.assertEqual(module._pending_identity, ("selection", 2))
 
     def test_auto_pot_uses_hp_and_auto_mp_uses_mp(self):
         input_manager = FakeInput()
@@ -735,7 +691,7 @@ class AutomationModuleTests(unittest.TestCase):
         self.assertEqual(blocked_updates, [])
         self.assertEqual(input_manager.keys, ["R"])
 
-    def test_rotation_waits_for_each_interval_and_prioritizes_earliest_due(self):
+    def test_rotation_prioritizes_the_shortest_configured_interval(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -751,8 +707,24 @@ class AutomationModuleTests(unittest.TestCase):
             module.update(create_state(target_exists=True, target_hp=0))
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=11.0):
             module.update(create_state(target_exists=True, target_hp=0))
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=11.025):
+            module.update(create_state(target_exists=True, target_hp=0))
 
-        self.assertEqual(input_manager.keys, ["1", "2"])
+        self.assertEqual(input_manager.keys, ["1", "1", "2"])
+
+    def test_rotation_uses_gui_interval_before_the_oldest_deadline(self):
+        input_manager = FakeInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500, last_cast=2100),
+            SkillConfig(True, "F1", 2000, last_cast=0),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
+            module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["1"])
+        self.assertEqual(input_manager.hold_times, [25])
 
     def test_rotation_resolves_equal_intervals_one_skill_per_cycle(self):
         input_manager = FakeInput()
@@ -809,6 +781,29 @@ class AutomationModuleTests(unittest.TestCase):
         module.configure(None, SimpleNamespace(skills=[enabled_card, disabled_card]))
 
         self.assertEqual([skill.key for skill in module.skills], ["1"])
+
+    def test_rotation_reads_numeric_and_function_key_intervals(self):
+        cards = [
+            SimpleNamespace(
+                is_enabled=lambda: True,
+                skill_number=lambda key=key: key,
+                time=lambda interval=interval: interval,
+            )
+            for key, interval in (
+                ("1", 500),
+                ("9", 900),
+                ("F1", 1100),
+                ("F9", 1900),
+            )
+        ]
+        module = RotationManager(FakeInput())
+
+        module.configure(None, SimpleNamespace(skills=cards))
+
+        self.assertEqual(
+            [(skill.key, skill.cooldown) for skill in module.skills],
+            [("1", 500), ("9", 900), ("F1", 1100), ("F9", 1900)],
+        )
 
 
 if __name__ == "__main__":

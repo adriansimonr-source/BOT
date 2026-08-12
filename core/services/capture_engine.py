@@ -21,7 +21,7 @@ from core.models.frame import Frame
 
 class CaptureEngine:
 
-    FRAME_TIMEOUT_SECONDS = 0.05
+    FRAME_TIMEOUT_SECONDS = 0.01
 
     def __init__(self, title, width, height, hwnd=None):
         self.title = title
