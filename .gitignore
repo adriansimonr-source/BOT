@@ -14,6 +14,8 @@ __pycache__/
 # Archivos generados
 logs/
 debug/
+data/navigation_learning.json
+data/navigation_learning.json.tmp
 
 # Sistema
 .DS_Store

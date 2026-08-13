@@ -8,6 +8,14 @@ IID_ICLOSABLE = comtypes.GUID(
 )
 
 
+def initialize_com_thread():
+    comtypes.CoInitializeEx(comtypes.COINIT_MULTITHREADED)
+
+
+def uninitialize_com_thread():
+    comtypes.CoUninitialize()
+
+
 def get_vtable(interface):
     return ctypes.cast(
         interface,

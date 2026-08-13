@@ -78,6 +78,57 @@ class BotWorkerTests(unittest.TestCase):
         self.assertEqual(finished, [True])
         self.assertIsNone(worker.timer)
 
+    def test_stop_finishes_only_after_engine_confirms_shutdown(self):
+        engine = SimpleNamespace(
+            stop=MagicMock(side_effect=(RuntimeError("stop failed"), True)),
+        )
+        worker = BotWorker(engine)
+        errors = []
+        finished = []
+        worker.error.connect(errors.append)
+        worker.finished.connect(lambda: finished.append(True))
+
+        worker.stop()
+
+        self.assertEqual(errors, ["stop failed"])
+        self.assertEqual(finished, [])
+
+        worker.stop()
+
+        self.assertEqual(errors, ["stop failed"])
+        self.assertEqual(finished, [True])
+
+    def test_pending_shutdown_keeps_worker_alive_until_retry_succeeds(self):
+        engine = SimpleNamespace(stop=MagicMock(side_effect=(False, True)))
+        worker = BotWorker(engine)
+        finished = []
+        worker.finished.connect(lambda: finished.append(True))
+
+        worker.stop()
+
+        self.assertEqual(finished, [])
+        self.assertTrue(worker.stop_retry_timer.isActive())
+
+        worker.stop()
+
+        self.assertEqual(finished, [True])
+        self.assertFalse(worker.stop_retry_timer.isActive())
+
+    def test_live_configuration_error_has_its_own_signal(self):
+        engine = SimpleNamespace(
+            apply_config=MagicMock(side_effect=ValueError("bad config")),
+        )
+        worker = BotWorker(engine)
+        runtime_errors = []
+        config_errors = []
+        worker.error.connect(runtime_errors.append)
+        worker.config_error.connect(config_errors.append)
+
+        self.assertFalse(worker.apply_config(SimpleNamespace(revision=1)))
+
+        self.assertEqual(runtime_errors, [])
+        self.assertEqual(config_errors, ["bad config"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,7 @@ from core.modules.movement_manager import MovementManager
 from core.input.input_manager import InputManager
 
 from core.managers.game_state_manager import GameStateManager
+from core.models.automation_config import config_from_widgets
 from core.models.player_profile import PlayerProfile
 
 class BotState(Enum):
@@ -18,6 +19,7 @@ class BotState(Enum):
     STOPPED = auto()
     RUNNING = auto()
     PAUSED = auto()
+    STOPPING = auto()
 
 class BotEngine:
 
@@ -40,9 +42,18 @@ class BotEngine:
 
         self.modules = []
 
+        self._modules_active = False
+
         self.auto_target = AutoTarget(
             self.input_manager,
             self.target_rules
+        )
+
+        self.movement_manager = MovementManager(
+            self.input_manager,
+            self.profile.bot_settings,
+            learning_path="data/navigation_learning.json",
+            profile_id=self._active_game_id(),
         )
 
         self.register_module(
@@ -58,10 +69,7 @@ class BotEngine:
         )
 
         self.register_module(
-            MovementManager(
-                self.input_manager,
-                self.profile.bot_settings
-            )
+            self.movement_manager
         )
 
         self.register_module(
@@ -103,62 +111,116 @@ class BotEngine:
         character_group=None,
     ):
 
-        if character_group is not None:
+        self.apply_config(
+            config_from_widgets(
+                right_panel,
+                center_panel,
+                character_group,
+            )
+        )
+
+    def apply_config(self, config):
+
+        movement_manager = getattr(self, "movement_manager", None)
+        session_active = getattr(
+            self,
+            "state",
+            BotState.STOPPED,
+        ) in (BotState.RUNNING, BotState.PAUSED)
+
+        if movement_manager is not None and not session_active:
+
+            movement_manager.set_learning_profile(
+                self._active_game_id()
+            )
+
+        if config.bot_mode is not None:
 
             self.profile.bot_settings.set_mode(
-                character_group.get_bot_mode()
+                config.bot_mode
             )
+
+        if config.quiet_seconds is not None:
 
             self.profile.bot_settings.set_return_delay(
-                character_group.get_quiet_seconds()
+                config.quiet_seconds
             )
-
-        ignored_targets = right_panel.get_ignored_targets()
-
-        ignored_enabled = (
-
-            right_panel.ignore_targets.isChecked()
-
-            and
-
-            bool(ignored_targets)
-
-        )
 
         self.target_rules.set_blacklist(
 
-            ignored_targets,
+            config.ignored_targets,
 
-            ignored_enabled
+            config.ignore_enabled and bool(config.ignored_targets)
 
         )
 
-        for module in self.modules:
+        for module in getattr(self, "modules", ()):
+            if isinstance(module, RotationManager):
+                if config.skills is None:
+                    continue
+                if session_active:
+                    module.merge_config(config.skills)
+                else:
+                    module.configure(config, config)
+                continue
 
-            if hasattr(
-                module,
-                "configure"
-            ):
+            if isinstance(module, AutoConsumables):
+                if config.auto_pot1 is None or config.auto_mp is None:
+                    continue
+            elif isinstance(module, AutoHeal):
+                if config.auto_heal is None:
+                    continue
+            elif isinstance(module, AutoLoot):
+                if config.auto_loot is None:
+                    continue
+            elif isinstance(module, AutoTarget):
+                if config.auto_target is None:
+                    continue
+            elif isinstance(module, AutoAttack):
+                if config.auto_attack is None:
+                    continue
+            else:
+                continue
 
-                module.configure(
+            module.configure(config, config)
 
-                    right_panel,
+    def _active_game_id(self):
 
-                    center_panel
+        process_manager = getattr(
+            self.game_state_manager,
+            "process_manager",
+            None,
+        )
 
-                )
+        getter = getattr(process_manager, "get_active_game", None)
+
+        game = getter() if callable(getter) else None
+
+        return game.get("id") if isinstance(game, dict) else "default"
 
     def start(self):
 
         if self.state == BotState.RUNNING:
 
-            return
+            return True
+
+        if self.state == BotState.STOPPING:
+
+            return False
 
         self.input_manager.enable()
 
         try:
 
-            self.game_state_manager.start()
+            if self.game_state_manager.start() is False:
+
+                self.input_manager.disable()
+
+                self.state = BotState.STOPPING
+
+                return False
+
+            self._modules_active = True
 
             for module in self.modules:
 
@@ -168,35 +230,75 @@ class BotEngine:
 
             self.input_manager.disable()
 
-            self.game_state_manager.stop()
+            self.state = BotState.STOPPING
 
-            self.state = BotState.STOPPED
+            if self.game_state_manager.stop() is not False:
+
+                self._finish_stop()
 
             raise
 
         self.state = BotState.RUNNING
 
-    def stop(self):
+        return True
 
-        if self.state == BotState.STOPPED:
-
-            return
-
-        self.state = BotState.STOPPED
+    def request_stop(self):
 
         self.input_manager.disable()
 
-        self.game_state_manager.stop()
+        requester = getattr(
+            self.game_state_manager,
+            "request_stop",
+            None,
+        )
 
-        for module in self.modules:
+        if callable(requester):
 
-            module.on_stop()
+            requester()
+
+    def stop(self):
+
+        stopped = self.game_state_manager.stop()
+
+        if self.state == BotState.STOPPED and stopped is not False:
+
+            return True
+
+        self.state = BotState.STOPPING
+
+        self.input_manager.disable()
+
+        if stopped is False:
+
+            return False
+
+        self._finish_stop()
+
+        return True
+
+    def _finish_stop(self):
+
+        if getattr(self, "_modules_active", False):
+
+            self._modules_active = False
+
+            for module in self.modules:
+
+                module.on_stop()
+
+        self.state = BotState.STOPPED
 
     def pause(self):
 
         if self.state != BotState.RUNNING:
 
             return
+
+        movement_manager = getattr(self, "movement_manager", None)
+
+        if movement_manager is not None:
+
+            movement_manager.suspend("bot_pausado")
 
         self.state = BotState.PAUSED
 
@@ -235,6 +337,14 @@ class BotEngine:
         state = self.game_state_manager.get_state()
 
         if not state.connected:
+
+            movement_manager = getattr(self, "movement_manager", None)
+
+            if movement_manager is not None:
+
+                movement_manager.suspend("desconectado")
+
+            self.game_state_manager.update_auxiliary()
 
             return
 

@@ -1,5 +1,6 @@
 import time
 
+from core.models.player_state import PlayerState
 from core.modules.base_module import BaseModule
 
 
@@ -42,12 +43,14 @@ class AutoConsumables(BaseModule):
 
     def update(self, state):
         player = state.player
-        now = time.perf_counter() * 1000
+        observed_now = time.perf_counter()
+        now = observed_now * 1000
         hp_percent = player.hp_percent
         mp_percent = player.mp_percent
 
         if (
             self.pot1_enabled
+            and PlayerState.resource_is_fresh(player, "hp", now=observed_now)
             and 0 < hp_percent <= self.pot1_threshold
             and (
                 self.last_pot1_use is None
@@ -59,6 +62,7 @@ class AutoConsumables(BaseModule):
 
         if (
             self.mp_enabled
+            and PlayerState.resource_is_fresh(player, "mp", now=observed_now)
             and 0 < mp_percent <= self.mp_threshold
             and (
                 self.last_mp_use is None

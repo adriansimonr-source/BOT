@@ -37,6 +37,14 @@
       "width": 85,
       "height": 18
     },
+    "player_direction": {
+      "type": "detector",
+      "parent": "minimap_hud",
+      "x": 85,
+      "y": 85,
+      "width": 50,
+      "height": 50
+    },
     "player_hud": {
       "type": "hud",
       "parent": "player_anchor",

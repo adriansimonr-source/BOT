@@ -4,6 +4,8 @@ import numpy as np
 
 class OCRReader:
 
+    OCR_TIMEOUT_SECONDS = 0.75
+
     def __init__(self):
 
         self.text_config = (
@@ -35,13 +37,21 @@ class OCRReader:
 
             return ""
 
-        result = pytesseract.image_to_string(
+        try:
 
-            processed,
+            result = pytesseract.image_to_string(
 
-            config=self.text_config
+                processed,
 
-        )
+                config=self.text_config,
+
+                timeout=self.OCR_TIMEOUT_SECONDS,
+
+            )
+
+        except RuntimeError:
+
+            return ""
 
         return self.clean(
 
@@ -67,13 +77,21 @@ class OCRReader:
 
             return 0
 
-        result = pytesseract.image_to_string(
+        try:
 
-            processed,
+            result = pytesseract.image_to_string(
 
-            config=self.number_config
+                processed,
 
-        )
+                config=self.number_config,
+
+                timeout=self.OCR_TIMEOUT_SECONDS,
+
+            )
+
+        except RuntimeError:
+
+            return 0
 
         result = self.clean(
 

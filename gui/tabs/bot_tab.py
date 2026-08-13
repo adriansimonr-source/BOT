@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QGridLayout,
 )
+from PySide6.QtCore import QTimer, Signal
 
 from gui.widgets.game_selector import GameSelector
 from gui.widgets.character_group import CharacterGroup
@@ -12,12 +13,15 @@ from gui.right_panel import RightPanel
 from gui.center_panel import CenterPanel
 
 from gui.widgets.bot_control_bar import BotControlBar
+from core.models.automation_config import config_from_widgets
 
 
 
 
 
 class BotTab(QWidget):
+
+    configuration_changed = Signal(object)
 
 
     def __init__(self, game_profiles=None):
@@ -26,11 +30,15 @@ class BotTab(QWidget):
 
         self.game_profiles = game_profiles
 
+        self._config_revision = 0
+
         self.create_widgets()
 
         self.create_layout()
 
         self.apply_style()
+
+        self.create_config_updates()
 
 
 
@@ -229,6 +237,76 @@ class BotTab(QWidget):
                 card_style
             )
 
+    def create_config_updates(self):
+
+        self.config_timer = QTimer(self)
+        self.config_timer.setSingleShot(True)
+        self.config_timer.setInterval(75)
+        self.config_timer.timeout.connect(self.emit_configuration)
+
+        for card in self.rotation_panel.skills:
+            card.enabled_checkbox.toggled.connect(
+                self.schedule_configuration
+            )
+            card.time_spin.valueChanged.connect(
+                self.schedule_configuration
+            )
+
+        for card in (
+            self.auto_panel.auto_target,
+            self.auto_panel.auto_attack,
+            self.auto_panel.auto_loot,
+        ):
+            card.checkbox.toggled.connect(self.schedule_configuration)
+            if card.interval_spin is not None:
+                card.interval_spin.valueChanged.connect(
+                    self.schedule_configuration
+                )
+
+        for card in (
+            self.auto_panel.auto_pot1,
+            self.auto_panel.auto_mp,
+            self.auto_panel.auto_heal,
+        ):
+            card.checkbox.toggled.connect(self.schedule_configuration)
+            card.threshold_spin.valueChanged.connect(
+                self.schedule_configuration
+            )
+            card.interval_spin.valueChanged.connect(
+                self.schedule_configuration
+            )
+
+        self.auto_panel.ignore_targets.toggled.connect(
+            self.schedule_configuration
+        )
+        self.auto_panel.enemy_ignores_changed.connect(
+            self.schedule_configuration
+        )
+        self.character_group.mode_selector.currentIndexChanged.connect(
+            self.schedule_configuration
+        )
+        self.character_group.quiet_seconds.valueChanged.connect(
+            self.schedule_configuration
+        )
+
+    def schedule_configuration(self, *_args):
+
+        self.config_timer.start()
+
+    def build_configuration(self):
+
+        self._config_revision += 1
+        return config_from_widgets(
+            self.auto_panel,
+            self.rotation_panel,
+            self.character_group,
+            revision=self._config_revision,
+        )
+
+    def emit_configuration(self):
+
+        self.configuration_changed.emit(self.build_configuration())
+
 
 
 
@@ -239,12 +317,7 @@ class BotTab(QWidget):
 
     def lock_controls(self):
 
-
-        self.auto_panel.lock_controls()
-
-        self.rotation_panel.lock_controls()
-
-        self.character_group.lock_settings()
+        self.game_selector.set_locked(True)
 
 
 
@@ -253,9 +326,4 @@ class BotTab(QWidget):
 
     def unlock_controls(self):
 
-
-        self.auto_panel.unlock_controls()
-
-        self.rotation_panel.unlock_controls()
-
-        self.character_group.unlock_settings()
+        self.game_selector.set_locked(False)

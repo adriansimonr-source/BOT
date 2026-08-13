@@ -1,7 +1,7 @@
 import inspect
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -44,11 +44,19 @@ class PlayerMonitorTests(unittest.TestCase):
         monitor = PlayerMonitor(detector, resolver, bar_reader, templates)
         player = PlayerState()
 
-        updated = monitor.update(image, player)
+        with patch(
+            "core.services.player_monitor.time.perf_counter",
+            return_value=12.5,
+        ):
+            updated = monitor.update(image, player)
 
         self.assertTrue(updated)
         self.assertEqual(player.hp_percent, 76.5)
+        self.assertTrue(player.hp_valid)
+        self.assertEqual(player.hp_updated_at, 12.5)
         self.assertEqual(player.mp_percent, 38.25)
+        self.assertTrue(player.mp_valid)
+        self.assertEqual(player.mp_updated_at, 12.5)
         self.assertEqual(
             templates.requests,
             ["player_anchor", "player_hud", "player_hp", "player_mp"],

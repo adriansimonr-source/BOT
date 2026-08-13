@@ -8,6 +8,7 @@ import pytesseract
 
 class CoordinateReader:
 
+    OCR_TIMEOUT_SECONDS = 0.75
     OCR_CONFIG = (
         "--oem 3 --psm 7 "
         "-c tessedit_char_whitelist=0123456789/"
@@ -110,7 +111,14 @@ class CoordinateReader:
 
         for name, mask in masks:
             self._save(f"coordinate_{name}.png", mask)
-            text = pytesseract.image_to_string(mask, config=self.OCR_CONFIG)
+            try:
+                text = pytesseract.image_to_string(
+                    mask,
+                    config=self.OCR_CONFIG,
+                    timeout=self.OCR_TIMEOUT_SECONDS,
+                )
+            except RuntimeError:
+                return None
             coord = self.parse_text(text)
             if coord is not None:
                 with self._lock:

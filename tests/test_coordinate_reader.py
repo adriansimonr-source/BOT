@@ -1,4 +1,7 @@
 import unittest
+from unittest.mock import patch
+
+import numpy as np
 
 from core.services.coordinate_reader import CoordinateReader
 
@@ -46,6 +49,23 @@ class CoordinateReaderTests(unittest.TestCase):
 
         self.assertEqual(reader.last_value, {"x": 100, "y": 100})
         self.assertEqual(reader.pending_jump, {"x": 180, "y": 180})
+
+    def test_ocr_timeout_returns_no_coordinate(self):
+        reader = CoordinateReader()
+        image = np.zeros((8, 24, 3), dtype=np.uint8)
+
+        with patch(
+            "core.services.coordinate_reader.pytesseract.image_to_string",
+            side_effect=RuntimeError("timeout"),
+        ) as image_to_string:
+            result = reader.read(image)
+
+        self.assertIsNone(result)
+        self.assertEqual(image_to_string.call_count, 1)
+        self.assertEqual(
+            image_to_string.call_args.kwargs["timeout"],
+            reader.OCR_TIMEOUT_SECONDS,
+        )
 
 
 if __name__ == "__main__":

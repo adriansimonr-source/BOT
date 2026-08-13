@@ -14,6 +14,7 @@ from core.services.coordinate_reader import CoordinateReader
 from core.services.enemy_monitor import EnemyMonitor
 from core.services.hud_resolver import HUDResolver
 from core.services.name_matcher import NameMatcher
+from core.services.minimap_heading_detector import MinimapHeadingDetector
 from core.services.player_monitor import PlayerMonitor
 from core.services.template_detector import TemplateDetector
 from core.services.template_manager import TemplateManager
@@ -25,6 +26,8 @@ class VisionManager:
     MINIMAP_UPDATE_INTERVAL_SECONDS = 1.0
     COORDINATE_UPDATE_INTERVAL_SECONDS = 1.0
     NAVIGATION_COORDINATE_UPDATE_INTERVAL_SECONDS = 0.5
+    HEADING_UPDATE_INTERVAL_SECONDS = 0.5
+    NAVIGATION_HEADING_UPDATE_INTERVAL_SECONDS = 0.1
 
     def __init__(self, game_id=None, hwnd=None, capture_size=None):
         self.config = ConfigManager()
@@ -51,6 +54,7 @@ class VisionManager:
             self.config.get("features", "debug_mode")
         )
         self.coordinate_reader = CoordinateReader(debug=self.debug_enabled)
+        self.heading_detector = MinimapHeadingDetector()
         self.entity_database = EntityDatabaseManager()
         self.entity_cache = EntityCacheManager()
 
@@ -79,21 +83,27 @@ class VisionManager:
         )
         self.last_minimap_update = 0.0
         self.last_coordinate_update = 0.0
+        self.last_heading_update = 0.0
         self.last_minimap_hud = None
         self.last_player_update = 0.0
         self.latest_image = None
+        self.latest_image_observed_at = 0.0
         self.ocr_executor = None
         self.coordinate_future = None
+        self.coordinate_submitted_at = None
 
     def start(self):
         if self.running:
             return
-        self.coordinate_reader.reset()
+        self.reset_position_reader()
+        self.heading_detector.reset()
         self.last_minimap_update = 0.0
         self.last_coordinate_update = 0.0
+        self.last_heading_update = 0.0
         self.last_minimap_hud = None
         self.last_player_update = 0.0
         self.latest_image = None
+        self.latest_image_observed_at = 0.0
         self.debug_minimap_saved = False
         self.ocr_executor = ThreadPoolExecutor(
             max_workers=2,
@@ -104,13 +114,18 @@ class VisionManager:
             self.capture.start()
         except Exception:
             self.enemy_monitor.set_executor(None)
-            self.ocr_executor.shutdown(wait=False, cancel_futures=True)
+            self.ocr_executor.shutdown(wait=True, cancel_futures=True)
             self.ocr_executor = None
             raise
         self.running = True
 
     def reset_position_reader(self):
-        self.coordinate_reader.reset()
+        future = self.coordinate_future
+        if future is not None:
+            future.cancel()
+        self.coordinate_future = None
+        self.coordinate_submitted_at = None
+        self.coordinate_reader = CoordinateReader(debug=self.debug_enabled)
 
     def poll(self, state):
         self.enemy_monitor.poll(state.target)
@@ -125,6 +140,7 @@ class VisionManager:
 
         image = frame.image
         self.latest_image = image
+        self.latest_image_observed_at = time.perf_counter()
         self.enemy_monitor.update(image, state.target)
         now = time.perf_counter()
         if now - self.last_player_update >= self.PLAYER_UPDATE_INTERVAL_SECONDS:
@@ -148,7 +164,13 @@ class VisionManager:
         coordinate_due = (
             now - self.last_coordinate_update >= coordinate_interval
         )
-        if not minimap_due and not coordinate_due:
+        heading_interval = (
+            self.NAVIGATION_HEADING_UPDATE_INTERVAL_SECONDS
+            if getattr(state, "navigation_active", False)
+            else self.HEADING_UPDATE_INTERVAL_SECONDS
+        )
+        heading_due = now - self.last_heading_update >= heading_interval
+        if not minimap_due and not coordinate_due and not heading_due:
             return
 
         if minimap_due:
@@ -156,15 +178,27 @@ class VisionManager:
                 self.latest_image,
                 state,
                 read_coordinates=coordinate_due,
+                read_heading=heading_due,
             )
             self.last_minimap_update = now
-        elif coordinate_due:
-            self._update_coordinates(self.latest_image)
+        else:
+            if coordinate_due:
+                self._update_coordinates(self.latest_image)
+            if heading_due:
+                self._update_heading(self.latest_image, state)
 
         if coordinate_due:
             self.last_coordinate_update = now
+        if heading_due:
+            self.last_heading_update = now
 
-    def update_minimap(self, image, state, read_coordinates=True):
+    def update_minimap(
+        self,
+        image,
+        state,
+        read_coordinates=True,
+        read_heading=True,
+    ):
         self.last_minimap_hud = None
         minimap_template = self.templates.get("minimap_anchor")
         if minimap_template is None:
@@ -186,6 +220,8 @@ class VisionManager:
 
         if read_coordinates:
             self._submit_coordinate_read(crop)
+        if read_heading:
+            self._read_heading(crop, state)
 
         self.save_debug_minimap(crop)
 
@@ -208,6 +244,36 @@ class VisionManager:
         if crop is not None:
             self._submit_coordinate_read(crop)
 
+    def _update_heading(self, image, state):
+        minimap_hud = self.last_minimap_hud
+        if minimap_hud is None:
+            return
+        crop = self.resolver.crop(image, minimap_hud)
+        if crop is not None:
+            self._read_heading(crop, state)
+
+    def _read_heading(self, minimap, state):
+        region = self.templates.get("player_direction")
+        if region is None:
+            return
+        x = region["x"]
+        y = region["y"]
+        width = region["width"]
+        height = region["height"]
+        marker = minimap[y:y + height, x:x + width]
+        if not marker.size:
+            return
+        detection = self.heading_detector.update(
+            marker,
+            self.latest_image_observed_at,
+        )
+        if detection is not None:
+            state.player.update_minimap_heading(
+                detection.angle,
+                detection.confidence,
+                detection.observed_at,
+            )
+
     def _submit_coordinate_read(self, crop):
         coordinate_region = self.templates.get("player_coordinates")
         if (
@@ -221,6 +287,7 @@ class VisionManager:
             height = coordinate_region["height"]
             coordinate_box = crop[y:y + height, x:x + width]
             if coordinate_box.size:
+                self.coordinate_submitted_at = self.latest_image_observed_at
                 self.coordinate_future = self.ocr_executor.submit(
                     self.coordinate_reader.read,
                     coordinate_box.copy(),
@@ -231,12 +298,18 @@ class VisionManager:
         if future is None or not future.done():
             return
         self.coordinate_future = None
+        observed_at = self.coordinate_submitted_at
+        self.coordinate_submitted_at = None
         try:
             position = future.result()
         except Exception:
             return
         if position:
-            state.player.update_position(position["x"], position["y"])
+            state.player.update_position(
+                position["x"],
+                position["y"],
+                observed_at=observed_at,
+            )
 
     def save_debug_minimap(self, image):
         if not self.debug_enabled or self.debug_minimap_saved:
@@ -246,12 +319,25 @@ class VisionManager:
         self.debug_minimap_saved = True
 
     def stop(self):
-        self.capture.stop()
-        self.running = False
-        self.latest_image = None
-        self.last_minimap_hud = None
-        self.coordinate_future = None
-        self.enemy_monitor.set_executor(None)
-        if self.ocr_executor:
-            self.ocr_executor.shutdown(wait=False, cancel_futures=True)
-            self.ocr_executor = None
+        capture_error = None
+        try:
+            self.capture.stop()
+        except Exception as error:
+            capture_error = error
+        finally:
+            self.running = False
+            self.latest_image = None
+            self.latest_image_observed_at = 0.0
+            self.last_minimap_hud = None
+            self.heading_detector.reset()
+            future = self.coordinate_future
+            if future is not None:
+                future.cancel()
+            self.coordinate_future = None
+            self.coordinate_submitted_at = None
+            self.enemy_monitor.set_executor(None)
+            if self.ocr_executor:
+                self.ocr_executor.shutdown(wait=True, cancel_futures=True)
+                self.ocr_executor = None
+        if capture_error is not None:
+            raise capture_error

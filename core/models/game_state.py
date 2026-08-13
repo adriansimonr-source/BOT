@@ -18,6 +18,7 @@ class GameState:
         self.navigation_reason = ""
         self.navigation_distance = None
         self.navigation_key = None
+        self.navigation_confidence = 0.0
 
     def reset(self):
 
@@ -30,3 +31,4 @@ class GameState:
         self.navigation_reason = ""
         self.navigation_distance = None
         self.navigation_key = None
+        self.navigation_confidence = 0.0

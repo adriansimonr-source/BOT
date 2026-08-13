@@ -44,6 +44,7 @@ def create_state(x=120, y=100, *, radius_mode=BotMode.STATIC_POINT):
         position_valid=True,
         position_updated_at=0.0,
         position_revision=1,
+        position_history=[],
         fresh=True,
     )
     player.has_fresh_position = lambda max_age=None: player.fresh
@@ -81,6 +82,14 @@ class MovementManagerTests(unittest.TestCase):
             state.player.y = y
         if new_sample:
             state.player.position_revision += 1
+            state.player.position_history.append(
+                (
+                    state.player.position_revision,
+                    now,
+                    state.player.x,
+                    state.player.y,
+                )
+            )
         with patch(
             "core.modules.movement_manager.time.perf_counter",
             return_value=now,
@@ -205,7 +214,7 @@ class MovementManagerTests(unittest.TestCase):
             )
         )
 
-    def test_coordinate_sample_during_hold_is_ignored(self):
+    def test_coordinate_sample_during_hold_waits_for_a_post_settle_sample(self):
         state, settings = create_state()
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)
@@ -227,6 +236,7 @@ class MovementManagerTests(unittest.TestCase):
 
         self.assertFalse(self.update_at(module, state, observe_after + 0.01))
         self.assertEqual(input_manager.presses, [("W", 400)])
+        self.assertEqual(module.policy.estimates["W"].samples, 0)
 
         self.assertTrue(
             self.update_at(
@@ -238,6 +248,7 @@ class MovementManagerTests(unittest.TestCase):
             )
         )
         self.assertEqual([key for key, _ in input_manager.presses], ["W", "W"])
+        self.assertEqual(module.policy.estimates["W"].samples, 1)
 
     def test_missing_coordinate_after_command_enters_cooldown(self):
         state, settings = create_state()
@@ -317,6 +328,97 @@ class MovementManagerTests(unittest.TestCase):
         self.assertFalse(self.update_at(module, state, exhausted_at + 20.0))
         self.assertEqual(len(input_manager.presses), module.MAX_ATTEMPTS)
 
+    def test_failed_state_recovers_at_origin_and_can_return_again(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        module._game_state = state
+        module._origin = (100, 100)
+        module.status = MovementStatus.FAILED
+        module.reason = "retorno_agotado"
+        module._attempts = module.MAX_ATTEMPTS
+
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                1.0,
+                x=100,
+                y=100,
+                new_sample=True,
+            )
+        )
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertEqual(module.reason, "en_posicion")
+
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                2.0,
+                x=120,
+                y=100,
+                new_sample=True,
+            )
+        )
+        self.assertTrue(
+            self.update_at(module, state, 2.1, new_sample=True)
+        )
+        self.assertEqual(module.status, MovementStatus.RETURNING)
+
+    def test_combat_pause_reduces_learned_orientation_confidence(self):
+        state, settings = create_state()
+        module = MovementManager(FakeInput(), settings)
+        module.policy.observe(
+            "W",
+            400,
+            (120, 100),
+            (118, 100),
+            (100, 100),
+        )
+        confidence = module.policy.confidence_for("W")
+        self.start_forced_return(module, state)
+
+        state.target.exists = True
+        self.assertFalse(self.update_at(module, state, 1.2))
+
+        paused_confidence = module.policy.confidence_for("W")
+        self.assertLess(paused_confidence, confidence)
+
+        self.assertFalse(self.update_at(module, state, 1.3))
+        self.assertEqual(
+            module.policy.confidence_for("W"),
+            paused_confidence,
+        )
+
+    def test_external_pause_discards_the_command_without_learning_from_it(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+
+        with patch(
+            "core.modules.movement_manager.time.perf_counter",
+            return_value=1.2,
+        ):
+            self.assertTrue(module.suspend("bot_pausado"))
+
+        self.assertEqual(module.status, MovementStatus.PAUSED)
+        self.assertIsNone(module._command)
+        self.assertIn("W", input_manager.releases)
+        self.assertEqual(module.policy.estimates["W"].samples, 0)
+
+        self.assertTrue(
+            self.update_at(
+                module,
+                state,
+                2.0,
+                x=115,
+                new_sample=True,
+            )
+        )
+        self.assertEqual(module.policy.estimates["W"].samples, 0)
+
     def test_no_movement_uses_deterministic_search_then_cools_down(self):
         state, settings = create_state()
         input_manager = FakeInput()
@@ -386,6 +488,77 @@ class MovementManagerTests(unittest.TestCase):
                 self.assertGreater(state.navigation_distance, radius)
                 self.assertEqual(input_manager.presses, [("W", 400)])
                 self.assertEqual(module.reason, "fuera_de_radio")
+
+    def test_forced_return_finishes_inside_the_radius_hysteresis_band(self):
+        state, settings = create_state(
+            x=151,
+            y=100,
+            radius_mode=BotMode.STATIC_50,
+        )
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+
+        self.assertFalse(
+            self.evaluate_current_command(module, state, x=110)
+        )
+
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertEqual(module.reason, "en_posicion")
+        self.assertLessEqual(
+            state.navigation_distance,
+            module.RETURN_ORIGIN_TOLERANCE,
+        )
+
+    def test_episode_reset_preserves_the_learned_motion_model(self):
+        state, settings = create_state()
+        module = MovementManager(FakeInput(), settings)
+        module.policy.observe(
+            "A",
+            400,
+            (120, 100),
+            (117, 100),
+            (100, 100),
+        )
+
+        module._reset_episode()
+
+        self.assertEqual(module.policy.estimates["A"].samples, 1)
+        self.assertEqual(
+            module.policy.rank_keys((120, 100), (100, 100))[0],
+            "A",
+        )
+
+    def test_second_return_tries_the_previously_learned_key_first(self):
+        state, settings = create_state()
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+        self.start_forced_return(module, state)
+
+        self.evaluate_current_command(module, state)
+        self.evaluate_current_command(module, state, x=118)
+        self.evaluate_current_command(module, state, x=116)
+        self.assertFalse(
+            self.evaluate_current_command(module, state, x=101)
+        )
+        self.assertEqual(module.status, MovementStatus.IDLE)
+
+        press_count = len(input_manager.presses)
+        self.assertFalse(
+            self.update_at(
+                module,
+                state,
+                10.0,
+                x=120,
+                new_sample=True,
+            )
+        )
+        self.assertTrue(
+            self.update_at(module, state, 10.1, new_sample=True)
+        )
+
+        self.assertEqual(len(input_manager.presses), press_count + 1)
+        self.assertEqual(input_manager.presses[-1][0], "A")
 
     def test_off_mode_and_stale_coordinates_never_move(self):
         state, settings = create_state(radius_mode=BotMode.OFF)

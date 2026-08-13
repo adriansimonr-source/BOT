@@ -60,6 +60,28 @@ class InputManagerTests(unittest.TestCase):
         self.assertTrue(self.driver.key_up_event.wait(0.3))
         self.assertTrue(self.manager.press("1"))
 
+    def test_resource_keys_have_independent_action_lanes(self):
+        self.assertTrue(self.manager.press("R", hold_ms=5000))
+        self.assertTrue(self.manager.press("F8", hold_ms=5000))
+        self.assertTrue(self.manager.press("F9", hold_ms=5000))
+        self.assertTrue(self.manager.press("F10", hold_ms=5000))
+
+        self.assertFalse(self.manager.press("1"))
+        self.assertFalse(self.manager.press("F8"))
+        self.assertEqual(
+            [event[2] for event in self.driver.events if event[0] == "down"],
+            ["R", "F8", "F9", "F10"],
+        )
+
+        self.manager.release_all()
+
+    def test_successful_press_timestamp_is_exposed_by_key(self):
+        self.assertIsNone(self.manager.last_press_at("f8"))
+
+        self.assertTrue(self.manager.press("f8", hold_ms=20))
+
+        self.assertIsInstance(self.manager.last_press_at("F8"), float)
+
     def test_movement_does_not_block_an_action(self):
         self.assertTrue(self.manager.press("W", hold_ms=250))
         self.assertTrue(self.manager.press("1", hold_ms=20))
@@ -73,6 +95,22 @@ class InputManagerTests(unittest.TestCase):
                 ("up", 1234, "1"),
                 ("up", 1234, "W"),
             ],
+        )
+
+    def test_long_movement_hold_does_not_delay_function_skills(self):
+        self.assertTrue(self.manager.press("W", hold_ms=5000))
+        self.assertTrue(self.manager.press("F1", hold_ms=20))
+        self.assertTrue(self.driver.key_up_event.wait(0.3))
+        self.driver.key_up_event.clear()
+
+        self.assertTrue(self.manager.press("F9", hold_ms=20))
+        self.assertTrue(self.driver.key_up_event.wait(0.3))
+        self.assertTrue(self.manager.is_held("W"))
+        self.assertTrue(self.manager.release("W"))
+
+        self.assertEqual(
+            [event[2] for event in self.driver.events if event[0] == "down"],
+            ["W", "F1", "F9"],
         )
 
     def test_long_movement_hold_is_tracked_and_can_be_cancelled(self):

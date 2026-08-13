@@ -29,6 +29,10 @@ from core.bot_worker import BotWorker
 class MainWindow(QMainWindow):
 
     stop_bot_requested = Signal()
+    apply_bot_config_requested = Signal(object)
+    refresh_position_requested = Signal()
+    lock_position_requested = Signal()
+    unlock_position_requested = Signal()
 
     def __init__(self):
 
@@ -65,6 +69,8 @@ class MainWindow(QMainWindow):
         self.bot_worker = None
 
         self._close_pending = False
+
+        self._bot_stop_requested = False
 
         self.create_ui()
 
@@ -308,6 +314,12 @@ class MainWindow(QMainWindow):
 
         )
 
+        self.bot_tab.configuration_changed.connect(
+
+            self.queue_bot_configuration
+
+        )
+
         self.bot_tab.game_selector.game_changed.connect(
 
             self.game_selected
@@ -452,7 +464,7 @@ class MainWindow(QMainWindow):
 
     def game_selected(self, game_id):
 
-        if self.bot_engine.is_running():
+        if self.bot_worker is not None:
 
             active_game = self.process_manager.get_active_game()
 
@@ -549,7 +561,7 @@ class MainWindow(QMainWindow):
 
     def add_game(self):
 
-        if self.bot_engine.is_running():
+        if self.bot_worker is not None:
 
             return
 
@@ -591,7 +603,7 @@ class MainWindow(QMainWindow):
 
     def delete_game(self):
 
-        if self.bot_engine.is_running():
+        if self.bot_worker is not None:
 
             return
 
@@ -645,7 +657,7 @@ class MainWindow(QMainWindow):
 
     def toggle_bot(self):
 
-        if self.bot_engine.is_running():
+        if self.bot_worker is not None:
 
             self.stop_bot()
 
@@ -654,6 +666,10 @@ class MainWindow(QMainWindow):
             self.start_bot()
 
     def start_bot(self):
+
+        if self.bot_worker is not None:
+
+            return
 
         if (
             not self.process_manager.is_connected()
@@ -669,25 +685,17 @@ class MainWindow(QMainWindow):
 
             return
 
-        self.bot_engine.configure(
-
-            self.bot_tab.auto_panel,
-
-            self.bot_tab.rotation_panel,
-
-            self.bot_tab.character_group,
-
-        )
+        initial_config = self.bot_tab.build_configuration()
 
         self.bot_tab.lock_controls()
-
-        self.bot_tab.game_selector.set_locked(True)
 
         self.bot_thread = QThread()
 
         self.bot_worker = BotWorker(
 
-            self.bot_engine
+            self.bot_engine,
+
+            initial_config,
 
         )
 
@@ -703,15 +711,54 @@ class MainWindow(QMainWindow):
 
         )
 
+        self.apply_bot_config_requested.connect(
+
+            self.bot_worker.apply_config,
+
+            Qt.ConnectionType.QueuedConnection,
+
+        )
+
+        self.refresh_position_requested.connect(
+            self.bot_worker.refresh_player_position,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self.lock_position_requested.connect(
+            self.bot_worker.lock_player_position,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self.unlock_position_requested.connect(
+            self.bot_worker.unlock_player_position,
+            Qt.ConnectionType.QueuedConnection,
+        )
+
         self.bot_worker.finished.connect(
 
             self.bot_thread.quit
 
         )
 
+        self.bot_worker.started.connect(
+
+            self.finish_bot_start
+
+        )
+
         self.bot_worker.error.connect(
 
             self.bot_start_failed
+
+        )
+
+        self.bot_worker.config_error.connect(
+
+            self.bot_configuration_failed
+
+        )
+
+        self.bot_worker.config_applied.connect(
+
+            self.bot_configuration_applied
 
         )
 
@@ -743,7 +790,21 @@ class MainWindow(QMainWindow):
 
         self.ui_timer.start()
 
-        self.bot_tab.bot_controls.set_running()
+        self._bot_stop_requested = False
+
+        self.bot_tab.bot_controls.set_starting()
+
+    def finish_bot_start(self):
+
+        if self.bot_worker is not None and not self._bot_stop_requested:
+
+            self.bot_tab.bot_controls.set_running()
+
+    def queue_bot_configuration(self, config):
+
+        if self.bot_worker is not None:
+
+            self.apply_bot_config_requested.emit(config)
 
     def stop_bot(self):
 
@@ -753,7 +814,11 @@ class MainWindow(QMainWindow):
 
             return
 
-        self.bot_tab.bot_controls.start_button.setEnabled(False)
+        self._bot_stop_requested = True
+
+        self.bot_engine.request_stop()
+
+        self.bot_tab.bot_controls.set_stopping()
 
         self.stop_bot_requested.emit()
 
@@ -765,9 +830,9 @@ class MainWindow(QMainWindow):
 
         self.bot_thread = None
 
-        self.bot_tab.unlock_controls()
+        self._bot_stop_requested = False
 
-        self.bot_tab.game_selector.set_locked(False)
+        self.bot_tab.unlock_controls()
 
         self.bot_tab.bot_controls.set_stopped()
 
@@ -781,31 +846,68 @@ class MainWindow(QMainWindow):
 
     def bot_start_failed(self, message):
 
+        if self.bot_worker is not None:
+
+            self.bot_tab.bot_controls.set_stopping()
+
         self.bot_tab.game_selector.set_process_status(
 
             False,
 
-            "Error al iniciar",
+            "Error del bot",
 
             message,
 
         )
 
+    def bot_configuration_failed(self, message):
+
+        self.bot_tab.game_selector.set_process_status(
+
+            True,
+
+            "Bot activo · revisar config",
+
+            f"El último cambio produjo un error: {message}",
+
+        )
+
+    def bot_configuration_applied(self, _revision):
+
+        if self.bot_worker is not None:
+
+            self.bot_tab.game_selector.set_process_status(
+
+                True,
+
+                "Conectado",
+
+            )
+
     def refresh_player_position(self):
 
-        self.bot_engine.refresh_player_position()
+        if self.bot_worker is not None:
+            self.refresh_position_requested.emit()
+        else:
+            self.bot_engine.refresh_player_position()
 
     def lock_player_position(self):
 
-        self.bot_engine.lock_player_position()
+        if self.bot_worker is not None:
+            self.lock_position_requested.emit()
+        else:
+            self.bot_engine.lock_player_position()
 
     def unlock_player_position(self):
 
-        self.bot_engine.unlock_player_position()
+        if self.bot_worker is not None:
+            self.unlock_position_requested.emit()
+        else:
+            self.bot_engine.unlock_player_position()
 
     def update_character_ui(self):
 
-        state = self.game_state_manager.get_state()
+        state = self.game_state_manager.get_ui_state()
 
         self.bot_tab.character_group.update_state(
 

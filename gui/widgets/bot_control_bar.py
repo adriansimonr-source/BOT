@@ -74,6 +74,24 @@ class BotControlBar(QWidget):
 
         )
 
+    def set_starting(self):
+
+        self.start_button.setText(
+
+            "INICIANDO... / DETENER"
+
+        )
+
+    def set_stopping(self):
+
+        self.start_button.setText(
+
+            "DETENIENDO..."
+
+        )
+
+        self.start_button.setEnabled(False)
+
     def set_stopped(self):
 
         self.start_button.setText(

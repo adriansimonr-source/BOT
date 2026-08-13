@@ -1,3 +1,5 @@
+import time
+
 from core.models.player_state import PlayerState
 
 
@@ -34,19 +36,26 @@ class PlayerMonitor:
         return True
 
     def read_resources(self, hud_image, player_state):
+        observed_at = time.perf_counter()
         hp_image = self.crop_region(
             hud_image,
             self.templates.get("player_hp"),
         )
         if hp_image is not None:
-            player_state.hp_percent = self.bar_reader.read_hp(hp_image)
+            player_state.update_hp(
+                self.bar_reader.read_hp(hp_image),
+                observed_at=observed_at,
+            )
 
         mp_image = self.crop_region(
             hud_image,
             self.templates.get("player_mp"),
         )
         if mp_image is not None:
-            player_state.mp_percent = self.bar_reader.read_mp(mp_image)
+            player_state.update_mp(
+                self.bar_reader.read_mp(mp_image),
+                observed_at=observed_at,
+            )
 
     @staticmethod
     def crop_region(image, region):

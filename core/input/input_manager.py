@@ -8,6 +8,7 @@ class InputManager:
 
     DEFAULT_HOLD_MS = 50
     MOVEMENT_KEYS = frozenset(("A", "D", "W"))
+    INDEPENDENT_ACTION_KEYS = frozenset(("F8", "F9", "F10"))
 
     def __init__(self, game_state_manager):
         self.enabled = True
@@ -15,6 +16,7 @@ class InputManager:
         self.window_driver = WindowInputDriver()
         self._condition = threading.Condition(threading.RLock())
         self._held_keys = {}
+        self._last_pressed_at = {}
         self._shutdown = False
         self._scheduler = threading.Thread(
             target=self._release_loop,
@@ -44,21 +46,30 @@ class InputManager:
             if not self.window_driver.key_down(hwnd, normalized_key):
                 return False
 
+            pressed_at = time.perf_counter()
             self._held_keys[normalized_key] = (
                 hwnd,
-                time.perf_counter() + hold_ms / 1000,
+                pressed_at + hold_ms / 1000,
             )
+            self._last_pressed_at[normalized_key] = pressed_at
             self._condition.notify_all()
         return True
 
     def _can_hold(self, key):
         if key in self._held_keys:
             return False
-        is_movement = key in self.MOVEMENT_KEYS
+        lane = self._lane_for(key)
         return not any(
-            (held_key in self.MOVEMENT_KEYS) == is_movement
+            self._lane_for(held_key) == lane
             for held_key in self._held_keys
         )
+
+    def _lane_for(self, key):
+        if key in self.MOVEMENT_KEYS:
+            return "movement"
+        if key in self.INDEPENDENT_ACTION_KEYS:
+            return key
+        return "action"
 
     def _release_loop(self):
         while True:
@@ -112,6 +123,7 @@ class InputManager:
         with self._condition:
             self.enabled = False
             self._release_all_locked()
+            self._last_pressed_at.clear()
 
     def close(self):
         self.disable()
@@ -129,3 +141,8 @@ class InputManager:
         normalized_key = str(key).upper()
         with self._condition:
             return normalized_key in self._held_keys
+
+    def last_press_at(self, key):
+        normalized_key = str(key).upper()
+        with self._condition:
+            return self._last_pressed_at.get(normalized_key)

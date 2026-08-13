@@ -1,5 +1,6 @@
 import time
 
+from core.models.player_state import PlayerState
 from core.modules.base_module import BaseModule
 
 
@@ -29,8 +30,13 @@ class AutoHeal(BaseModule):
         self.last_use = None
 
     def update(self, state):
-        hp_percent = state.player.hp_percent
-        now = time.perf_counter() * 1000
+        player = state.player
+        observed_now = time.perf_counter()
+        if not PlayerState.resource_is_fresh(player, "hp", now=observed_now):
+            return
+
+        hp_percent = player.hp_percent
+        now = observed_now * 1000
 
         if not 0 < hp_percent <= self.threshold:
             return

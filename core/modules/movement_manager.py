@@ -2,6 +2,7 @@ import math
 import time
 from enum import Enum
 
+from core.modules.adaptive_return_policy import AdaptiveReturnPolicy
 from core.modules.base_module import BaseModule
 
 
@@ -17,9 +18,13 @@ class MovementStatus(Enum):
 class MovementManager(BaseModule):
 
     POSITION_MAX_AGE_SECONDS = 3.0
+    HEADING_MAX_AGE_SECONDS = 0.6
+    HEADING_MIN_CONFIDENCE = 0.55
     POSITION_WAIT_SECONDS = 2.0
     POST_RELEASE_SETTLE_SECONDS = 0.20
     ARRIVAL_TOLERANCE = 2.0
+    RETURN_RADIUS_RATIO = 0.70
+    RETURN_ORIGIN_TOLERANCE = 10.0
     MOTION_EPSILON = 1.0
     RELIABLE_PROGRESS = 1.25
     MAX_REGRESSION = 5.0
@@ -37,10 +42,17 @@ class MovementManager(BaseModule):
     MOVEMENT_KEYS = ("W", "A", "D")
     RECOVERY_KEYS = ("A", "W", "D", "D", "W")
 
-    def __init__(self, input_manager, settings):
+    def __init__(
+        self,
+        input_manager,
+        settings,
+        learning_path=None,
+        profile_id=None,
+    ):
         super().__init__("MovementManager", interval_ms=100)
         self.input = input_manager
         self.settings = settings
+        self.policy = AdaptiveReturnPolicy(learning_path, profile_id)
         self.status = MovementStatus.IDLE
         self.reason = ""
         self._game_state = None
@@ -69,6 +81,8 @@ class MovementManager(BaseModule):
         self._input_wait_started_at = None
         self._retry_not_before = 0.0
         self._attempts = 0
+        self._active_radius = None
+        self._orientation_needs_recheck = False
 
     def on_start(self):
         super().on_start()
@@ -77,6 +91,26 @@ class MovementManager(BaseModule):
     def on_stop(self):
         self._release_movement()
         self._reset_runtime()
+        self.policy.save()
+
+    def set_learning_profile(self, profile_id):
+        self.policy.set_profile(profile_id)
+
+    def suspend(self, reason="bot_pausado"):
+        if self.status == MovementStatus.PAUSED and self._command is None:
+            return False
+        if not (
+            self.is_navigating()
+            or self._command is not None
+            or self._return_pending
+        ):
+            return False
+        self._pause_navigation(
+            time.perf_counter(),
+            reason,
+            outside=self._forced_return,
+        )
+        return True
 
     def update(self, state):
         now = time.perf_counter()
@@ -92,6 +126,7 @@ class MovementManager(BaseModule):
         distance = self._distance_to_start(player)
         self._publish(distance)
         radius = self.settings.get_movement_range()
+        self._active_radius = radius
         if not self._navigation_configured(state, player, radius):
             self._cancel_navigation(now)
             return False
@@ -110,11 +145,23 @@ class MovementManager(BaseModule):
         self._publish(distance)
 
         if distance <= self.ARRIVAL_TOLERANCE:
-            if self.is_navigating() or self._return_pending:
+            if (
+                self.is_navigating()
+                or self._return_pending
+                or self.status != MovementStatus.IDLE
+            ):
                 self._finish_return(now)
             else:
                 self._outside_samples = 0
                 self._reset_episode()
+            return False
+
+        if (
+            self._forced_return
+            and distance <= self._arrival_distance()
+            and self._command is None
+        ):
+            self._finish_return(now)
             return False
 
         if not outside_radius and self.status == MovementStatus.FAILED:
@@ -188,12 +235,17 @@ class MovementManager(BaseModule):
             return False
 
         if self._command is not None:
-            if (
-                is_new_sample
-                and player.position_revision != self._command["revision"]
-                and now >= self._command["observe_after"]
-            ):
-                return self._evaluate_command(player, distance, now)
+            observation = self._observation_after_command(
+                player,
+                self._command,
+            )
+            if observation is not None:
+                return self._evaluate_command(
+                    player,
+                    distance,
+                    now,
+                    observation,
+                )
             if now >= self._command["sample_deadline"]:
                 self._enter_cooldown(now, "sin_coordenada_nueva")
             return False
@@ -298,16 +350,31 @@ class MovementManager(BaseModule):
         self._candidate_key = None
         self._no_progress_pulses = 0
         self._recovery_used = False
-        self._prepare_search()
+        self.policy.start_episode()
+        if self._orientation_needs_recheck:
+            self._search_keys = list(self.MOVEMENT_KEYS)
+            self._search_index = 0
+            self._orientation_needs_recheck = False
+        else:
+            self._prepare_search(player=player)
         self._set_status(MovementStatus.RETURNING, reason)
         return self._send_next_step(player, distance, now)
 
-    def _prepare_search(self, excluded_key=None):
-        keys = list(self.MOVEMENT_KEYS)
-        if excluded_key in keys:
-            keys.remove(excluded_key)
-            keys.append(excluded_key)
-        self._search_keys = keys
+    def _prepare_search(self, player=None, excluded_key=None):
+        position = (
+            (int(player.x), int(player.y))
+            if player is not None
+            else self._last_position
+        )
+        if position is not None and self._origin is not None:
+            self._search_keys = self.policy.rank_keys(
+                position,
+                self._origin,
+                excluded_key=excluded_key,
+                heading_deg=self._heading_for_player(player),
+            )
+        else:
+            self._search_keys = list(self.MOVEMENT_KEYS)
         self._search_index = 0
         self._candidate_key = None
 
@@ -327,7 +394,11 @@ class MovementManager(BaseModule):
             )
 
         if self._preferred_key is not None:
-            hold_ms = self._dynamic_hold_ms(distance)
+            hold_ms = self._dynamic_hold_ms(
+                player,
+                distance,
+                self._preferred_key,
+            )
             if hold_ms <= 0:
                 self._finish_return(now)
                 return False
@@ -382,30 +453,51 @@ class MovementManager(BaseModule):
         self._command = {
             "key": key,
             "phase": phase,
+            "hold_ms": hold_ms,
             "distance": distance,
             "position": (int(player.x), int(player.y)),
             "revision": player.position_revision,
             "release_at": release_at,
             "observe_after": release_at + self.POST_RELEASE_SETTLE_SECONDS,
-            "sample_deadline": release_at + self.POSITION_WAIT_SECONDS,
+            "sample_deadline": (
+                release_at
+                + self.POST_RELEASE_SETTLE_SECONDS
+                + self.POSITION_WAIT_SECONDS
+            ),
+            "minimum_sample_revision": player.position_revision + 1,
+            "heading_deg": self._heading_for_player(player),
         }
         self._publish(distance, key)
         return True
 
-    def _evaluate_command(self, player, distance, now):
+    def _evaluate_command(self, player, distance, now, observation):
         command = self._command
         self._release_command_key(command, now)
         self._command = None
 
-        if distance <= self.ARRIVAL_TOLERANCE:
+        _, after = observation
+        observed_distance = self._point_distance(after, self._origin)
+        self.policy.observe(
+            command["key"],
+            command["hold_ms"],
+            command["position"],
+            after,
+            self._origin,
+            heading_deg=self._mean_heading(
+                command.get("heading_deg"),
+                self._heading_for_player(player),
+            ),
+        )
+
+        if distance <= self._arrival_distance():
             self._finish_return(now)
             return False
 
-        improvement = command["distance"] - distance
+        improvement = command["distance"] - observed_distance
         if self._best_distance is None or (
-            self._best_distance - distance >= self.RELIABLE_PROGRESS
+            self._best_distance - observed_distance >= self.RELIABLE_PROGRESS
         ):
-            self._best_distance = distance
+            self._best_distance = observed_distance
             self._last_progress_at = now
 
         phase = command["phase"]
@@ -444,7 +536,7 @@ class MovementManager(BaseModule):
         self._preferred_key = None
         self._no_progress_pulses = 0
         self._recovery_used = False
-        self._prepare_search(excluded_key=failed_key)
+        self._prepare_search(player=player, excluded_key=failed_key)
         self._set_status(MovementStatus.RETURNING, "direccion_sin_progreso")
         return self._send_next_step(player, distance, now)
 
@@ -454,14 +546,27 @@ class MovementManager(BaseModule):
             return min(500, max(400, base))
         return min(350, max(250, base))
 
-    def _dynamic_hold_ms(self, distance):
-        travel_distance = max(0.0, distance - self.ARRIVAL_TOLERANCE)
+    def _dynamic_hold_ms(self, player, distance, key):
+        arrival_distance = self._arrival_distance()
+        travel_distance = max(0.0, distance - arrival_distance)
         if travel_distance <= 0:
             return 0
+        configured_ms = self._configured_hold_ms()
+        learned_ms = self.policy.recommended_hold_ms(
+            key,
+            (int(player.x), int(player.y)),
+            self._origin,
+            arrival_distance,
+            configured_ms,
+            self.MAX_DRIVE_HOLD_MS,
+            heading_deg=self._heading_for_player(player),
+        )
+        if learned_ms is not None:
+            return learned_ms
         calibrated_ms = round(travel_distance / self.CALIBRATED_SPEED * 1000)
         return min(
             self.MAX_DRIVE_HOLD_MS,
-            max(self._configured_hold_ms(), calibrated_ms),
+            max(configured_ms, calibrated_ms),
         )
 
     def _configured_hold_ms(self):
@@ -513,6 +618,16 @@ class MovementManager(BaseModule):
         return False
 
     def _pause_for_combat(self, now, outside=False):
+        self._pause_navigation(
+            now,
+            "objetivo_o_combate",
+            outside=outside,
+        )
+
+    def _pause_navigation(self, now, reason, outside=False):
+        if self.status == MovementStatus.PAUSED and self._command is None:
+            self._return_pending = self._return_pending or outside
+            return
         was_active = self.is_navigating() or self._command is not None
         self._return_pending = was_active or self._return_pending or outside
         self._pending_reason = (
@@ -526,11 +641,14 @@ class MovementManager(BaseModule):
         self._command = None
         self._preferred_key = None
         self._candidate_key = None
-        self._set_status(MovementStatus.PAUSED, "objetivo_o_combate")
+        self.policy.decay(0.5)
+        self._orientation_needs_recheck = True
+        self._set_status(MovementStatus.PAUSED, reason)
         self._last_motion_at = now
 
     def _enter_cooldown(self, now, reason):
         self._release_movement()
+        self.policy.finish_episode(success=False)
         self._command = None
         self._preferred_key = None
         self._candidate_key = None
@@ -543,6 +661,7 @@ class MovementManager(BaseModule):
     def _cancel_navigation(self, now):
         if self.is_navigating() or self._command is not None:
             self._release_movement()
+        self.policy.cancel_episode()
         self._reset_episode()
         self._command = None
         self._outside_samples = 0
@@ -551,20 +670,32 @@ class MovementManager(BaseModule):
 
     def _finish_return(self, now):
         self._release_movement()
+        self.policy.finish_episode(success=True)
         self._command = None
         self._outside_samples = 0
         self._last_motion_at = now
         self._reset_episode()
         self._set_status(MovementStatus.IDLE, "en_posicion")
 
+    @staticmethod
+    def _observation_after_command(player, command):
+        history = getattr(player, "position_history", ())
+        candidates = [
+            (updated_at, (int(x), int(y)))
+            for revision, updated_at, x, y in history
+            if (
+                revision >= command["minimum_sample_revision"]
+                and updated_at >= command["observe_after"]
+            )
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: item[0])
+
     def _release_key(self, key):
         release = getattr(self.input, "release", None)
         if callable(release):
             return release(key)
-        release_all = getattr(self.input, "release_all", None)
-        if callable(release_all):
-            release_all()
-            return True
         return False
 
     def _release_command_key(self, command, now):
@@ -581,10 +712,6 @@ class MovementManager(BaseModule):
         if callable(release):
             for key in self.MOVEMENT_KEYS:
                 release(key)
-            return
-        release_all = getattr(self.input, "release_all", None)
-        if callable(release_all):
-            release_all()
 
     def _set_status(self, status, reason=""):
         self.status = status
@@ -604,6 +731,17 @@ class MovementManager(BaseModule):
         self._game_state.navigation_reason = self.reason
         self._game_state.navigation_distance = distance
         self._game_state.navigation_key = key
+        if self._origin is None or self._last_position is None:
+            confidence = 0.0
+        else:
+            confidence = self.policy.best_confidence(
+                self._last_position,
+                self._origin,
+                heading_deg=self._heading_for_player(
+                    self._game_state.player
+                ),
+            )
+        self._game_state.navigation_confidence = confidence
 
     @staticmethod
     def _player_origin(player):
@@ -620,6 +758,51 @@ class MovementManager(BaseModule):
     @staticmethod
     def _point_distance(first, second):
         return math.hypot(first[0] - second[0], first[1] - second[1])
+
+    def _heading_for_player(self, player):
+        checker = getattr(player, "has_fresh_minimap_heading", None)
+        if callable(checker):
+            if not checker(
+                self.HEADING_MAX_AGE_SECONDS,
+                self.HEADING_MIN_CONFIDENCE,
+            ):
+                return None
+        elif not getattr(player, "minimap_heading_valid", False):
+            return None
+        try:
+            heading = float(player.minimap_heading_deg) % 360.0
+            confidence = float(player.minimap_heading_confidence)
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(heading) or confidence < self.HEADING_MIN_CONFIDENCE:
+            return None
+        return heading
+
+    @staticmethod
+    def _mean_heading(first, second):
+        if first is None:
+            return second
+        if second is None:
+            return first
+        first_radians = math.radians(first)
+        second_radians = math.radians(second)
+        sin_sum = math.sin(first_radians) + math.sin(second_radians)
+        cos_sum = math.cos(first_radians) + math.cos(second_radians)
+        if abs(sin_sum) < 1e-9 and abs(cos_sum) < 1e-9:
+            return first
+        return math.degrees(math.atan2(sin_sum, cos_sum)) % 360.0
+
+    def _arrival_distance(self):
+        radius = self._active_radius
+        if self._forced_return and radius is not None and radius > 0:
+            return max(
+                self.ARRIVAL_TOLERANCE,
+                min(
+                    self.RETURN_ORIGIN_TOLERANCE,
+                    float(radius) * self.RETURN_RADIUS_RATIO,
+                ),
+            )
+        return self.ARRIVAL_TOLERANCE
 
     def _reset_episode(self):
         self._forced_return = False
@@ -639,10 +822,12 @@ class MovementManager(BaseModule):
         self._candidate_key = None
         self._no_progress_pulses = 0
         self._recovery_used = False
+        self._orientation_needs_recheck = False
         self._search_keys = []
         self._search_index = 0
 
     def _reset_runtime(self, keep_position=False):
+        self.policy.cancel_episode()
         if not keep_position:
             self._origin = None
             self._last_revision = None
@@ -650,5 +835,6 @@ class MovementManager(BaseModule):
             self._last_motion_at = None
         self._outside_samples = 0
         self._command = None
+        self._active_radius = None
         self._reset_episode()
         self._set_status(MovementStatus.IDLE)
