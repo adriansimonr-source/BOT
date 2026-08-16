@@ -14,6 +14,20 @@
     }
   },
   "regions": {
+    "player_search_area": {
+      "type": "search",
+      "x": 600,
+      "y": 740,
+      "width": 540,
+      "height": 300
+    },
+    "enemy_search_area": {
+      "type": "search",
+      "x": 900,
+      "y": 740,
+      "width": 540,
+      "height": 300
+    },
     "minimap_search_area": {
       "type": "search",
       "x": 1680,

@@ -47,6 +47,12 @@ class RightPanel(QWidget):
         self.ignored_label = QLabel("Ignorados")
         self.available_list = QListWidget()
         self.ignored_list = QListWidget()
+        self.available_list.setToolTip(
+            "Objetivos detectados que AutoTarget puede seleccionar."
+        )
+        self.ignored_list.setToolTip(
+            "Objetivos que AutoTarget descartará al activar el filtro."
+        )
         for list_widget in (self.available_list, self.ignored_list):
             list_widget.setSelectionMode(
                 QAbstractItemView.SelectionMode.ExtendedSelection
@@ -54,9 +60,13 @@ class RightPanel(QWidget):
             list_widget.setFixedHeight(66)
 
         self.add_ignore_button = QPushButton("→")
-        self.add_ignore_button.setToolTip("Mover a Ignorados")
+        self.add_ignore_button.setToolTip(
+            "Mueve los objetivos seleccionados a Ignorados."
+        )
         self.remove_ignore_button = QPushButton("←")
-        self.remove_ignore_button.setToolTip("Devolver a Disponibles")
+        self.remove_ignore_button.setToolTip(
+            "Devuelve los objetivos seleccionados a Disponibles."
+        )
         for button in (self.add_ignore_button, self.remove_ignore_button):
             button.setFixedSize(28, 22)
 

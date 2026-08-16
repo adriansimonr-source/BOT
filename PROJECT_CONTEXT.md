@@ -1,6 +1,6 @@
 # SB Automation Suite - documento canónico
 
-Estado operativo consolidado del 12 de agosto de 2026. Este archivo reúne el contexto del proyecto, el contrato funcional, la arquitectura, las dependencias, la ejecución, la compatibilidad y los criterios de continuidad. Es la única documentación técnica normativa; `README.md` es solo la portada del repositorio y `requirements.txt` es el manifiesto instalable.
+Estado operativo consolidado del 16 de agosto de 2026. Este archivo reúne el contexto del proyecto, el contrato funcional, la arquitectura, las dependencias, la ejecución, la compatibilidad y los criterios de continuidad. Es la única documentación técnica normativa; `README.md` es solo la portada del repositorio y `requirements.txt` es el manifiesto instalable.
 
 ## Propósito y fases
 
@@ -50,10 +50,11 @@ Responsabilidades:
 - La tarjeta `PERSONAJE` solo muestra HP, MP, coordenadas, origen, radio y tiempo quieto. Nombre, nivel, online y OCR de identidad del jugador no existen.
 - El panel de objetivos contiene `Disponibles`, dos flechas e `Ignorados`, admite selección múltiple y guarda los cambios. Solo existe `Ignorar objetivos`; objetivos únicos fue eliminado.
 - AutoAttack y AutoLoot exponen milisegundos. AutoPot1, AutoMP y AutoHeal exponen recurso, umbral e intervalo independientes.
-- La rotación expone `1..9` y `F1..F9`; solo participan las tarjetas marcadas.
-- Checks, umbrales, milisegundos, skills, radio, tiempo quieto e ignorados se aplican en vivo con debounce de 75 ms. La GUI crea un snapshot inmutable de valores; ningún `QWidget` cruza al hilo del bot y editar una tarjeta no reinicia los timers de las demás.
+- La rotación expone `1..9` y `F1..F9`; solo participan las tarjetas marcadas. La columna F1–F9 se identifica como prioridad para buffs y escudos.
+- Todos los botones tienen ayuda contextual al pasar el ratón. También se explican los tiempos, umbrales, coordenadas, listas y selectores; la ayuda del botón principal sigue el estado de arranque/parada y GAME siempre describe su conexión.
+- Checks, umbrales y milisegundos de automatismos, radio, tiempo quieto e ignorados se aplican en vivo con debounce de 75 ms. La configuración de skills se captura al arrancar y sus checks y milisegundos quedan bloqueados hasta detener el bot. La GUI crea un snapshot inmutable de valores; ningún `QWidget` cruza al hilo del bot.
 - El arranque muestra un estado intermedio cancelable. Al detener, la GUI conserva worker e hilo y muestra `DETENIENDO...` hasta confirmar que visión, OCR y COM han terminado; nunca permite reiniciar sobre una captura anterior aún viva.
-- Durante una sesión solo queda bloqueado GAME/proceso. No se añadieron controles manuales de recalibración, panel de diagnóstico ni persistencia adicional de la configuración por juego.
+- Durante una sesión quedan bloqueados GAME/proceso y las tarjetas `1..9`/`F1..F9`; los automatismos y ajustes auxiliares continúan editables. No se añadieron controles manuales de recalibración, panel de diagnóstico ni persistencia adicional de la configuración por juego.
 - El refresco visual está limitado a 250 ms y la BBDD de enemigos se consulta cada segundo solo para detectar cambios.
 
 ## Cadencias y contrato de input
@@ -101,16 +102,17 @@ Kathana procesa chat y gameplay en el mismo `HWND`. El método evita escribir te
 
 | Estado | Condición | Consecuencia |
 | --- | --- | --- |
-| Desconocida | HP inválido o antiguo | No equivale a muerte, no fuerza `E` y no consume la ventana de bloqueo. |
-| Viva | HP válido, fresco y mayor que cero | Participa en la ventana de progreso. |
-| Muerta | HP válido, fresco y menor o igual a cero | AutoTarget puede cambiar cuando vence la retención mínima. |
+| Desconocida | El HUD existe, pero la barra no se puede medir | `exists` sigue verdadero; `R` y las skills no esperan HP, y `E`, loot y movimiento responden a la selección real, no a una falsa lectura cero. |
+| Medida | Barra roja continua y porcentaje mayor que cero | Clasifica la selección como enemigo y habilita OCR, BBDD y reglas de ignorados. |
+| Vacía confirmada | Enemigo ya medido con cinco capturas vacías durante al menos 0,5 s | Marca el HP visual como cero, sin convertir una lectura aislada en muerte. |
 
-Para AutoTarget una lectura válida deja de ser fresca después de 0,5 s. Una selección nueva dispone de 1 s para adquirir barra; durante esa gracia `R` y las skills siguen disponibles.
+La presencia procede exclusivamente del HUD seleccionado, no del porcentaje. Se toleran dos fallos consecutivos del anchor/crop y solo el tercero elimina el objetivo. La última lectura válida se conserva como fresca durante 750 ms; después se muestra como desconocida, pero el objetivo permanece presente mientras siga su HUD.
 
 - Una barra detectada y medible por encima de cero clasifica un enemigo.
-- Si un enemigo que ya tuvo HP pierde la barra, hacen falta tres capturas vacías consecutivas para confirmar muerte; una lectura válida intermedia cancela la cuenta.
-- Un HUD válido que nunca muestra barra durante toda la gracia se clasifica como item, deja de ser target atacable y puede persistir su nombre validado.
-- Un recorte o número inválido deja HP desconocido; nunca confirma muerte ni item.
+- Una lectura inválida es `None`, nunca un HP cero. No sobrescribe la última muestra ni confirma muerte o item.
+- Una lectura válida intermedia cancela inmediatamente la confirmación de barra vacía.
+- Un HUD que nunca presenta barra durante 1 s se clasifica como item y puede persistir su nombre validado en la BBDD correspondiente.
+- El HP enemigo solo interviene en esta clasificación enemigo/item, necesaria para resolver nombres y aplicar `Ignorar objetivos`; no gobierna AutoTarget, AutoAttack ni la rotación.
 
 El OCR de identidad trabaja en segundo plano. Solo se aplica un resultado con el mismo `selection_id` y firma visual. Una identidad ilegible se intenta como máximo tres veces, separando intentos 1 s.
 
@@ -124,16 +126,13 @@ El OCR de identidad trabaja en segundo plano. Solo se aplica un resultado con el
 
 ### AutoTarget (`E`)
 
-Solicita otra selección si no hay objetivo, el nombre está ignorado, existe muerte confirmada o un objetivo vivo no progresa durante 10 s.
+Solicita otra selección solo si no hay un HUD de objetivo o el nombre resuelto pertenece a `Ignorados`. No consulta HP, muerte visual ni progreso de daño.
 
 - La primera búsqueda sin objetivo puede ser inmediata.
-- Cada selección nueva observada durante la sesión se conserva al menos 4 s. Un objetivo ya presente al arrancar se considera anterior al bot y puede cambiar inmediatamente si ya está muerto o ignorado.
+- Cada selección nueva observada durante la sesión se conserva al menos 4 s. Un objetivo ya presente al arrancar se considera anterior al bot y puede cambiar inmediatamente si está ignorado.
 - Dos `E` quedan separadas por al menos el máximo entre el intervalo configurado y 4 s.
 - Después de `E` concede 1 s para estabilizar visión.
-- Guarda un HP de referencia. Solo cuenta progreso si `HP actual < HP de referencia * 0,90`; entonces inicia otra ventana de 10 s desde el nuevo HP.
-- HP desconocido o antiguo limpia la ventana y nunca se trata como cero.
-
-Ejemplos: `100 -> 50` mantiene el objetivo y reinicia la ventana; `90 -> 85` no supera un 10 % relativo; `100 -> 90` exacto tampoco supera el umbral estricto.
+- Una selección permitida se mantiene hasta que el juego retire su HUD; pulsar `E` repetidamente por lecturas de HP incompletas queda descartado.
 
 ### AutoAttack (`R`)
 
@@ -145,7 +144,8 @@ Skills `1..9` y `F1..F9`:
 
 - Solo se registran checks activos y cada skill depende exclusivamente de sus milisegundos.
 - La primera ejecución espera el intervalo configurado desde el arranque.
-- Sale una skill por tick. Entre las vencidas gana el menor intervalo, después el deadline más antiguo y finalmente un turno circular.
+- Sale una skill por tick. Si hay teclas F1–F9 y numéricas vencidas a la vez, una F obtiene el primer turno y ambos grupos se alternan mientras siga la contención; así los buffs/escudos ganan la colisión sin bloquear las teclas `1..9`.
+- Dentro de cada grupo gana el menor intervalo, después el deadline más antiguo y finalmente un cursor circular independiente. La prioridad nunca adelanta una acción antes de sus milisegundos.
 - No dependen de combate, HP del objetivo, nombre, filtros o navegación.
 - Usan pulsos de 25 ms y un buffer coalescente de 150 ms. No guardan cada periodo perdido ni descargan una ráfaga al recuperarse.
 - F8/F9 pueden pertenecer también a AutoPot1/AutoMP. Si el recurso ya envió la misma tecla después del deadline, la rotación lo contabiliza como esa ejecución y no la duplica.
@@ -203,7 +203,9 @@ Microbenchmark local orientativo: 100.000 rankings de las tres teclas promediaro
 - WGC/D3D, sus objetos COM y `VisionManager` nacen, se usan y se destruyen en el hilo `bot-vision`. La automatización solo recibe `VisionSnapshot` congelados; no comparte arrays de imagen ni espera captura/OCR.
 - El watchdog exige heartbeat y frame de menos de 750 ms. Un snapshot antiguo, una visión detenida o una ventana sin frames no mantienen acciones basadas en estado viejo.
 - HP y MP cruzan el snapshot con validez y timestamp propios; un frame fresco no convierte en fresca una barra antigua.
-- El detector de anchors usa solo el mejor `matchTemplate` mediante `minMaxLoc`.
+- Los anchors de jugador y enemigo usan comparación en color dentro de zonas fijas del HUD a 1920x1080: jugador `(600,740,540x300)` y enemigo `(900,740,540x300)`. No vuelven a buscar a pantalla completa cuando una zona configurada no contiene el anchor. Esto evita los falsos positivos observados con la detección enmascarada y mantiene el ciclo por debajo del watchdog incluso si faltan ambas barras.
+- Tras la primera detección se reutiliza el HUD del jugador y la posición del anchor enemigo. Las comprobaciones posteriores buscan en un ROI local de 24 px. Si tres capturas enemigas fallan, se fuerza una nueva búsqueda en su zona configurada; un fallo descarta esa caché y vuelve a intentar a 500 ms.
+- HP y MP se recuperan de forma independiente. Un fallo de ambos solicita relectura a 100 ms; un solo recurso ilegible no invalida el otro. Las búsquedas del jugador tienen backoff de 500 ms medido desde el final del intento, por lo que un HUD ausente no encadena `matchTemplate` continuamente.
 - Solo se cargan anchors de jugador, enemigo y minimapa. La orientación reutiliza el crop central del minimapa y no añade otro `matchTemplate`.
 - El pool OCR tiene dos workers: identidad enemiga y coordenadas. Cada llamada Tesseract tiene timeout de 750 ms y el cierre espera esas tareas acotadas antes de dar por terminado `bot-vision`.
 - Coordenadas válidas tienen dos o tres dígitos por eje. Saltos grandes requieren dos lecturas coherentes. `VisionManager` fecha la observación con el instante del frame, no con el final del OCR, y `PlayerState` conserva un historial corto de revisiones para atribuir cada pulso correctamente.
@@ -309,12 +311,12 @@ Resultados de la limpieza previa:
 
 La suite y las cifras exactas de archivos se actualizan al final de cada health check; los tests verifican contratos Python y entrega Win32 simulada, no el resultado visual dentro de Kathana.
 
-Snapshot del 12 de agosto de 2026 tras desacoplar visión, incorporar heading y configuración live:
+Snapshot del 16 de agosto de 2026 tras desacoplar visión, incorporar heading, configuración live, prioridad acotada de rotación y estabilizar la adquisición de HUD y recursos:
 
-- 230/230 tests automatizados en verde, incluidos snapshots/hilo visual, inicio cancelable, cierre pendiente/verificado, watchdog, frescura de recursos, timeout OCR, configuración live, buffer/lanes, heading circular, aprendizaje sectorizado, persistencia opcional, atribución temporal, outliers, histéresis y convivencia de teclas.
-- 102 archivos Python, 16.361 líneas físicas, 3.239 en blanco, 2 comentarios de línea completa y 13.120 líneas efectivas.
+- 261/261 tests automatizados en verde, incluidos snapshots/hilo visual, inicio cancelable, cierre pendiente/verificado, watchdog, frescura independiente de HP/MP, zonas de HUD sin fallback global, rechazo cruzado jugador/enemigo, recuperación local, bloqueo de skills durante la sesión, timeout OCR, configuración live auxiliar, prioridad F sin inanición, tooltips, buffer/lanes, heading circular, aprendizaje sectorizado, persistencia opcional, atribución temporal, outliers, histéresis y convivencia de teclas.
+- 103 archivos Python, 17.819 líneas físicas, 3.360 en blanco, 1 comentario de línea completa y 14.458 líneas efectivas.
 - `compileall`, `pip check`, smoke offscreen de la GUI, validación JSON y `git diff --check` correctos.
-- No se añadieron dependencias ni consumo de GPU. La nueva carga es un hilo visual aislado y un detector aproximado de 338 microsegundos a 10 Hz; la GUI genera como máximo diez snapshots de estado por segundo.
+- No se añadieron dependencias ni consumo de GPU. La prioridad solo ordena como máximo 18 intenciones ya vencidas dentro del tick existente; los tooltips no añaden polling. En full-HD sin anchors, las tres búsquedas configuradas completaron en unos 78-90 ms frente al watchdog de 750 ms. En una comprobación real de Kathana, tras el arranque el frame alcanzó como máximo 155 ms de antigüedad y se obtuvieron HP, MP y HP enemigo válidos. Son mediciones orientativas, no una sesión prolongada.
 
 ## Riesgos y siguientes pasos
 
@@ -322,7 +324,7 @@ Snapshot del 12 de agosto de 2026 tras desacoplar visión, incorporar heading y 
 2. Medir porcentaje de regresos, tiempo medio, distancia extra, contradicciones, cambios de sector y pausas de combate.
 3. Inspeccionar `data/navigation_learning.json` tras varias sesiones para ajustar umbrales solo con evidencia.
 4. Instrumentar percentiles de captura, OCR, antigüedad del snapshot y retraso entre deadline y `KEYDOWN` sin convertirlos de momento en un panel GUI.
-5. Validar barras, watchdog, resize/restart de captura y sesiones prolongadas a 1920x1080.
+5. Validar barras, watchdog, resize/restart de captura y sesiones prolongadas a 1920x1080. Los templates actuales asumen esa resolución y escala fija de UI; un cambio de escala exige anchors y geometría calibrados para ese perfil.
 6. Crear y probar la build Windows; después decidir el alcance real de Ubuntu.
 7. Python no puede interrumpir con seguridad una llamada nativa que se bloquee dentro de WinRT o del proceso de Tesseract. Los timeouts cubren el funcionamiento normal; si una prueba real reproduce un bloqueo nativo, el siguiente aislamiento debe ser un proceso auxiliar reiniciable, no finalizar hilos a la fuerza.
 
@@ -332,6 +334,7 @@ Snapshot del 12 de agosto de 2026 tras desacoplar visión, incorporar heading y 
 - No bloquear `R` o skills esperando nombre, OCR o HP.
 - No pulsar `E` durante estabilización o retención.
 - No cambiar los temporizadores de skills desde navegación.
+- No ejecutar F1–F9 antes de su deadline ni convertir su prioridad en inanición de `1..9`.
 - Aplicar cambios live mediante valores planos encolados; no leer ni transportar widgets desde el hilo del bot.
 - No ejecutar automatización con heartbeat o frame visual obsoleto.
 - No disparar F8/F9/F10 con HP o MP inválido, antiguo o fechado en el futuro; esto nunca debe condicionar `R` ni la rotación.

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.models.bot_settings import BotMode
+from core.models.player_state import PlayerState
 from gui.widgets.resource_bar import ResourceBar
 
 
@@ -28,6 +29,21 @@ class CharacterGroup(QWidget):
         self.refresh_position_button = QPushButton("⟳")
         self.lock_position_button = QPushButton("📌")
         self.unlock_position_button = QPushButton("🔓")
+        self.refresh_position_button.setToolTip(
+            "Vuelve a leer las coordenadas actuales del personaje."
+        )
+        self.lock_position_button.setToolTip(
+            "Fija las coordenadas actuales como posición inicial del bot."
+        )
+        self.unlock_position_button.setToolTip(
+            "Libera la posición inicial para poder fijar una nueva."
+        )
+        self.current_position_label.setToolTip(
+            "Últimas coordenadas válidas detectadas en el minimapa."
+        )
+        self.start_position_label.setToolTip(
+            "Coordenadas de origen usadas para controlar el radio del bot."
+        )
 
         self.mode_selector = QComboBox()
         self.mode_selector.addItem("FIJO (0)", BotMode.STATIC_POINT)
@@ -39,11 +55,17 @@ class CharacterGroup(QWidget):
         self.mode_selector.setCurrentIndex(
             self.mode_selector.findData(BotMode.STATIC_100)
         )
+        self.mode_selector.setToolTip(
+            "Distancia máxima permitida respecto a la posición inicial."
+        )
 
         self.quiet_seconds = QSpinBox()
         self.quiet_seconds.setRange(3, 120)
         self.quiet_seconds.setValue(10)
         self.quiet_seconds.setSuffix(" s")
+        self.quiet_seconds.setToolTip(
+            "Tiempo sin desplazamiento antes de intentar regresar al origen."
+        )
         self.apply_button_style()
 
     def apply_button_style(self):
@@ -98,8 +120,8 @@ class CharacterGroup(QWidget):
 
     def update_state(self, state):
         player = state.player
-        self.hp_bar.update_percent(player.hp_percent)
-        self.mp_bar.update_percent(player.mp_percent)
+        self.hp_bar.update_percent(self._resource_value(player, "hp"))
+        self.mp_bar.update_percent(self._resource_value(player, "mp"))
         self.current_position_label.setText(
             f"{player.x} / {player.y}"
             if getattr(player, "position_valid", False)
@@ -110,6 +132,14 @@ class CharacterGroup(QWidget):
             if player.position_locked
             else "--- / ---"
         )
+
+    @staticmethod
+    def _resource_value(player, resource):
+        if not hasattr(player, f"{resource}_valid"):
+            return getattr(player, f"{resource}_percent", None)
+        if not PlayerState.resource_is_fresh(player, resource):
+            return None
+        return getattr(player, f"{resource}_percent", None)
 
     def get_bot_mode(self):
         return self.mode_selector.currentData()

@@ -23,12 +23,14 @@ class RotationManager(BaseModule):
     SKILL_HOLD_MS = 25
     SKILL_BUFFER_TTL_MS = 150
     MAX_SEND_ATTEMPTS_PER_TICK = 2
+    PRIORITY_SKILL_KEYS = frozenset(f"F{number}" for number in range(1, 10))
 
     def __init__(self, input_manager):
         super().__init__("Rotation Manager", interval_ms=25)
         self.input = input_manager
         self.skills: list[SkillConfig] = []
-        self._tie_cursor = 0
+        self._tie_cursors = {False: 0, True: 0}
+        self._prefer_priority = True
         self._pending_skills: dict[str, BufferedSkill] = {}
         self._deferred_until: dict[str, float] = {}
         self._schedule_started = False
@@ -39,6 +41,8 @@ class RotationManager(BaseModule):
             for card in center_panel.skills
             if card.is_enabled()
         ]
+        self._tie_cursors = {False: 0, True: 0}
+        self._prefer_priority = True
         self._pending_skills.clear()
         self._deferred_until.clear()
 
@@ -47,9 +51,10 @@ class RotationManager(BaseModule):
             now_ms = time.perf_counter() * 1000
 
         previous = {skill.key: skill for skill in self.skills}
-        next_key = None
-        if self.skills:
-            next_key = self.skills[self._tie_cursor % len(self.skills)].key
+        next_keys = {
+            priority: self._next_key_for_group(priority)
+            for priority in (False, True)
+        }
 
         merged = []
         rearmed = {}
@@ -75,20 +80,21 @@ class RotationManager(BaseModule):
                 rearmed[key] = now_ms
 
         self.skills = merged
+        self._tie_cursors = {
+            priority: next(
+                (
+                    index
+                    for index, skill in enumerate(self.skills)
+                    if skill.key == next_keys[priority]
+                ),
+                0,
+            )
+            for priority in (False, True)
+        }
+        self._prefer_priority = True
         self._pending_skills.clear()
         self._deferred_until.clear()
         self._deferred_until.update(rearmed)
-        if next_key is None:
-            self._tie_cursor = 0
-            return
-        self._tie_cursor = next(
-            (
-                index
-                for index, skill in enumerate(self.skills)
-                if skill.key == next_key
-            ),
-            0,
-        )
 
     def is_enabled(self):
         return bool(self.skills)
@@ -97,7 +103,8 @@ class RotationManager(BaseModule):
         super().on_start()
         now = time.perf_counter() * 1000
         self._schedule_started = True
-        self._tie_cursor = 0
+        self._tie_cursors = {False: 0, True: 0}
+        self._prefer_priority = True
         self._pending_skills.clear()
         self._deferred_until.clear()
         for skill in self.skills:
@@ -105,6 +112,8 @@ class RotationManager(BaseModule):
 
     def on_stop(self):
         self._schedule_started = False
+        self._tie_cursors = {False: 0, True: 0}
+        self._prefer_priority = True
         self._pending_skills.clear()
         self._deferred_until.clear()
 
@@ -144,6 +153,7 @@ class RotationManager(BaseModule):
             due_skills.append((index, skill, due_at))
 
         if not due_skills:
+            self._prefer_priority = True
             return False
 
         for index, skill, due_at in due_skills:
@@ -163,13 +173,18 @@ class RotationManager(BaseModule):
             for buffered in self._pending_skills.values()
             if buffered.index < skill_count
         ]
-        candidates.sort(
-            key=lambda item: (
-                item[1].cooldown,
-                item[2].due_at,
-                (item[0] - self._tie_cursor) % skill_count,
-            ),
+        candidates = self._prioritize_candidates(candidates, skill_count)
+        has_priority = any(
+            self._is_priority_skill(skill.key)
+            for _, skill, _ in candidates
         )
+        has_standard = any(
+            not self._is_priority_skill(skill.key)
+            for _, skill, _ in candidates
+        )
+        mixed_priority = has_priority and has_standard
+        if not mixed_priority:
+            self._prefer_priority = True
 
         attempts = 0
         for index, skill, _ in candidates:
@@ -180,10 +195,82 @@ class RotationManager(BaseModule):
                 skill.last_cast = now
                 self._pending_skills.pop(skill.key, None)
                 self._deferred_until.pop(skill.key, None)
-                self._tie_cursor = (index + 1) % skill_count
+                self._advance_tie_cursor(index, skill_count, skill.key)
+                if mixed_priority:
+                    self._prefer_priority = not self._is_priority_skill(
+                        skill.key
+                    )
                 return True
-            self._tie_cursor = (index + 1) % skill_count
+            self._advance_tie_cursor(index, skill_count, skill.key)
         return False
+
+    def _prioritize_candidates(self, candidates, skill_count):
+        def scheduling_key(item):
+            priority = self._is_priority_skill(item[1].key)
+            return (
+                item[1].cooldown,
+                item[2].due_at,
+                (item[0] - self._tie_cursors[priority]) % skill_count,
+            )
+
+        priority = sorted(
+            (
+                item
+                for item in candidates
+                if self._is_priority_skill(item[1].key)
+            ),
+            key=scheduling_key,
+        )
+        standard = sorted(
+            (
+                item
+                for item in candidates
+                if not self._is_priority_skill(item[1].key)
+            ),
+            key=scheduling_key,
+        )
+        if not priority or not standard:
+            return priority or standard
+
+        first, second = (
+            (priority, standard)
+            if self._prefer_priority
+            else (standard, priority)
+        )
+        ordered = []
+        for index in range(max(len(first), len(second))):
+            if index < len(first):
+                ordered.append(first[index])
+            if index < len(second):
+                ordered.append(second[index])
+        return ordered
+
+    @classmethod
+    def _is_priority_skill(cls, key):
+        return str(key).upper() in cls.PRIORITY_SKILL_KEYS
+
+    def _next_key_for_group(self, priority):
+        if not self.skills:
+            return None
+        skill_count = len(self.skills)
+        candidates = [
+            (index, skill)
+            for index, skill in enumerate(self.skills)
+            if self._is_priority_skill(skill.key) is priority
+        ]
+        if not candidates:
+            return None
+        _, skill = min(
+            candidates,
+            key=lambda item: (
+                item[0] - self._tie_cursors[priority]
+            ) % skill_count,
+        )
+        return skill.key
+
+    def _advance_tie_cursor(self, index, skill_count, key):
+        priority = self._is_priority_skill(key)
+        self._tie_cursors[priority] = (index + 1) % skill_count
 
     def _coalesce_recent_press(self, skill, due_at, now, index):
         getter = getattr(self.input, "last_press_at", None)
@@ -200,7 +287,7 @@ class RotationManager(BaseModule):
         skill.last_cast = pressed_at_ms
         self._pending_skills.pop(skill.key, None)
         self._deferred_until.pop(skill.key, None)
-        self._tie_cursor = (index + 1) % len(self.skills)
+        self._advance_tie_cursor(index, len(self.skills), skill.key)
         return True
 
     def _defer_until_next_period(self, skill, due_at, now):

@@ -34,6 +34,12 @@ class BotControlBar(QWidget):
 
         )
 
+        self.start_button.setToolTip(
+
+            "Inicia la automatización con la configuración actual."
+
+        )
+
     def create_layout(self):
 
         layout = QHBoxLayout()
@@ -74,11 +80,23 @@ class BotControlBar(QWidget):
 
         )
 
+        self.start_button.setToolTip(
+
+            "Detiene la automatización de forma segura."
+
+        )
+
     def set_starting(self):
 
         self.start_button.setText(
 
             "INICIANDO... / DETENER"
+
+        )
+
+        self.start_button.setToolTip(
+
+            "El bot se está iniciando; pulsa para cancelar y detenerlo."
 
         )
 
@@ -92,10 +110,22 @@ class BotControlBar(QWidget):
 
         self.start_button.setEnabled(False)
 
+        self.start_button.setToolTip(
+
+            "Espera mientras el bot termina las acciones pendientes."
+
+        )
+
     def set_stopped(self):
 
         self.start_button.setText(
 
             "▶ INICIAR BOT"
+
+        )
+
+        self.start_button.setToolTip(
+
+            "Inicia la automatización con la configuración actual."
 
         )

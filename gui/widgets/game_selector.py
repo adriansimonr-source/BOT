@@ -13,6 +13,7 @@ class GameSelector(QWidget):
     def __init__(self, manager=None):
         super().__init__()
         self.manager = manager or GameProfileManager()
+        self._process_details = ""
         self.create_ui()
         self.connect_signals()
         self.load_games()
@@ -26,11 +27,13 @@ class GameSelector(QWidget):
 
         self.combo = QComboBox()
         self.combo.setMinimumWidth(180)
+        self.combo.setToolTip("Selecciona el perfil de juego que utilizará el bot.")
         layout.addWidget(self.combo)
 
         self.status_label = QLabel("● Sin detectar")
         self.status_label.setMinimumWidth(100)
         self.status_label.setStyleSheet("color: #6B7280;")
+        self.status_label.setToolTip("Estado del juego: Sin detectar.")
         layout.addWidget(self.status_label)
 
         self.add_button = QPushButton("+")
@@ -38,9 +41,11 @@ class GameSelector(QWidget):
         self.update_button = self.refresh_button
         self.delete_button = QPushButton("×")
 
-        self.add_button.setToolTip("Agregar juego")
-        self.refresh_button.setToolTip("Detectar el proceso del juego seleccionado")
-        self.delete_button.setToolTip("Eliminar juego")
+        self.add_button.setToolTip("Agrega un nuevo perfil de juego.")
+        self.refresh_button.setToolTip(
+            "Busca y conecta el proceso del juego seleccionado."
+        )
+        self.delete_button.setToolTip("Elimina el perfil de juego seleccionado.")
 
         for button in (
             self.add_button,
@@ -117,7 +122,17 @@ class GameSelector(QWidget):
 
         self.status_label.setText(f"● {label}")
         self.status_label.setStyleSheet(f"color: {color};")
-        self.status_label.setToolTip(details or "")
+        if not connected:
+            self._process_details = ""
+        elif label == "Conectado" and details:
+            self._process_details = details
+
+        tooltip = details
+        if not tooltip and connected and label == "Conectado":
+            tooltip = self._process_details
+        self.status_label.setToolTip(
+            tooltip or f"Estado del juego: {label}."
+        )
 
     def set_locked(self, locked):
         has_games = self.combo.count() > 0

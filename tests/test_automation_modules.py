@@ -654,6 +654,58 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, [])
 
+    def test_stale_hp_blocks_f8_f10_but_fresh_mp_still_triggers_f9(self):
+        input_manager = FakeInput()
+        resources = AutoConsumables(input_manager)
+        resources.pot1_enabled = True
+        resources.mp_enabled = True
+        heal = AutoHeal(input_manager)
+        state = create_state(
+            hp=20,
+            mp=20,
+            hp_updated_at=1.0,
+            mp_updated_at=2.0,
+        )
+
+        with patch(
+            "core.modules.auto_consumables.time.perf_counter",
+            return_value=2.0,
+        ):
+            resources.update(state)
+        with patch(
+            "core.modules.auto_heal.time.perf_counter",
+            return_value=2.0,
+        ):
+            heal.update(state)
+
+        self.assertEqual(input_manager.keys, ["F9"])
+
+    def test_stale_mp_blocks_f9_but_fresh_hp_triggers_f8_f10(self):
+        input_manager = FakeInput()
+        resources = AutoConsumables(input_manager)
+        resources.pot1_enabled = True
+        resources.mp_enabled = True
+        heal = AutoHeal(input_manager)
+        state = create_state(
+            hp=20,
+            mp=20,
+            hp_updated_at=2.0,
+            mp_updated_at=1.0,
+        )
+
+        with patch(
+            "core.modules.auto_consumables.time.perf_counter",
+            return_value=2.0,
+        ):
+            resources.update(state)
+        with patch(
+            "core.modules.auto_heal.time.perf_counter",
+            return_value=2.0,
+        ):
+            heal.update(state)
+
+        self.assertEqual(input_manager.keys, ["F8", "F10"])
+
     def test_invalid_hp_does_not_block_attack_or_numeric_skills(self):
         input_manager = FakeInput()
         state = create_state(
@@ -1052,7 +1104,7 @@ class AutomationModuleTests(unittest.TestCase):
         module = RotationManager(input_manager)
         module.skills = [
             SkillConfig(True, "1", 500, last_cast=2100),
-            SkillConfig(True, "F1", 2000, last_cast=0),
+            SkillConfig(True, "2", 2000, last_cast=0),
         ]
 
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
@@ -1060,6 +1112,46 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["1"])
         self.assertEqual(input_manager.hold_times, [25])
+
+    def test_rotation_prioritizes_due_function_skill_without_starving_numeric(self):
+        input_manager = FakeInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500, last_cast=2100),
+            SkillConfig(True, "F1", 2000, last_cast=0),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
+            module.update(create_state())
+        with patch(
+            "core.modules.rotation_manager.time.perf_counter",
+            return_value=3.025,
+        ):
+            module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["F1", "1"])
+
+    def test_rotation_never_anticipates_function_skill_priority(self):
+        input_manager = FakeInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500),
+            SkillConfig(True, "F1", 1000),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.0):
+            module.on_start()
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.5):
+            module.update(create_state())
+        with patch(
+            "core.modules.rotation_manager.time.perf_counter",
+            return_value=0.999,
+        ):
+            module.update(create_state())
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.0):
+            module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["1", "F1"])
 
     def test_rotation_coalesces_a_recent_same_key_delivery(self):
         class RecentlyPressedInput(FakeInput):
@@ -1112,6 +1204,27 @@ class AutomationModuleTests(unittest.TestCase):
         self.assertEqual(input_manager.keys, ["1", "2"])
         self.assertEqual(module.skills[0].last_cast, 0)
         self.assertEqual(module.skills[1].last_cast, 1000)
+
+    def test_failed_function_skill_allows_numeric_attempt_in_the_same_tick(self):
+        class SelectiveInput(FakeInput):
+            def press(self, key, hold_ms=None):
+                self.keys.append(key)
+                self.hold_times.append(hold_ms)
+                return key != "F1"
+
+        input_manager = SelectiveInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500, last_cast=2100),
+            SkillConfig(True, "F1", 2000, last_cast=0),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
+            module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["F1", "1"])
+        self.assertEqual(module.skills[0].last_cast, 3000)
+        self.assertEqual(module.skills[1].last_cast, 0)
 
     def test_rotation_bounds_failed_driver_calls_per_tick(self):
         input_manager = ScriptedInput([False, False])
@@ -1207,7 +1320,7 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["1"])
 
-    def test_rotation_resolves_equal_intervals_one_skill_per_cycle(self):
+    def test_rotation_resolves_equal_intervals_with_function_skill_first(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -1220,12 +1333,36 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=20.5):
             module.update(create_state(target_exists=True))
 
-        self.assertEqual(input_manager.keys, ["1"])
+        self.assertEqual(input_manager.keys, ["F1"])
 
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=20.55):
             module.update(create_state(target_exists=True))
 
-        self.assertEqual(input_manager.keys, ["1", "F1"])
+        self.assertEqual(input_manager.keys, ["F1", "1"])
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=21.05):
+            module.update(create_state(target_exists=True))
+
+        self.assertEqual(input_manager.keys, ["F1", "1", "F1"])
+
+    def test_expired_contention_starts_the_next_collision_with_function_skill(self):
+        input_manager = FakeInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500),
+            SkillConfig(True, "F1", 500),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.0):
+            module.on_start()
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.5):
+            module.update(create_state())
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.7):
+            module.update(create_state())
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.0):
+            module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["F1", "F1"])
 
     def test_rotation_does_not_starve_many_equal_interval_skills(self):
         input_manager = FakeInput()
@@ -1247,6 +1384,7 @@ class AutomationModuleTests(unittest.TestCase):
             ):
                 module.update(create_state())
 
+        self.assertEqual(input_manager.keys[0], "F1")
         self.assertEqual(set(input_manager.keys), set(keys))
 
     def test_rotation_failed_send_does_not_start_skill_interval(self):

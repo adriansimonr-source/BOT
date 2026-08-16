@@ -6,7 +6,11 @@ import numpy as np
 
 from core.managers.entity_cache_manager import EntityCacheManager
 from core.models.target_state import TargetState
+from core.services.bar_reader import BarReader
 from core.services.enemy_monitor import EnemyMonitor
+
+
+_DEFAULT_HP = object()
 
 
 class PendingFuture:
@@ -39,6 +43,27 @@ class RecordingExecutor:
 
 class EnemyMonitorTests(unittest.TestCase):
 
+    def test_configured_enemy_area_avoids_full_frame_search_on_miss(self):
+        full_image = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        search_image = np.zeros((300, 540, 3), dtype=np.uint8)
+        search_area = {"x": 900, "y": 740, "width": 540, "height": 300}
+        detector = SimpleNamespace(detect=MagicMock(return_value=None))
+        resolver = SimpleNamespace(crop=MagicMock(return_value=search_image))
+        templates = SimpleNamespace(get=lambda name: search_area)
+        monitor, _ = self.create_monitor(anchor=None)
+        monitor.detector = detector
+        monitor.resolver = resolver
+        monitor.templates = templates
+
+        detection = monitor._detect_in_search_area(
+            full_image,
+            object(),
+            "enemy_search_area",
+        )
+
+        self.assertIsNone(detection)
+        detector.detect.assert_called_once_with(search_image, unittest.mock.ANY)
+
     @staticmethod
     def create_monitor(
         *,
@@ -47,9 +72,11 @@ class EnemyMonitorTests(unittest.TestCase):
         executor=None,
         name_matcher=None,
         has_hp_bar=True,
-        hp_percent=50,
+        hp_percent=_DEFAULT_HP,
         database=None,
     ):
+        if hp_percent is _DEFAULT_HP:
+            hp_percent = 50 if has_hp_bar else None
         detector = SimpleNamespace(detect=lambda image, template: anchor)
         resolver = SimpleNamespace(
             resolve=lambda detection, template: object(),
@@ -105,6 +132,139 @@ class EnemyMonitorTests(unittest.TestCase):
         self.assertEqual(target.name, "")
         self.assertEqual(target.level, 0)
         self.assertEqual(target.hp_percent, 0)
+
+    def test_two_transient_hud_misses_preserve_the_selected_target(self):
+        monitor, _ = self.create_monitor(anchor=object(), enemy_name="Bongbo")
+        target = TargetState()
+        monitor.update(MagicMock(), target)
+        selection_id = target.selection_id
+        monitor.detector.detect = MagicMock(return_value=None)
+
+        monitor.update(MagicMock(), target)
+        monitor.update(MagicMock(), target)
+
+        self.assertTrue(target.exists)
+        self.assertEqual(target.selection_id, selection_id)
+
+        monitor.update(MagicMock(), target)
+
+        self.assertFalse(target.exists)
+        self.assertEqual(target.selection_id, selection_id)
+
+    def test_anchor_search_reuses_the_last_hud_position(self):
+        monitor, _ = self.create_monitor(anchor=None)
+        template_image = np.full((20, 30, 3), 35, dtype=np.uint8)
+        template_image[5:15, 7:25] = (10, 15, 210)
+        template = SimpleNamespace(
+            image=template_image,
+            threshold=0.75,
+            name="enemy_anchor",
+            type="anchor",
+        )
+        full_detection = {
+            "x": 100,
+            "y": 50,
+            "width": 30,
+            "height": 20,
+        }
+        local_detection = {
+            "x": 24,
+            "y": 24,
+            "width": 30,
+            "height": 20,
+        }
+        monitor.bar_reader = BarReader()
+        monitor.detector = SimpleNamespace(
+            detect=MagicMock(side_effect=[full_detection, local_detection]),
+        )
+        image = np.zeros((200, 300, 3), dtype=np.uint8)
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            side_effect=[1.0, 1.1],
+        ):
+            first = monitor._detect_anchor(image, template)
+            second = monitor._detect_anchor(image, template)
+
+        self.assertEqual((first["x"], first["y"]), (100, 50))
+        self.assertEqual((second["x"], second["y"]), (100, 50))
+        local_image = monitor.detector.detect.call_args_list[1].args[0]
+        self.assertEqual(local_image.shape[:2], (68, 78))
+
+    def test_forced_anchor_recovery_can_leave_the_cached_roi(self):
+        monitor, _ = self.create_monitor(anchor=None)
+        template_image = np.full((20, 30, 3), 35, dtype=np.uint8)
+        template_image[5:15, 7:25] = (10, 15, 210)
+        template = SimpleNamespace(
+            image=template_image,
+            threshold=0.75,
+            name="enemy_anchor",
+            type="anchor",
+        )
+        relocated = {"x": 220, "y": 110, "width": 30, "height": 20}
+        monitor.bar_reader = BarReader()
+        monitor.anchor_detection = {"x": 100, "y": 50}
+        monitor.force_full_anchor_search = True
+        monitor.detector = SimpleNamespace(
+            detect=MagicMock(return_value=relocated),
+        )
+        image = np.zeros((200, 300, 3), dtype=np.uint8)
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=1.0,
+        ):
+            detection = monitor._detect_anchor(image, template)
+
+        self.assertEqual((detection["x"], detection["y"]), (220, 110))
+        calls = monitor.detector.detect.call_args_list
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].args[0].shape[:2], (200, 300))
+        self.assertFalse(monitor.force_full_anchor_search)
+
+    def test_failed_forced_search_discards_the_stale_anchor_cache(self):
+        monitor, _ = self.create_monitor(anchor=None)
+        template_image = np.full((20, 30, 3), 35, dtype=np.uint8)
+        template_image[5:15, 7:25] = (10, 15, 210)
+        template = SimpleNamespace(
+            image=template_image,
+            threshold=0.75,
+            name="enemy_anchor",
+            type="anchor",
+        )
+        relocated = {"x": 220, "y": 110, "width": 30, "height": 20}
+        monitor.bar_reader = BarReader()
+        monitor.anchor_detection = {"x": 100, "y": 50}
+        monitor.force_full_anchor_search = True
+        detect = MagicMock(side_effect=[None, relocated])
+        monitor.detector = SimpleNamespace(detect=detect)
+        image = np.zeros((200, 300, 3), dtype=np.uint8)
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            side_effect=[1.0, 1.1, 1.6],
+        ):
+            self.assertIsNone(monitor._detect_anchor(image, template))
+            self.assertIsNone(monitor._detect_anchor(image, template))
+            detection = monitor._detect_anchor(image, template)
+
+        self.assertEqual(detect.call_count, 2)
+        self.assertEqual((detection["x"], detection["y"]), (220, 110))
+
+    def test_bar_reader_measurement_wins_over_validator_false_negative(self):
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            enemy_name="Bongbo",
+            has_hp_bar=False,
+            hp_percent=42,
+        )
+        target = TargetState()
+
+        monitor.update(MagicMock(), target)
+
+        self.assertTrue(target.exists)
+        self.assertTrue(target.hp_valid)
+        self.assertEqual(target.hp_percent, 42)
 
     def test_failed_ocr_does_not_reuse_the_previous_target_name(self):
         monitor, cache = self.create_monitor(anchor=object(), enemy_name=None)
@@ -308,7 +468,7 @@ class EnemyMonitorTests(unittest.TestCase):
         database.register_enemy_seen.assert_called_once_with("Bongbo")
         database.resolve_item_name.assert_not_called()
 
-    def test_persistent_invalid_hp_rotates_without_registering_an_item(self):
+    def test_persistent_invalid_hp_keeps_visible_target_actionable(self):
         database = SimpleNamespace(
             resolve_enemy_name=MagicMock(),
             register_enemy_seen=MagicMock(),
@@ -332,12 +492,43 @@ class EnemyMonitorTests(unittest.TestCase):
                 monitor.update(MagicMock(), target)
 
         self.assertTrue(target.visible)
-        self.assertFalse(target.exists)
+        self.assertTrue(target.exists)
+        self.assertTrue(target.targetable)
         self.assertFalse(target.hp_valid)
         database.register_enemy_seen.assert_not_called()
         database.register_item_seen.assert_not_called()
 
-    def test_three_empty_frames_confirm_death_without_changing_selection(self):
+    def test_invalid_hp_after_measurement_preserves_presence_and_last_value(self):
+        monitor, _ = self.create_monitor(
+            anchor=object(),
+            enemy_name="Bongbo",
+            has_hp_bar=True,
+            hp_percent=50,
+        )
+        target = TargetState()
+
+        with patch(
+            "core.services.enemy_monitor.time.perf_counter",
+            return_value=0.0,
+        ):
+            monitor.update(MagicMock(), target)
+
+        monitor.bar_reader.read_enemy_hp = MagicMock(return_value=None)
+        monitor.target_validator.has_red_bar = MagicMock(return_value=True)
+        for now in (0.1, 1.2):
+            with patch(
+                "core.services.enemy_monitor.time.perf_counter",
+                return_value=now,
+            ):
+                monitor.update(MagicMock(), target)
+
+        self.assertTrue(target.visible)
+        self.assertTrue(target.exists)
+        self.assertTrue(target.targetable)
+        self.assertFalse(target.hp_valid)
+        self.assertEqual(target.hp_percent, 50)
+
+    def test_sustained_empty_bar_confirms_death_without_changing_selection(self):
         monitor, _ = self.create_monitor(
             anchor=object(),
             enemy_name="Bongbo",
@@ -353,22 +544,23 @@ class EnemyMonitorTests(unittest.TestCase):
             monitor.update(MagicMock(), target)
         selection_id = target.selection_id
         monitor.target_validator.has_red_bar = MagicMock(
-            side_effect=[False, False, False]
+            return_value=False
         )
+        monitor.bar_reader.read_enemy_hp = MagicMock(return_value=None)
 
-        for now in (0.1, 0.2):
+        for now in (0.1, 0.2, 0.3, 0.4):
             with patch(
                 "core.services.enemy_monitor.time.perf_counter",
                 return_value=now,
             ):
                 monitor.update(MagicMock(), target)
             self.assertTrue(target.exists)
-            self.assertFalse(target.hp_valid)
+            self.assertTrue(target.hp_valid)
             self.assertEqual(target.hp_percent, 50)
 
         with patch(
             "core.services.enemy_monitor.time.perf_counter",
-            return_value=0.3,
+            return_value=0.6,
         ):
             monitor.update(MagicMock(), target)
 
@@ -395,7 +587,9 @@ class EnemyMonitorTests(unittest.TestCase):
         monitor.target_validator.has_red_bar = MagicMock(
             side_effect=[False, False, True]
         )
-        monitor.bar_reader.read_enemy_hp = lambda image: 40
+        monitor.bar_reader.read_enemy_hp = MagicMock(
+            side_effect=[None, None, 40]
+        )
 
         for now in (0.1, 0.2, 0.3):
             with patch(

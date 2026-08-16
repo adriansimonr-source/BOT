@@ -67,16 +67,33 @@ class BotTabConfigurationTests(unittest.TestCase):
         number_skill.time_spin.setValue(1200)
         self.assertEqual(enabled_skills["1"], 700)
 
-    def test_bot_controls_remain_editable_while_game_is_locked_elsewhere(self):
+    def test_skills_are_locked_while_other_live_controls_remain_editable(self):
         self.tab.lock_controls()
 
         self.assertFalse(self.tab.game_selector.combo.isEnabled())
-        self.assertTrue(
-            self.tab.rotation_panel.number_skills[0].time_spin.isEnabled()
-        )
+        number_skill = self.tab.rotation_panel.number_skills[0]
+        function_skill = self.tab.rotation_panel.function_skills[0]
+        self.assertFalse(number_skill.enabled_checkbox.isEnabled())
+        self.assertFalse(number_skill.time_spin.isEnabled())
+        self.assertFalse(function_skill.enabled_checkbox.isEnabled())
+        self.assertFalse(function_skill.time_spin.isEnabled())
         self.assertTrue(self.tab.auto_panel.auto_attack.checkbox.isEnabled())
         self.assertTrue(self.tab.auto_panel.ignore_targets.isEnabled())
         self.assertTrue(self.tab.character_group.mode_selector.isEnabled())
+
+        self.tab.unlock_controls()
+
+        self.assertTrue(number_skill.enabled_checkbox.isEnabled())
+        self.assertTrue(number_skill.time_spin.isEnabled())
+        self.assertTrue(function_skill.enabled_checkbox.isEnabled())
+        self.assertTrue(function_skill.time_spin.isEnabled())
+
+    def test_function_skill_column_explains_its_priority(self):
+        header = self.tab.rotation_panel.priority_header
+
+        self.assertIn("PRIORIDAD", header.text())
+        self.assertIn("BUFFS / ESCUDOS", header.text())
+        self.assertIn("milisegundos", header.toolTip())
 
 
 class LiveConfigurationApplicationTests(unittest.TestCase):

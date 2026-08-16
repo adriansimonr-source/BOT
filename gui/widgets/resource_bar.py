@@ -25,6 +25,10 @@ class ResourceBar(QWidget):
         layout.addStretch()
 
     def update_percent(self, value):
+        if value is None:
+            self.bar.setValue(0)
+            self.value_label.setText("--")
+            return
         value = max(0, min(100, int(value)))
         self.bar.setValue(value)
         self.value_label.setText(f"{value}%")

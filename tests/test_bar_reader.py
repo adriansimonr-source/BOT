@@ -36,15 +36,27 @@ class BarReaderTests(unittest.TestCase):
         image = np.zeros((10, 245, 3), dtype=np.uint8)
         image[:2, :100] = (0, 0, 200)
 
-        self.assertEqual(self.reader.read_hp(image), 0)
+        self.assertIsNone(self.reader.read_hp(image))
 
     def test_invalid_images_return_an_empty_reading(self):
-        self.assertEqual(self.reader.read_hp(None), 0)
-        self.assertEqual(self.reader.read_hp(np.zeros((10, 10))), 0)
-        self.assertEqual(
+        self.assertIsNone(self.reader.read_hp(None))
+        self.assertIsNone(self.reader.read_hp(np.zeros((10, 10))))
+        self.assertIsNone(
             self.reader.read_mp(np.empty((0, 0, 3), dtype=np.uint8)),
-            0,
         )
+
+    def test_dim_dominant_resource_colors_remain_measurable(self):
+        hp = self.bar(245, 61, (25, 30, 90))
+        mp = self.bar(244, 122, (90, 30, 25))
+
+        self.assertEqual(self.reader.read_hp(hp), 24.9)
+        self.assertEqual(self.reader.read_mp(mp), 50.0)
+
+    def test_neutral_bright_pixels_are_not_resource_fill(self):
+        image = self.bar(245, 100, (180, 180, 180))
+
+        self.assertIsNone(self.reader.read_hp(image))
+        self.assertIsNone(self.reader.read_mp(image))
 
 
 if __name__ == "__main__":

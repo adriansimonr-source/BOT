@@ -147,6 +147,6 @@ class TargetGroup(QWidget):
 
         self.hp_bar.update_percent(
 
-            target.hp_percent
+            target.hp_percent if target.hp_valid else None
 
         )

@@ -34,6 +34,10 @@ class SkillCard(QWidget):
 
         self.enabled_checkbox = QCheckBox()
 
+        self.enabled_checkbox.setToolTip(
+            f"Activa o desactiva la habilidad {self.skill_key}."
+        )
+
 
 
         self.skill_label = QLabel(
@@ -48,6 +52,10 @@ class SkillCard(QWidget):
 
         self.skill_label.setFixedWidth(
             25
+        )
+
+        self.skill_label.setToolTip(
+            f"Tecla de la habilidad: {self.skill_key}."
         )
 
 
@@ -78,6 +86,10 @@ class SkillCard(QWidget):
 
         self.time_spin.setFixedWidth(
             75
+        )
+
+        self.time_spin.setToolTip(
+            f"Intervalo mínimo entre ejecuciones de {self.skill_key}."
         )
 
 

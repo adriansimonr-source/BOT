@@ -1,6 +1,7 @@
 import os
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -97,6 +98,33 @@ class CharacterGroupTests(unittest.TestCase):
         self.assertEqual(self.group.quiet_seconds.minimum(), 3)
         self.assertEqual(self.group.quiet_seconds.maximum(), 120)
         self.assertEqual(self.group.get_quiet_seconds(), 10)
+
+    def test_invalid_resource_is_shown_as_unavailable(self):
+        state = SimpleNamespace(
+            player=SimpleNamespace(
+                hp_percent=35,
+                hp_valid=False,
+                hp_updated_at=10.0,
+                mp_percent=41,
+                mp_valid=True,
+                mp_updated_at=10.0,
+                x=0,
+                y=0,
+                position_valid=False,
+                start_x=0,
+                start_y=0,
+                position_locked=False,
+            )
+        )
+
+        with patch(
+            "core.models.player_state.time.perf_counter",
+            return_value=10.0,
+        ):
+            self.group.update_state(state)
+
+        self.assertEqual(self.group.hp_bar.value_label.text(), "--")
+        self.assertEqual(self.group.mp_bar.value_label.text(), "41%")
 
     def test_lock_settings_only_locks_editable_bot_settings(self):
         self.group.lock_settings()

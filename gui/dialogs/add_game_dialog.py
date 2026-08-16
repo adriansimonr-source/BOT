@@ -28,18 +28,28 @@ class AddGameDialog(QDialog):
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Nombre visible del juego")
+        self.name_input.setToolTip("Nombre con el que aparecerá el juego en la lista.")
         form.addRow("Nombre:", self.name_input)
 
         window_row = QHBoxLayout()
         self.window_input = QLineEdit()
         self.window_input.setPlaceholderText("Título o parte estable del título")
+        self.window_input.setToolTip(
+            "Título completo o fragmento estable de la ventana del juego."
+        )
         self.detect_button = QPushButton("Detectar proceso")
+        self.detect_button.setToolTip(
+            "Busca ventanas que coincidan con el título indicado."
+        )
         window_row.addWidget(self.window_input, 1)
         window_row.addWidget(self.detect_button)
         form.addRow("Ventana:", window_row)
 
         self.detected_combo = QComboBox()
         self.detected_combo.setEnabled(False)
+        self.detected_combo.setToolTip(
+            "Selecciona el proceso correcto si se detecta más de uno."
+        )
         form.addRow("Proceso:", self.detected_combo)
         layout.addLayout(form)
 
@@ -54,6 +64,8 @@ class AddGameDialog(QDialog):
         buttons.addStretch()
         self.cancel_button = QPushButton("Cancelar")
         self.add_button = QPushButton("Agregar")
+        self.cancel_button.setToolTip("Cierra la ventana sin guardar el juego.")
+        self.add_button.setToolTip("Guarda el juego y el proceso detectado.")
         self.add_button.setEnabled(False)
         buttons.addWidget(self.cancel_button)
         buttons.addWidget(self.add_button)

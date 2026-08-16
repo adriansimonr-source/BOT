@@ -38,6 +38,10 @@ class ConsumableCard(QWidget):
             name
         )
 
+        self.checkbox.setToolTip(
+            f"Activa o desactiva {name}."
+        )
+
         self.threshold_spin = QSpinBox()
 
         self.threshold_spin.setRange(
@@ -55,6 +59,12 @@ class ConsumableCard(QWidget):
 
         self.threshold_spin.setFixedWidth(
             65
+        )
+
+        resource = "MP" if "MP" in name.upper() else "HP"
+        self.threshold_spin.setToolTip(
+            f"Usar {self._key} cuando el {resource} sea igual o inferior "
+            "a este porcentaje."
         )
 
         self.interval_spin = QSpinBox()
@@ -78,6 +88,10 @@ class ConsumableCard(QWidget):
 
         self.interval_spin.setFixedWidth(
             90
+        )
+
+        self.interval_spin.setToolTip(
+            f"Tiempo mínimo antes de reintentar la tecla {self._key}."
         )
 
     def create_layout(self):

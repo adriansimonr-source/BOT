@@ -28,6 +28,38 @@ class VisionManagerTests(unittest.TestCase):
         manager._update_heading = MagicMock()
         return manager
 
+    def test_minimap_miss_in_configured_area_does_not_search_full_frame(self):
+        manager = VisionManager.__new__(VisionManager)
+        full_image = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        search_image = np.zeros((250, 350, 3), dtype=np.uint8)
+        search_area = {"x": 1500, "y": 0, "width": 420, "height": 320}
+        template = object()
+        manager.templates = SimpleNamespace(get=lambda name: search_area)
+        manager.resolver = SimpleNamespace(crop=MagicMock(return_value=search_image))
+        manager.detector = SimpleNamespace(detect=MagicMock(return_value=None))
+
+        detection = manager._detect_minimap_anchor(full_image, template)
+
+        self.assertIsNone(detection)
+        manager.detector.detect.assert_called_once_with(search_image, template)
+
+    def test_minimap_detection_in_configured_area_restores_frame_coordinates(self):
+        manager = VisionManager.__new__(VisionManager)
+        full_image = np.zeros((1080, 1920, 3), dtype=np.uint8)
+        search_image = np.zeros((250, 350, 3), dtype=np.uint8)
+        search_area = {"x": 1500, "y": 20, "width": 420, "height": 320}
+        template = object()
+        manager.templates = SimpleNamespace(get=lambda name: search_area)
+        manager.resolver = SimpleNamespace(crop=MagicMock(return_value=search_image))
+        manager.detector = SimpleNamespace(
+            detect=MagicMock(return_value={"x": 12, "y": 8})
+        )
+
+        detection = manager._detect_minimap_anchor(full_image, template)
+
+        self.assertEqual(detection, {"x": 1512, "y": 28})
+        manager.detector.detect.assert_called_once_with(search_image, template)
+
     def test_navigation_only_advances_coordinate_read_at_half_second(self):
         manager = self.create_manager()
         state = SimpleNamespace(navigation_active=True)
@@ -161,6 +193,31 @@ class VisionManagerTests(unittest.TestCase):
 
         self.assertEqual(state.player.minimap_heading_deg, 90.0)
         self.assertEqual(state.player.minimap_heading_updated_at, 12.5)
+
+    def test_failed_player_hud_detection_is_retried_after_100_ms(self):
+        manager = VisionManager.__new__(VisionManager)
+        frame = SimpleNamespace(image=np.zeros((2, 2, 3), dtype=np.uint8))
+        manager.running = True
+        manager.capture = SimpleNamespace(get_frame=lambda: frame)
+        manager.enemy_monitor = SimpleNamespace(update=MagicMock())
+        manager.player_monitor = SimpleNamespace(
+            update=MagicMock(return_value=False)
+        )
+        manager.last_player_update = 0.0
+        state = SimpleNamespace(
+            player=PlayerState(),
+            target=SimpleNamespace(exists=False),
+            in_combat=False,
+        )
+
+        with patch(
+            "core.managers.vision_manager.time.perf_counter",
+            side_effect=[1.0, 1.0, 1.2],
+        ):
+            manager.update(state)
+
+        self.assertAlmostEqual(manager.last_player_update, 1.05)
+        manager.player_monitor.update.assert_called_once()
 
     def test_stop_finishes_ocr_cleanup_even_if_capture_stop_fails(self):
         manager = VisionManager.__new__(VisionManager)

@@ -16,7 +16,13 @@ class EnemyMonitor:
     HEALTH_EMPTY = "empty"
     HEALTH_INVALID = "invalid"
     HP_ACQUIRE_TIMEOUT_SECONDS = 1.0
-    HP_EMPTY_CONFIRMATIONS = 3
+    HP_EMPTY_CONFIRMATIONS = 5
+    HP_EMPTY_CONFIRMATION_SECONDS = 0.5
+    HP_LAST_VALID_SECONDS = 0.75
+    TARGET_MISS_CONFIRMATIONS = 3
+    ANCHOR_LOCAL_MARGIN = 24
+    ANCHOR_INITIAL_RETRY_SECONDS = 0.5
+    ANCHOR_RELOCATION_RETRY_SECONDS = 5.0
     IDENTITY_RETRY_SECONDS = 1.0
     MAX_IDENTITY_ATTEMPTS = 3
 
@@ -54,8 +60,12 @@ class EnemyMonitor:
         self.last_valid_hp = None
         self.last_valid_hp_at = None
         self.empty_hp_frames = 0
-        self.health_unknown_since = None
         self.health_dead = False
+        self.empty_hp_started_at = None
+        self.missing_hud_frames = 0
+        self.anchor_detection = None
+        self.last_anchor_confirmation_at = None
+        self.force_full_anchor_search = False
         self.identity_attempts = 0
         self.next_identity_retry_at = 0.0
 
@@ -67,29 +77,25 @@ class EnemyMonitor:
         if image is None:
             return False
 
-        target_state.reset(clear_selection=False)
         anchor_template = self.templates.get("enemy_anchor")
         if anchor_template is None:
-            self._target_missing()
-            return False
-        enemy_anchor = self.detector.detect(image, anchor_template)
+            return self._handle_missing_target(target_state)
+        enemy_anchor = self._detect_anchor(image, anchor_template)
         if not enemy_anchor:
-            self._target_missing()
-            return False
+            return self._handle_missing_target(target_state)
 
         hud_template = self.templates.get("enemy_hud")
         if hud_template is None:
-            self._target_missing()
-            return False
+            return self._handle_missing_target(target_state)
         enemy_hud = self.resolver.resolve(enemy_anchor, hud_template)
         if not enemy_hud:
-            self._target_missing()
-            return False
+            return self._handle_missing_target(target_state)
         hud_image = self.resolver.crop(image, enemy_hud)
         if hud_image is None:
-            self._target_missing()
-            return False
+            return self._handle_missing_target(target_state)
 
+        self.missing_hud_frames = 0
+        target_state.reset(clear_selection=False)
         name_image = self.crop_region(
             hud_image,
             self.templates.get("enemy_name"),
@@ -178,6 +184,19 @@ class EnemyMonitor:
         self._clear_recognized_identity()
         self._clear_enemy_cache()
 
+    def _handle_missing_target(self, target_state):
+        if not self.target_visible:
+            target_state.reset(clear_selection=False)
+            return False
+        self.missing_hud_frames += 1
+        if self.missing_hud_frames < self.TARGET_MISS_CONFIRMATIONS:
+            return False
+        self.force_full_anchor_search = True
+        self._target_missing()
+        self.missing_hud_frames = 0
+        target_state.reset(clear_selection=False)
+        return False
+
     def _new_selection(self, signature, now):
         self.selection_id += 1
         self.target_visible = True
@@ -193,8 +212,8 @@ class EnemyMonitor:
         self.last_valid_hp = None
         self.last_valid_hp_at = None
         self.empty_hp_frames = 0
-        self.health_unknown_since = None
         self.health_dead = False
+        self.empty_hp_started_at = None
 
     def _update_health_tracking(self, status, hp_percent, now):
         if status == self.HEALTH_MEASURED:
@@ -202,17 +221,21 @@ class EnemyMonitor:
             self.last_valid_hp = hp_percent
             self.last_valid_hp_at = now
             self.empty_hp_frames = 0
-            self.health_unknown_since = None
+            self.empty_hp_started_at = None
             self.health_dead = False
             return
 
         if status == self.HEALTH_EMPTY:
-            self.health_unknown_since = None
             if self.current_entity_type == self.ENTITY_ENEMY:
+                if self.empty_hp_frames == 0:
+                    self.empty_hp_started_at = now
                 self.empty_hp_frames += 1
                 self.health_dead = (
                     self.last_valid_hp is not None
                     and self.empty_hp_frames >= self.HP_EMPTY_CONFIRMATIONS
+                    and self.empty_hp_started_at is not None
+                    and now - self.empty_hp_started_at
+                    >= self.HP_EMPTY_CONFIRMATION_SECONDS
                 )
             elif (
                 self.current_entity_type is None
@@ -222,38 +245,38 @@ class EnemyMonitor:
             return
 
         self.empty_hp_frames = 0
-        if self.health_unknown_since is None:
-            self.health_unknown_since = now
+        self.empty_hp_started_at = None
 
     def _apply_health_state(self, target_state, status, now):
         target_state.hp_percent = float(self.last_valid_hp or 0.0)
         target_state.hp_observed_at = self.last_valid_hp_at
 
         if self.current_entity_type == self.ENTITY_ENEMY:
-            unreadable = (
-                status == self.HEALTH_INVALID
-                and self.health_unknown_since is not None
-                and now - self.health_unknown_since
-                >= self.HP_ACQUIRE_TIMEOUT_SECONDS
-            )
-            target_state.exists = not unreadable
-            target_state.targetable = not unreadable and not self.health_dead
+            target_state.exists = True
+            target_state.targetable = not self.health_dead
             if self.health_dead:
                 target_state.hp_percent = 0.0
                 target_state.hp_valid = True
                 target_state.hp_observed_at = now
-            elif status == self.HEALTH_MEASURED:
+            elif (
+                status == self.HEALTH_MEASURED
+                or self._last_hp_is_fresh(now)
+            ):
                 target_state.hp_valid = True
             return
 
         if self.current_entity_type == self.ENTITY_ITEM:
             return
 
-        acquiring = (
-            self._selection_age(now) < self.HP_ACQUIRE_TIMEOUT_SECONDS
+        target_state.exists = True
+        target_state.targetable = True
+
+    def _last_hp_is_fresh(self, now):
+        return bool(
+            self.last_valid_hp is not None
+            and self.last_valid_hp_at is not None
+            and 0.0 <= now - self.last_valid_hp_at <= self.HP_LAST_VALID_SECONDS
         )
-        target_state.exists = acquiring
-        target_state.targetable = acquiring
 
     def _set_entity_type(self, entity_type):
         if entity_type == self.current_entity_type:
@@ -444,6 +467,94 @@ class EnemyMonitor:
             register(resolved_name)
         return resolved_name, level, self.ENTITY_ENEMY
 
+    def _detect_anchor(self, image, template):
+        if not (
+            isinstance(image, np.ndarray)
+            and isinstance(getattr(template, "image", None), np.ndarray)
+        ):
+            return self.detector.detect(image, template)
+        forced_search = self.force_full_anchor_search
+        if not forced_search:
+            detection = self._detect_cached_anchor(image, template)
+            if detection is not None:
+                self.anchor_detection = detection
+                self.last_anchor_confirmation_at = time.perf_counter()
+                return detection
+
+        now = time.perf_counter()
+        retry_seconds = (
+            self.ANCHOR_RELOCATION_RETRY_SECONDS
+            if self.anchor_detection is not None
+            else self.ANCHOR_INITIAL_RETRY_SECONDS
+        )
+        if (
+            not self.force_full_anchor_search
+            and self.last_anchor_confirmation_at is not None
+            and now - self.last_anchor_confirmation_at < retry_seconds
+        ):
+            return None
+        self.last_anchor_confirmation_at = now
+        detection = self._detect_in_search_area(
+            image,
+            template,
+            "enemy_search_area",
+        )
+        if detection is not None:
+            self.anchor_detection = detection
+            self.force_full_anchor_search = False
+        elif forced_search:
+            self.anchor_detection = None
+            self.force_full_anchor_search = False
+        return detection
+
+    def _detect_cached_anchor(self, image, template):
+        cached = self.anchor_detection
+        template_image = getattr(template, "image", None)
+        if (
+            cached is None
+            or not isinstance(image, np.ndarray)
+            or not isinstance(template_image, np.ndarray)
+            or image.ndim < 2
+            or template_image.ndim < 2
+        ):
+            return None
+
+        image_height, image_width = image.shape[:2]
+        target_height, target_width = template_image.shape[:2]
+        margin = self.ANCHOR_LOCAL_MARGIN
+        left = max(0, int(cached["x"]) - margin)
+        top = max(0, int(cached["y"]) - margin)
+        right = min(
+            image_width,
+            int(cached["x"]) + target_width + margin,
+        )
+        bottom = min(
+            image_height,
+            int(cached["y"]) + target_height + margin,
+        )
+        search_image = image[top:bottom, left:right]
+        detection = self.detector.detect(search_image, template)
+        if detection is None:
+            return None
+        detection = dict(detection)
+        detection["x"] += left
+        detection["y"] += top
+        return detection
+
+    def _detect_in_search_area(self, image, template, area_name):
+        search_area = self.templates.get(area_name)
+        if search_area is None:
+            return self.detector.detect(image, template)
+        search_image = self.resolver.crop(image, search_area)
+        if search_image is None:
+            return self.detector.detect(image, template)
+        detection = self.detector.detect(search_image, template)
+        if detection is not None:
+            detection = dict(detection)
+            detection["x"] += max(0, int(search_area["x"]))
+            detection["y"] += max(0, int(search_area["y"]))
+        return detection
+
     def _read_health_data(self, hud_image):
         hp_image = self.crop_region(
             hud_image,
@@ -455,17 +566,16 @@ class EnemyMonitor:
             or hp_image.ndim != 3
         ):
             return self.HEALTH_INVALID, None
-        if not self.target_validator.has_red_bar(hp_image):
-            return self.HEALTH_EMPTY, None
-
         hp_percent = self.bar_reader.read_enemy_hp(hp_image)
         try:
             hp_percent = float(hp_percent)
         except (TypeError, ValueError, OverflowError):
+            hp_percent = None
+        if hp_percent is not None and np.isfinite(hp_percent) and hp_percent > 0:
+            return self.HEALTH_MEASURED, min(100.0, hp_percent)
+        if self.target_validator.has_red_bar(hp_image):
             return self.HEALTH_INVALID, None
-        if not np.isfinite(hp_percent) or hp_percent <= 0:
-            return self.HEALTH_INVALID, None
-        return self.HEALTH_MEASURED, min(100.0, hp_percent)
+        return self.HEALTH_EMPTY, None
 
     def valid_name(self, name):
         validator = getattr(

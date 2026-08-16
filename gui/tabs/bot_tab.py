@@ -318,6 +318,7 @@ class BotTab(QWidget):
     def lock_controls(self):
 
         self.game_selector.set_locked(True)
+        self.rotation_panel.lock_controls()
 
 
 
@@ -327,3 +328,4 @@ class BotTab(QWidget):
     def unlock_controls(self):
 
         self.game_selector.set_locked(False)
+        self.rotation_panel.unlock_controls()

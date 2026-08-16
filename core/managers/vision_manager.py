@@ -23,6 +23,7 @@ from core.services.template_manager import TemplateManager
 class VisionManager:
 
     PLAYER_UPDATE_INTERVAL_SECONDS = 0.25
+    PLAYER_RETRY_INTERVAL_SECONDS = 0.1
     MINIMAP_UPDATE_INTERVAL_SECONDS = 1.0
     COORDINATE_UPDATE_INTERVAL_SECONDS = 1.0
     NAVIGATION_COORDINATE_UPDATE_INTERVAL_SECONDS = 0.5
@@ -144,8 +145,16 @@ class VisionManager:
         self.enemy_monitor.update(image, state.target)
         now = time.perf_counter()
         if now - self.last_player_update >= self.PLAYER_UPDATE_INTERVAL_SECONDS:
-            self.player_monitor.update(image, state.player)
-            self.last_player_update = now
+            player_updated = self.player_monitor.update(image, state.player)
+            completed_at = time.perf_counter()
+            if player_updated:
+                self.last_player_update = completed_at
+            else:
+                self.last_player_update = (
+                    completed_at
+                    - self.PLAYER_UPDATE_INTERVAL_SECONDS
+                    + self.PLAYER_RETRY_INTERVAL_SECONDS
+                )
         state.in_combat = state.target.exists
 
     def update_auxiliary(self, state):
@@ -233,7 +242,7 @@ class VisionManager:
             if detection is not None:
                 detection["x"] += max(0, int(search_area["x"]))
                 detection["y"] += max(0, int(search_area["y"]))
-                return detection
+            return detection
         return self.detector.detect(image, template)
 
     def _update_coordinates(self, image):
