@@ -3,10 +3,12 @@ import os
 import re
 import unicodedata
 
+from core.runtime_paths import data_path
+
 
 class GameProfileManager:
-    def __init__(self, path="data/games.json"):
-        self.path = path
+    def __init__(self, path=None):
+        self.path = str(data_path("games.json") if path is None else path)
         self.games = {}
         self.active_game_id = None
         self.load()

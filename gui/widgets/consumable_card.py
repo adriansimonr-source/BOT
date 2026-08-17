@@ -58,7 +58,7 @@ class ConsumableCard(QWidget):
         )
 
         self.threshold_spin.setFixedWidth(
-            65
+            52
         )
 
         resource = "MP" if "MP" in name.upper() else "HP"
@@ -87,7 +87,7 @@ class ConsumableCard(QWidget):
         )
 
         self.interval_spin.setFixedWidth(
-            90
+            74
         )
 
         self.interval_spin.setToolTip(
@@ -108,7 +108,7 @@ class ConsumableCard(QWidget):
         )
 
         layout.setSpacing(
-            8
+            3
         )
 
         layout.addWidget(

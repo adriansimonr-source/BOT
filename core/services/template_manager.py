@@ -2,13 +2,19 @@ import json
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from core.models.template import Template
+from core.runtime_paths import resource_path
 
 
 class TemplateManager:
-    def __init__(self, config_path="data/templates.json"):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path=None):
+        self.config_path = Path(
+            resource_path("data", "templates.json")
+            if config_path is None
+            else config_path
+        )
         self.templates = {}
         self.load()
 
@@ -33,7 +39,13 @@ class TemplateManager:
                 raise ValueError(f"Anchor sin archivo: {name}")
 
             path = anchor_dir / filename
-            image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+            try:
+                encoded = np.frombuffer(path.read_bytes(), dtype=np.uint8)
+            except OSError as error:
+                raise FileNotFoundError(
+                    f"No se pudo cargar: {path}"
+                ) from error
+            image = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
             if image is None:
                 raise FileNotFoundError(f"No se pudo cargar: {path}")
 

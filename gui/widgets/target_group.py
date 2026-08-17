@@ -37,49 +37,33 @@ class TargetGroup(QWidget):
 
         )
 
+        self.hp_bar.setFixedWidth(140)
+
     def create_layout(self):
 
-        main_layout = QVBoxLayout()
+        main_layout = QHBoxLayout()
 
         main_layout.setContentsMargins(
 
-            6,
+            2,
 
-            6,
+            2,
 
-            6,
+            2,
 
-            6
+            2
 
         )
 
         main_layout.setSpacing(
 
-            8
+            4
 
         )
 
-        header_layout = QHBoxLayout()
+        main_layout.addWidget(self.target_name_label)
 
-        header_layout.addWidget(
-
-            self.target_name_label
-
-        )
-
-        header_layout.addStretch()
-
-        header_layout.addWidget(
-
-            self.level_label
-
-        )
-
-        main_layout.addLayout(
-
-            header_layout
-
-        )
+        main_layout.addWidget(self.level_label)
 
         main_layout.addWidget(
 

@@ -37,6 +37,14 @@ class RightPanelTests(unittest.TestCase):
 
         self.assertEqual(self.panel.auto_attack.interval(), 725)
 
+    def test_auto_target_has_a_stalled_hp_interval(self):
+        interval = self.panel.auto_target.interval_spin
+
+        self.assertIsNotNone(interval)
+        self.assertEqual(self.panel.auto_target.interval(), 10000)
+        self.assertEqual(interval.minimum(), 4000)
+        self.assertIn("bajada de vida", interval.toolTip())
+
     def test_main_window_stays_above_other_windows(self):
         window = QMainWindow()
         try:

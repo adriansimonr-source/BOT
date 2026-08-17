@@ -5,7 +5,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 13
+        "encounters": 117
     },
     "Ban Dopang": {
         "level": 0,
@@ -13,7 +13,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 8
+        "encounters": 59
     },
     "Borangi": {
         "level": 0,
@@ -397,7 +397,7 @@
         "ignore": false,
         "elite": false,
         "boss": false,
-        "encounters": 2
+        "encounters": 3
     },
     "en =710)40)": {
         "level": 0,

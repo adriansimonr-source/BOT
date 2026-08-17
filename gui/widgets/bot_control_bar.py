@@ -22,17 +22,7 @@ class BotControlBar(QWidget):
 
         )
 
-        self.start_button.setMinimumHeight(
-
-            36
-
-        )
-
-        self.start_button.setMinimumWidth(
-
-            180
-
-        )
+        self.start_button.setFixedSize(130, 24)
 
         self.start_button.setToolTip(
 
@@ -44,27 +34,13 @@ class BotControlBar(QWidget):
 
         layout = QHBoxLayout()
 
-        layout.setContentsMargins(
-
-            5,
-
-            5,
-
-            5,
-
-            5
-
-        )
-
-        layout.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)
 
         layout.addWidget(
 
             self.start_button
 
         )
-
-        layout.addStretch()
 
         self.setLayout(
 

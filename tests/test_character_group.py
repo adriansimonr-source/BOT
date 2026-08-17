@@ -72,13 +72,13 @@ class CharacterGroupTests(unittest.TestCase):
         self.assertEqual(self.group.current_position_label.text(), "--- / ---")
         self.assertEqual(self.group.start_position_label.text(), "--- / ---")
 
-    def test_radio_and_quiet_settings_keep_their_contract(self):
+    def test_radio_setting_keeps_its_contract_without_quiet_control(self):
         self.assertEqual(
             [
                 self.group.mode_selector.itemText(index)
                 for index in range(self.group.mode_selector.count())
             ],
-            ["FIJO (0)", "25", "50", "75", "100", "SIN LÍMITE"],
+            ["FIJO", "SIN LÍMITE", "10", "20", "30", "40"],
         )
         self.assertEqual(
             [
@@ -87,17 +87,20 @@ class CharacterGroupTests(unittest.TestCase):
             ],
             [
                 BotMode.STATIC_POINT,
-                BotMode.STATIC_25,
-                BotMode.STATIC_50,
-                BotMode.STATIC_75,
-                BotMode.STATIC_100,
                 BotMode.OFF,
+                BotMode.STATIC_10,
+                BotMode.STATIC_20,
+                BotMode.STATIC_30,
+                BotMode.STATIC_40,
             ],
         )
-        self.assertEqual(self.group.get_bot_mode(), BotMode.STATIC_100)
-        self.assertEqual(self.group.quiet_seconds.minimum(), 3)
-        self.assertEqual(self.group.quiet_seconds.maximum(), 120)
-        self.assertEqual(self.group.get_quiet_seconds(), 10)
+        self.assertEqual(self.group.get_bot_mode(), BotMode.STATIC_40)
+        self.assertFalse(hasattr(self.group, "quiet_seconds"))
+        self.assertFalse(hasattr(self.group, "get_quiet_seconds"))
+        self.assertNotIn(
+            "QUIETO",
+            [label.text() for label in self.group.findChildren(QLabel)],
+        )
 
     def test_invalid_resource_is_shown_as_unavailable(self):
         state = SimpleNamespace(
@@ -130,7 +133,6 @@ class CharacterGroupTests(unittest.TestCase):
         self.group.lock_settings()
 
         self.assertFalse(self.group.mode_selector.isEnabled())
-        self.assertFalse(self.group.quiet_seconds.isEnabled())
         self.assertTrue(self.group.refresh_position_button.isEnabled())
         self.assertTrue(self.group.lock_position_button.isEnabled())
         self.assertTrue(self.group.unlock_position_button.isEnabled())
@@ -138,7 +140,6 @@ class CharacterGroupTests(unittest.TestCase):
         self.group.unlock_settings()
 
         self.assertTrue(self.group.mode_selector.isEnabled())
-        self.assertTrue(self.group.quiet_seconds.isEnabled())
 
 
 if __name__ == "__main__":

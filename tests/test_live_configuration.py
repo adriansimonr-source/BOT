@@ -14,6 +14,7 @@ from core.models.automation_config import (
     AutomationConfig,
     SkillConfigValue,
 )
+from core.models.bot_settings import BotMode
 from core.modules.rotation_manager import RotationManager, SkillConfig
 from core.models.target_rules import TargetRules
 from gui.tabs.bot_tab import BotTab
@@ -36,16 +37,20 @@ class BotTabConfigurationTests(unittest.TestCase):
         self.tab.configuration_changed.connect(snapshots.append)
 
         number_skill = self.tab.rotation_panel.number_skills[0]
-        function_skill = self.tab.rotation_panel.function_skills[8]
+        function_skill = self.tab.rotation_panel.function_skills[6]
         number_skill.set_enabled(True)
         number_skill.time_spin.setValue(700)
         function_skill.set_enabled(True)
         function_skill.time_spin.setValue(1900)
         self.tab.auto_panel.auto_attack.set_enabled(True)
         self.tab.auto_panel.auto_attack.interval_spin.setValue(900)
+        self.tab.auto_panel.auto_target.set_enabled(True)
+        self.tab.auto_panel.auto_target.interval_spin.setValue(12500)
         self.tab.auto_panel.ignored_list.addItem("Lobo")
         self.tab.auto_panel.ignore_targets.setChecked(True)
-        self.tab.character_group.quiet_seconds.setValue(12)
+        self.tab.character_group.mode_selector.setCurrentIndex(
+            self.tab.character_group.mode_selector.findData(BotMode.STATIC_10)
+        )
 
         QTest.qWait(100)
         self.app.processEvents()
@@ -57,12 +62,14 @@ class BotTabConfigurationTests(unittest.TestCase):
             for skill in config.skills
             if skill.enabled
         }
-        self.assertEqual(enabled_skills, {"1": 700, "F9": 1900})
+        self.assertEqual(enabled_skills, {"1": 700, "F7": 1900})
         self.assertTrue(config.auto_attack.enabled)
         self.assertEqual(config.auto_attack.interval_ms, 900)
+        self.assertTrue(config.auto_target.enabled)
+        self.assertEqual(config.auto_target.interval_ms, 12500)
         self.assertEqual(config.ignored_targets, ("Lobo",))
         self.assertTrue(config.ignore_enabled)
-        self.assertEqual(config.quiet_seconds, 12)
+        self.assertEqual(config.bot_mode, BotMode.STATIC_10)
 
         number_skill.time_spin.setValue(1200)
         self.assertEqual(enabled_skills["1"], 700)
@@ -91,9 +98,24 @@ class BotTabConfigurationTests(unittest.TestCase):
     def test_function_skill_column_explains_its_priority(self):
         header = self.tab.rotation_panel.priority_header
 
-        self.assertIn("PRIORIDAD", header.text())
-        self.assertIn("BUFFS / ESCUDOS", header.text())
+        self.assertEqual(header.text(), "PRIORIDAD")
+        self.assertFalse(hasattr(self.tab.rotation_panel, "number_header"))
+        self.assertIn("se ejecutan antes", header.toolTip())
+        self.assertIn("F1–F7", header.toolTip())
         self.assertIn("milisegundos", header.toolTip())
+
+    def test_rotation_exposes_only_numeric_and_f1_to_f7_skills(self):
+        panel = self.tab.rotation_panel
+
+        self.assertEqual(
+            [card.skill_number() for card in panel.number_skills],
+            [str(number) for number in range(1, 10)],
+        )
+        self.assertEqual(
+            [card.skill_number() for card in panel.function_skills],
+            [f"F{number}" for number in range(1, 8)],
+        )
+        self.assertEqual(len(panel.skills), 16)
 
 
 class LiveConfigurationApplicationTests(unittest.TestCase):

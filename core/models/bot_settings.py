@@ -2,13 +2,13 @@ from enum import Enum
 
 class BotMode(Enum):
 
-    STATIC_25 = 25
+    STATIC_10 = 10
 
-    STATIC_50 = 50
+    STATIC_20 = 20
 
-    STATIC_75 = 75
+    STATIC_30 = 30
 
-    STATIC_100 = 100
+    STATIC_40 = 40
 
     OFF = -1
 
@@ -18,11 +18,9 @@ class BotSettings:
 
     def __init__(self):
 
-        self.mode = BotMode.STATIC_100
+        self.mode = BotMode.STATIC_40
 
         self.auto_return = True
-
-        self.return_delay = 10
 
         self.movement_hold_ms = 250
 
@@ -46,7 +44,3 @@ class BotSettings:
     ):
 
         self.mode = mode
-
-    def set_return_delay(self, seconds):
-
-        self.return_delay = max(3, int(seconds))

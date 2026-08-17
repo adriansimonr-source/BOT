@@ -1,10 +1,12 @@
 import json
 import os
 
+from core.runtime_paths import data_path
+
 
 class ConfigManager:
-    def __init__(self, path="data/config.json"):
-        self.path = path
+    def __init__(self, path=None):
+        self.path = str(data_path("config.json") if path is None else path)
         self.config = {}
         self.load()
 

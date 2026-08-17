@@ -8,11 +8,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QIcon
 
 from PySide6.QtWidgets import (
-    QWidget,
     QMainWindow,
-    QVBoxLayout,
-    QTabWidget,
-    QLabel,
     QMessageBox,
 )
 
@@ -25,6 +21,7 @@ from core.managers.game_state_manager import GameStateManager
 from core.managers.entity_database_manager import EntityDatabaseManager
 from core.bot_engine import BotEngine
 from core.bot_worker import BotWorker
+from core.runtime_paths import resource_path
 
 class MainWindow(QMainWindow):
 
@@ -94,7 +91,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(
 
-            "SB Automation Suite"
+            "SB Automation Suite v1.1.1"
 
         )
 
@@ -102,7 +99,7 @@ class MainWindow(QMainWindow):
 
             QIcon(
 
-                "data/logo/Logo_cami.png"
+                str(resource_path("data", "logo", "Logo_cami.png"))
 
             )
 
@@ -110,9 +107,9 @@ class MainWindow(QMainWindow):
 
         self.setFixedSize(
 
-            750,
+            480,
 
-            500
+            320
 
         )
 
@@ -128,39 +125,7 @@ class MainWindow(QMainWindow):
 
                 color: #173B6D;
 
-                font-size: 12px;
-
-            }
-
-            QTabWidget::pane {
-
-                border: 1px solid #D7E3F2;
-
-                border-radius: 8px;
-
-                background: white;
-
-            }
-
-            QTabBar::tab {
-
-                background: #EAF2FB;
-
-                color: #173B6D;
-
-                padding: 7px 18px;
-
-                border-radius: 6px;
-
-                margin-right: 4px;
-
-            }
-
-            QTabBar::tab:selected {
-
-                background: #173B6D;
-
-                color: white;
+                font-size: 10px;
 
             }
 
@@ -170,9 +135,9 @@ class MainWindow(QMainWindow):
 
                 color: white;
 
-                border-radius: 6px;
+                border-radius: 4px;
 
-                padding: 4px 8px;
+                padding: 2px 4px;
 
             }
 
@@ -186,9 +151,9 @@ class MainWindow(QMainWindow):
 
                 border: 1px solid #B9CBE3;
 
-                border-radius: 6px;
+                border-radius: 4px;
 
-                padding: 4px;
+                padding: 2px;
 
                 background: white;
 
@@ -198,11 +163,11 @@ class MainWindow(QMainWindow):
 
                 border: 1px solid #B9CBE3;
 
-                border-radius: 5px;
+                border-radius: 3px;
 
                 background: #F4F7FB;
 
-                height: 12px;
+                height: 9px;
 
             }
 
@@ -210,7 +175,7 @@ class MainWindow(QMainWindow):
 
                 background-color: #173B6D;
 
-                border-radius: 5px;
+                border-radius: 3px;
 
             }
 
@@ -220,61 +185,11 @@ class MainWindow(QMainWindow):
 
     def create_ui(self):
 
-        central = QWidget()
+        self.bot_tab = BotTab(self.game_profiles)
 
         self.setCentralWidget(
 
-            central
-
-        )
-
-        layout = QVBoxLayout(
-
-            central
-
-        )
-
-        layout.setContentsMargins(
-
-            6,
-
-            6,
-
-            6,
-
-            6
-
-        )
-
-        self.tabs = QTabWidget()
-
-        self.bot_tab = BotTab(self.game_profiles)
-
-        self.log_tab = QLabel(
-
-            "LOG"
-
-        )
-
-        self.tabs.addTab(
-
-            self.bot_tab,
-
-            "BOT"
-
-        )
-
-        self.tabs.addTab(
-
-            self.log_tab,
-
-            "LOG"
-
-        )
-
-        layout.addWidget(
-
-            self.tabs
+            self.bot_tab
 
         )
 

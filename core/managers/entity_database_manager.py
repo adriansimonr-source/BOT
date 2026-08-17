@@ -5,6 +5,7 @@ import threading
 from difflib import SequenceMatcher
 
 from core.databases.entity_database import EntityDatabase
+from core.runtime_paths import data_path
 
 
 _DATABASE_LOCK = threading.RLock()
@@ -28,11 +29,11 @@ class EntityDatabaseManager:
         re.IGNORECASE,
     )
 
-    def __init__(self, path="data/entities"):
-        self.path = path
+    def __init__(self, path=None):
+        self.path = str(data_path("entities") if path is None else path)
         self.database = EntityDatabase()
-        self.enemies_file = os.path.join(path, "enemies.json")
-        self.items_file = os.path.join(path, "items.json")
+        self.enemies_file = os.path.join(self.path, "enemies.json")
+        self.items_file = os.path.join(self.path, "items.json")
         self._enemies_mtime_ns = None
         self._items_mtime_ns = None
         self._enemy_lists_cache = None

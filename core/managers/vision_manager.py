@@ -1,4 +1,3 @@
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -18,6 +17,7 @@ from core.services.minimap_heading_detector import MinimapHeadingDetector
 from core.services.player_monitor import PlayerMonitor
 from core.services.template_detector import TemplateDetector
 from core.services.template_manager import TemplateManager
+from core.runtime_paths import debug_path
 
 
 class VisionManager:
@@ -323,8 +323,9 @@ class VisionManager:
     def save_debug_minimap(self, image):
         if not self.debug_enabled or self.debug_minimap_saved:
             return
-        os.makedirs("debug", exist_ok=True)
-        cv2.imwrite("debug/minimap.png", image)
+        destination = debug_path("minimap.png")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(destination), image)
         self.debug_minimap_saved = True
 
     def stop(self):

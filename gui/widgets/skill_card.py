@@ -51,7 +51,7 @@ class SkillCard(QWidget):
 
 
         self.skill_label.setFixedWidth(
-            25
+            20
         )
 
         self.skill_label.setToolTip(
@@ -85,7 +85,7 @@ class SkillCard(QWidget):
 
 
         self.time_spin.setFixedWidth(
-            75
+            68
         )
 
         self.time_spin.setToolTip(
@@ -115,7 +115,7 @@ class SkillCard(QWidget):
 
 
         layout.setSpacing(
-            3
+            2
         )
 
 

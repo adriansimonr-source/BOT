@@ -21,17 +21,17 @@ class GameSelector(QWidget):
     def create_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(3)
 
         layout.addWidget(QLabel("GAME"))
 
         self.combo = QComboBox()
-        self.combo.setMinimumWidth(180)
+        self.combo.setFixedWidth(110)
         self.combo.setToolTip("Selecciona el perfil de juego que utilizará el bot.")
         layout.addWidget(self.combo)
 
         self.status_label = QLabel("● Sin detectar")
-        self.status_label.setMinimumWidth(100)
+        self.status_label.setFixedWidth(78)
         self.status_label.setStyleSheet("color: #6B7280;")
         self.status_label.setToolTip("Estado del juego: Sin detectar.")
         layout.addWidget(self.status_label)
@@ -52,7 +52,7 @@ class GameSelector(QWidget):
             self.refresh_button,
             self.delete_button,
         ):
-            button.setFixedSize(32, 28)
+            button.setFixedSize(22, 22)
             layout.addWidget(button)
 
         layout.addStretch()

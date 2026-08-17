@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget,
+    QHBoxLayout,
     QVBoxLayout,
     QGridLayout,
 )
@@ -72,67 +73,28 @@ class BotTab(QWidget):
 
 
         main_layout.setContentsMargins(
-            5,
-            5,
-            5,
-            5
+            2,
+            2,
+            2,
+            2
         )
 
 
         main_layout.setSpacing(
-            6
-        )
-
-
-
-        main_layout.addWidget(
-            self.game_selector
-        )
-
-
-
-        top_layout = QGridLayout()
-
-
-        top_layout.setHorizontalSpacing(
-            6
-        )
-
-
-        top_layout.setVerticalSpacing(
-            6
-        )
-
-
-        top_layout.addWidget(
-            self.character_group,
-            0,
-            0
-        )
-
-
-        top_layout.addWidget(
-            self.target_group,
-            0,
-            1
-        )
-
-
-        top_layout.setColumnStretch(
-            0,
-            7
-        )
-
-
-        top_layout.setColumnStretch(
-            1,
             3
         )
 
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(3)
+        header_layout.addWidget(self.game_selector, 1)
+        header_layout.addWidget(self.bot_controls)
+        main_layout.addLayout(header_layout)
 
-        main_layout.addLayout(
-            top_layout
-        )
+
+
+        main_layout.addWidget(self.character_group)
+        main_layout.addWidget(self.target_group)
 
 
 
@@ -142,12 +104,12 @@ class BotTab(QWidget):
 
 
         bottom_layout.setHorizontalSpacing(
-            6
+            3
         )
 
 
         bottom_layout.setVerticalSpacing(
-            6
+            3
         )
 
 
@@ -167,32 +129,19 @@ class BotTab(QWidget):
 
         bottom_layout.setColumnStretch(
             0,
-            7
+            51
         )
 
 
         bottom_layout.setColumnStretch(
             1,
-            3
+            49
         )
 
 
         main_layout.addLayout(
             bottom_layout
         )
-
-
-
-        main_layout.addWidget(
-            self.bot_controls
-        )
-
-
-
-
-
-
-
 
     def apply_style(self):
 
@@ -283,9 +232,6 @@ class BotTab(QWidget):
             self.schedule_configuration
         )
         self.character_group.mode_selector.currentIndexChanged.connect(
-            self.schedule_configuration
-        )
-        self.character_group.quiet_seconds.valueChanged.connect(
             self.schedule_configuration
         )
 

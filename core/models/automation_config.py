@@ -54,7 +54,6 @@ class AutomationConfig:
     ignored_targets: tuple[str, ...] = ()
     ignore_enabled: bool = False
     bot_mode: object | None = None
-    quiet_seconds: int | None = None
 
 
 def config_from_widgets(
@@ -99,11 +98,6 @@ def config_from_widgets(
         ignore_enabled=ignore_enabled,
         bot_mode=(
             character_group.get_bot_mode()
-            if character_group is not None
-            else None
-        ),
-        quiet_seconds=(
-            int(character_group.get_quiet_seconds())
             if character_group is not None
             else None
         ),

@@ -27,16 +27,27 @@ class RightPanel(QWidget):
         self.connect_signals()
 
     def create_widgets(self):
-        self.auto_target = AutoCard("Auto Target", "E", interval=250)
+        self.auto_target = AutoCard(
+            "Target",
+            "E",
+            interval=10000,
+            show_interval=True,
+        )
+        self.auto_target.interval_spin.setMinimum(4000)
+        self.auto_target.interval_spin.setSingleStep(500)
+        self.auto_target.interval_spin.setToolTip(
+            "Tiempo máximo sin detectar una nueva bajada de vida antes de "
+            "pulsar E."
+        )
         self.auto_attack = AutoCard(
-            "Auto Attack", "R", interval=250, show_interval=True
+            "Attack", "R", interval=250, show_interval=True
         )
         self.auto_loot = AutoCard(
-            "Auto Loot", "F", interval=500, show_interval=True
+            "Loot", "F", interval=500, show_interval=True
         )
-        self.auto_pot1 = ConsumableCard("F8 (AutoPot1)", "F8", 40, 2000)
-        self.auto_mp = ConsumableCard("F9 (AutoMP)", "F9", 30, 2000)
-        self.auto_heal = ConsumableCard("F10 (AutoHeal)", "F10", 40, 2000)
+        self.auto_pot1 = ConsumableCard("F8 Pot1", "F8", 40, 2000)
+        self.auto_mp = ConsumableCard("F9 MP", "F9", 30, 2000)
+        self.auto_heal = ConsumableCard("F10 Heal", "F10", 40, 2000)
 
         self.ignore_targets = QCheckBox("Ignorar objetivos")
         self.ignore_targets.setToolTip(
@@ -57,7 +68,7 @@ class RightPanel(QWidget):
             list_widget.setSelectionMode(
                 QAbstractItemView.SelectionMode.ExtendedSelection
             )
-            list_widget.setFixedHeight(66)
+            list_widget.setFixedSize(92, 46)
 
         self.add_ignore_button = QPushButton("→")
         self.add_ignore_button.setToolTip(
@@ -68,18 +79,15 @@ class RightPanel(QWidget):
             "Devuelve los objetivos seleccionados a Disponibles."
         )
         for button in (self.add_ignore_button, self.remove_ignore_button):
-            button.setFixedSize(28, 22)
+            button.setFixedSize(22, 20)
 
     def create_layout(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(2)
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        main_layout.setSpacing(1)
 
-        attack_row = QHBoxLayout()
-        attack_row.setSpacing(6)
-        attack_row.addWidget(self.auto_target)
-        attack_row.addWidget(self.auto_attack, 1)
-        main_layout.addLayout(attack_row)
+        main_layout.addWidget(self.auto_target)
+        main_layout.addWidget(self.auto_attack)
         main_layout.addWidget(self.auto_loot)
         main_layout.addWidget(self.auto_pot1)
         main_layout.addWidget(self.auto_mp)
@@ -87,14 +95,14 @@ class RightPanel(QWidget):
         main_layout.addWidget(self.ignore_targets)
 
         lists_layout = QHBoxLayout()
-        lists_layout.setSpacing(4)
+        lists_layout.setSpacing(3)
         lists_layout.addLayout(
             self._create_list_column(self.available_label, self.available_list),
             1,
         )
 
         arrows_layout = QVBoxLayout()
-        arrows_layout.setSpacing(3)
+        arrows_layout.setSpacing(2)
         arrows_layout.addStretch()
         arrows_layout.addWidget(self.add_ignore_button)
         arrows_layout.addWidget(self.remove_ignore_button)

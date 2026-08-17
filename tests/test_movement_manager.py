@@ -145,6 +145,23 @@ class MovementManagerTests(unittest.TestCase):
         self.assertEqual(module.status, MovementStatus.RETURNING)
         self.assertEqual(state.navigation_reason, "fuera_de_radio")
 
+    def test_staying_still_inside_radius_never_starts_a_return(self):
+        state, settings = create_state(
+            x=110,
+            radius_mode=BotMode.STATIC_10,
+        )
+        input_manager = FakeInput()
+        module = MovementManager(input_manager, settings)
+
+        self.assertFalse(self.update_at(module, state, 1.0))
+        self.assertFalse(
+            self.update_at(module, state, 121.0, new_sample=True)
+        )
+
+        self.assertEqual(input_manager.presses, [])
+        self.assertEqual(module.status, MovementStatus.IDLE)
+        self.assertFalse(state.navigation_active)
+
     def test_target_pauses_forced_return_and_then_resumes_same_attempt(self):
         state, settings = create_state()
         input_manager = FakeInput()
@@ -454,10 +471,10 @@ class MovementManagerTests(unittest.TestCase):
 
     def test_configured_radius_uses_euclidean_distance(self):
         cases = (
-            (BotMode.STATIC_25, (115, 120), (116, 120), 25.0),
-            (BotMode.STATIC_50, (130, 140), (131, 140), 50.0),
-            (BotMode.STATIC_75, (145, 160), (146, 160), 75.0),
-            (BotMode.STATIC_100, (160, 180), (161, 180), 100.0),
+            (BotMode.STATIC_10, (106, 108), (107, 108), 10.0),
+            (BotMode.STATIC_20, (112, 116), (113, 116), 20.0),
+            (BotMode.STATIC_30, (118, 124), (119, 124), 30.0),
+            (BotMode.STATIC_40, (124, 132), (125, 132), 40.0),
         )
 
         for mode, boundary, outside, radius in cases:
@@ -491,9 +508,9 @@ class MovementManagerTests(unittest.TestCase):
 
     def test_forced_return_finishes_inside_the_radius_hysteresis_band(self):
         state, settings = create_state(
-            x=151,
+            x=121,
             y=100,
-            radius_mode=BotMode.STATIC_50,
+            radius_mode=BotMode.STATIC_20,
         )
         input_manager = FakeInput()
         module = MovementManager(input_manager, settings)

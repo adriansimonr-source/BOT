@@ -166,7 +166,7 @@ class AutomationModuleTests(unittest.TestCase):
         target_module = AutoTarget(input_manager, TargetRules())
         attack_module = AutoAttack(input_manager, TargetRules())
         rotation = RotationManager(input_manager)
-        rotation.skills = [SkillConfig(True, "1", 0)]
+        rotation.skills = [SkillConfig(True, "1", 1, last_cast=-1)]
 
         with patch("core.modules.auto_target.time.perf_counter", return_value=0.0):
             target_module.update(state)
@@ -573,6 +573,7 @@ class AutomationModuleTests(unittest.TestCase):
             module.update(create_state())
 
         self.assertEqual(input_manager.keys, ["F", "F"])
+        self.assertFalse(module.is_waiting_for_loot())
 
     def test_auto_loot_never_runs_with_a_selected_target(self):
         input_manager = FakeInput()
@@ -591,8 +592,42 @@ class AutomationModuleTests(unittest.TestCase):
         auto_target = AutoTarget(input_manager, rules)
         auto_loot.set_interval(0)
         auto_target.set_interval(0)
-        auto_loot._no_target_since = 0.0
+        state = create_state(target_exists=True, selection_id=1)
+        state.connected = True
+        game_state_manager = SimpleNamespace(
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [auto_loot, auto_target]
 
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=1.0):
+            engine.update()
+
+        state.target.exists = False
+        state.target.selection_id = 0
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=2.0):
+            engine.update()
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=7.0):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, ["F"])
+
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=7.025):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, ["F", "E"])
+
+    def test_enabled_auto_loot_does_not_delay_target_at_startup(self):
+        input_manager = FakeInput()
+        auto_loot = AutoLoot(input_manager)
+        auto_target = AutoTarget(input_manager, TargetRules())
+        auto_loot.set_interval(0)
+        auto_target.set_interval(0)
         state = create_state()
         state.connected = True
         game_state_manager = SimpleNamespace(
@@ -606,9 +641,101 @@ class AutomationModuleTests(unittest.TestCase):
         engine.input_manager = input_manager
         engine.modules = [auto_loot, auto_target]
 
-        with patch("core.modules.auto_loot.time.perf_counter", return_value=10.0):
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=1.0):
             engine.update()
 
+        self.assertEqual(input_manager.keys, ["E"])
+
+    def test_failed_post_kill_loot_keeps_target_blocked(self):
+        class LootUnavailableInput(FakeInput):
+            def press(self, key, hold_ms=None):
+                self.keys.append(key)
+                self.hold_times.append(hold_ms)
+                return key != "F"
+
+        input_manager = LootUnavailableInput()
+        auto_loot = AutoLoot(input_manager)
+        auto_target = AutoTarget(input_manager, TargetRules())
+        auto_loot.set_interval(0)
+        auto_target.set_interval(0)
+        auto_loot._target_seen = True
+        state = create_state()
+        state.connected = True
+        game_state_manager = SimpleNamespace(
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [auto_loot, auto_target]
+
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=0.0):
+            engine.update()
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=5.0):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, ["F"])
+        self.assertTrue(auto_loot.is_waiting_for_loot())
+
+    def test_disabled_auto_loot_never_blocks_auto_target(self):
+        input_manager = FakeInput()
+        auto_loot = AutoLoot(input_manager)
+        auto_loot.disable()
+        auto_loot._target_seen = True
+        auto_target = AutoTarget(input_manager, TargetRules())
+        auto_target.set_interval(0)
+        state = create_state()
+        state.connected = True
+        game_state_manager = SimpleNamespace(
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [auto_loot, auto_target]
+
+        engine.update()
+
+        self.assertEqual(input_manager.keys, ["E"])
+
+    def test_post_kill_loot_pauses_navigation_until_f_is_sent(self):
+        input_manager = FakeInput()
+        movement = MovementManager(input_manager, BotSettings())
+        movement.set_interval(0)
+        movement.update = MagicMock(return_value=True)
+        movement.suspend = MagicMock(return_value=True)
+        auto_loot = AutoLoot(input_manager)
+        auto_loot.set_interval(0)
+        auto_loot._target_seen = True
+        auto_target = AutoTarget(input_manager, TargetRules())
+        auto_target.set_interval(0)
+        state = create_state(navigation_active=True)
+        state.connected = True
+        game_state_manager = SimpleNamespace(
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.movement_manager = movement
+        engine.modules = [movement, auto_loot, auto_target]
+
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=0.0):
+            engine.update()
+        with patch("core.modules.auto_loot.time.perf_counter", return_value=5.0):
+            engine.update()
+
+        movement.update.assert_not_called()
+        movement.suspend.assert_called()
         self.assertEqual(input_manager.keys, ["F"])
 
     def test_auto_pot_uses_hp_and_auto_mp_uses_mp(self):
@@ -718,7 +845,7 @@ class AutomationModuleTests(unittest.TestCase):
         heal = AutoHeal(input_manager)
         attack = AutoAttack(input_manager, TargetRules())
         rotation = RotationManager(input_manager)
-        rotation.skills = [SkillConfig(True, "1", 0)]
+        rotation.skills = [SkillConfig(True, "1", 1, last_cast=1999)]
 
         with patch("core.modules.auto_heal.time.perf_counter", return_value=2.0):
             heal.update(state)
@@ -875,6 +1002,64 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["1"])
 
+    def test_stale_vision_does_not_block_rotation_while_process_is_alive(self):
+        input_manager = FakeInput()
+        rotation = RotationManager(input_manager)
+        rotation.set_interval(0)
+        rotation.skills = [
+            SkillConfig(True, "1", 500, last_cast=0, next_due=500)
+        ]
+        state = create_state()
+        state.connected = False
+        game_state_manager = SimpleNamespace(
+            process_manager=SimpleNamespace(is_connected=lambda: True),
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [rotation]
+
+        with patch(
+            "core.modules.rotation_manager.time.perf_counter",
+            return_value=1.0,
+        ):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, ["1"])
+
+    def test_disconnected_process_still_blocks_rotation(self):
+        input_manager = FakeInput()
+        rotation = RotationManager(input_manager)
+        rotation.set_interval(0)
+        rotation.skills = [
+            SkillConfig(True, "1", 500, last_cast=0, next_due=500)
+        ]
+        state = create_state()
+        state.connected = False
+        game_state_manager = SimpleNamespace(
+            process_manager=SimpleNamespace(is_connected=lambda: False),
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [rotation]
+
+        with patch(
+            "core.modules.rotation_manager.time.perf_counter",
+            return_value=1.0,
+        ):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, [])
+
     def test_navigation_blocks_loot_and_target_but_allows_attack(self):
         input_manager = FakeInput()
         rules = TargetRules()
@@ -908,7 +1093,7 @@ class AutomationModuleTests(unittest.TestCase):
         self.assertEqual(blocked_updates, [])
         self.assertEqual(input_manager.keys, ["R"])
 
-    def test_default_engine_preserves_the_combat_module_order(self):
+    def test_default_engine_prioritizes_due_rotation_over_auto_attack(self):
         process_manager = SimpleNamespace(
             get_active_game=lambda: {"id": "test"},
             get_window_handle=lambda: 1234,
@@ -923,12 +1108,82 @@ class AutomationModuleTests(unittest.TestCase):
                     MovementManager,
                     AutoLoot,
                     AutoTarget,
-                    AutoAttack,
                     RotationManager,
+                    AutoAttack,
                 ],
             )
         finally:
             engine.input_manager.close()
+
+    def test_due_rotation_cannot_be_phase_locked_by_auto_attack(self):
+        class SingleActionInput(FakeInput):
+            def __init__(self):
+                super().__init__()
+                self.occupied = False
+
+            def press(self, key, hold_ms=None):
+                self.keys.append(key)
+                self.hold_times.append(hold_ms)
+                if self.occupied:
+                    return False
+                self.occupied = True
+                return True
+
+        input_manager = SingleActionInput()
+        rotation = RotationManager(input_manager)
+        rotation.set_interval(0)
+        rotation.skills = [
+            SkillConfig(True, "F1", 500, last_cast=0, next_due=500)
+        ]
+        attack = AutoAttack(input_manager, TargetRules())
+        attack.set_interval(0)
+        attack.attack_interval = 500
+        attack.last_attack = 0
+        state = create_state(
+            target_exists=True,
+            target_name="Enemy",
+            selection_id=1,
+        )
+        state.connected = True
+        game_state_manager = SimpleNamespace(
+            update=lambda: None,
+            get_state=lambda: state,
+            update_auxiliary=lambda: None,
+        )
+        engine = BotEngine.__new__(BotEngine)
+        engine.state = BotState.RUNNING
+        engine.game_state_manager = game_state_manager
+        engine.input_manager = input_manager
+        engine.modules = [rotation, attack]
+
+        with (
+            patch(
+                "core.modules.rotation_manager.time.perf_counter",
+                return_value=0.5,
+            ),
+            patch(
+                "core.modules.auto_attack.time.perf_counter",
+                return_value=0.5,
+            ),
+        ):
+            engine.update()
+
+        input_manager.occupied = False
+        with (
+            patch(
+                "core.modules.rotation_manager.time.perf_counter",
+                return_value=0.55,
+            ),
+            patch(
+                "core.modules.auto_attack.time.perf_counter",
+                return_value=0.55,
+            ),
+        ):
+            engine.update()
+
+        self.assertEqual(input_manager.keys, ["F1", "R", "R"])
+        self.assertEqual(rotation.skills[0].last_cast, 500)
+        self.assertEqual(attack.last_attack, 550)
 
     def test_movement_and_due_skill_are_dispatched_in_the_same_tick(self):
         class Driver:
@@ -1078,7 +1333,7 @@ class AutomationModuleTests(unittest.TestCase):
         finally:
             input_manager.close()
 
-    def test_rotation_prioritizes_the_shortest_configured_interval(self):
+    def test_rotation_does_not_catch_up_a_skill_that_loses_a_collision(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -1097,9 +1352,9 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=11.025):
             module.update(create_state(target_exists=True, target_hp=0))
 
-        self.assertEqual(input_manager.keys, ["1", "1", "2"])
+        self.assertEqual(input_manager.keys, ["1", "2"])
 
-    def test_rotation_uses_gui_interval_before_the_oldest_deadline(self):
+    def test_rotation_uses_the_oldest_due_deadline_within_one_group(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -1110,10 +1365,10 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
             module.update(create_state())
 
-        self.assertEqual(input_manager.keys, ["1"])
+        self.assertEqual(input_manager.keys, ["2"])
         self.assertEqual(input_manager.hold_times, [25])
 
-    def test_rotation_prioritizes_due_function_skill_without_starving_numeric(self):
+    def test_numeric_skill_waits_for_its_next_period_after_losing_to_function(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -1125,7 +1380,7 @@ class AutomationModuleTests(unittest.TestCase):
             module.update(create_state())
         with patch(
             "core.modules.rotation_manager.time.perf_counter",
-            return_value=3.025,
+            return_value=3.1,
         ):
             module.update(create_state())
 
@@ -1153,38 +1408,7 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["1", "F1"])
 
-    def test_rotation_coalesces_a_recent_same_key_delivery(self):
-        class RecentlyPressedInput(FakeInput):
-            def last_press_at(self, key):
-                return 1.025 if key == "F8" else None
-
-        input_manager = RecentlyPressedInput()
-        module = RotationManager(input_manager)
-        module.skills = [SkillConfig(True, "F8", 500, last_cast=500)]
-
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.05):
-            module.update(create_state())
-
-        self.assertEqual(input_manager.keys, [])
-        self.assertEqual(module.skills[0].last_cast, 1025)
-        self.assertEqual(module._pending_skills, {})
-
-    def test_rotation_does_not_coalesce_a_press_before_its_deadline(self):
-        class EarlyPressedInput(FakeInput):
-            def last_press_at(self, key):
-                return 0.999
-
-        input_manager = EarlyPressedInput()
-        module = RotationManager(input_manager)
-        module.skills = [SkillConfig(True, "F8", 500, last_cast=500)]
-
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.05):
-            module.update(create_state())
-
-        self.assertEqual(input_manager.keys, ["F8"])
-        self.assertEqual(module.skills[0].last_cast, 1050)
-
-    def test_failed_short_skill_does_not_starve_other_due_skills(self):
+    def test_failed_skill_consumes_the_collision_without_a_second_attempt(self):
         class SelectiveInput(FakeInput):
             def press(self, key, hold_ms=None):
                 self.keys.append(key)
@@ -1201,11 +1425,11 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.0):
             module.update(create_state())
 
-        self.assertEqual(input_manager.keys, ["1", "2"])
+        self.assertEqual(input_manager.keys, ["1"])
         self.assertEqual(module.skills[0].last_cast, 0)
-        self.assertEqual(module.skills[1].last_cast, 1000)
+        self.assertEqual(module.skills[1].last_cast, 0)
 
-    def test_failed_function_skill_allows_numeric_attempt_in_the_same_tick(self):
+    def test_failed_function_skill_still_wins_the_numeric_collision(self):
         class SelectiveInput(FakeInput):
             def press(self, key, hold_ms=None):
                 self.keys.append(key)
@@ -1222,12 +1446,12 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=3.0):
             module.update(create_state())
 
-        self.assertEqual(input_manager.keys, ["F1", "1"])
-        self.assertEqual(module.skills[0].last_cast, 3000)
+        self.assertEqual(input_manager.keys, ["F1"])
+        self.assertEqual(module.skills[0].last_cast, 2100)
         self.assertEqual(module.skills[1].last_cast, 0)
 
-    def test_rotation_bounds_failed_driver_calls_per_tick(self):
-        input_manager = ScriptedInput([False, False])
+    def test_rotation_attempts_only_one_failed_delivery_per_tick(self):
+        input_manager = ScriptedInput([False])
         module = RotationManager(input_manager)
         module.skills = [
             SkillConfig(True, str(number), 500)
@@ -1240,8 +1464,9 @@ class AutomationModuleTests(unittest.TestCase):
         ):
             module.update(create_state())
 
-        self.assertEqual(input_manager.keys, ["1", "2"])
-        self.assertEqual(len(module._pending_skills), 9)
+        self.assertEqual(input_manager.keys, ["1"])
+        self.assertFalse(hasattr(module, "_pending_skills"))
+        self.assertFalse(hasattr(module, "_deferred_until"))
 
     def test_failed_candidates_rotate_without_starving_available_skill(self):
         class SelectiveInput(FakeInput):
@@ -1257,7 +1482,7 @@ class AutomationModuleTests(unittest.TestCase):
             for number in range(1, 5)
         ]
 
-        for moment in (1.0, 1.025):
+        for moment in (1.0, 1.025, 1.5, 2.0):
             with patch(
                 "core.modules.rotation_manager.time.perf_counter",
                 return_value=moment,
@@ -1266,7 +1491,7 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(input_manager.keys, ["1", "2", "3"])
 
-    def test_rotation_buffer_coalesces_retries_and_expires_without_a_burst(self):
+    def test_failed_attempt_waits_for_its_next_period_without_a_buffer(self):
         class UnavailableInput(FakeInput):
             def press(self, key, hold_ms=None):
                 self.keys.append(key)
@@ -1277,34 +1502,20 @@ class AutomationModuleTests(unittest.TestCase):
         module = RotationManager(input_manager)
         module.skills = [SkillConfig(True, "1", 500)]
 
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.0):
-            module.update(create_state())
-        first_buffer = module._pending_skills["1"]
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.1):
-            module.update(create_state())
-
-        self.assertIs(module._pending_skills["1"], first_buffer)
-        self.assertEqual(input_manager.keys, ["1", "1"])
-
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.15):
-            module.update(create_state())
-
-        self.assertEqual(module._pending_skills, {})
-        self.assertEqual(input_manager.keys, ["1", "1"])
-
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.175):
-            module.update(create_state())
+        for moment in (1.0, 1.1, 1.5):
+            with patch(
+                "core.modules.rotation_manager.time.perf_counter",
+                return_value=moment,
+            ):
+                module.update(create_state())
 
         self.assertEqual(input_manager.keys, ["1", "1"])
-        self.assertEqual(module._pending_skills, {})
+        self.assertEqual(module.skills[0].last_cast, 0)
+        self.assertEqual(module.skills[0].next_due, 2000)
+        self.assertFalse(hasattr(module, "_pending_skills"))
+        self.assertFalse(hasattr(module, "_deferred_until"))
 
-        with patch("core.modules.rotation_manager.time.perf_counter", return_value=1.5):
-            module.update(create_state())
-
-        self.assertEqual(input_manager.keys, ["1", "1", "1"])
-        self.assertEqual(list(module._pending_skills), ["1"])
-
-    def test_rotation_discards_an_intent_that_was_old_before_the_tick(self):
+    def test_rotation_sends_a_skill_even_when_the_tick_arrives_late(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [SkillConfig(True, "1", 500)]
@@ -1313,6 +1524,9 @@ class AutomationModuleTests(unittest.TestCase):
             module.on_start()
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=10.7):
             module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["1"])
+
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=10.999):
             module.update(create_state())
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=11.0):
@@ -1338,14 +1552,53 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=20.55):
             module.update(create_state(target_exists=True))
 
-        self.assertEqual(input_manager.keys, ["F1", "1"])
+        self.assertEqual(input_manager.keys, ["F1"])
 
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=21.05):
             module.update(create_state(target_exists=True))
 
-        self.assertEqual(input_manager.keys, ["F1", "1", "F1"])
+        self.assertEqual(input_manager.keys, ["F1", "F1"])
 
-    def test_expired_contention_starts_the_next_collision_with_function_skill(self):
+    def test_due_function_skills_win_each_shared_period_without_catch_up(self):
+        input_manager = FakeInput()
+        module = RotationManager(input_manager)
+        module.skills = [
+            SkillConfig(True, "1", 500),
+            SkillConfig(True, "F1", 500),
+            SkillConfig(True, "F2", 500),
+        ]
+
+        with patch("core.modules.rotation_manager.time.perf_counter", return_value=0.0):
+            module.on_start()
+        for moment in (0.5, 0.525, 0.55, 1.0):
+            with patch(
+                "core.modules.rotation_manager.time.perf_counter",
+                return_value=moment,
+            ):
+                module.update(create_state())
+
+        self.assertEqual(input_manager.keys, ["F1", "F2"])
+
+    def test_rotation_records_the_actual_successful_keydown_time(self):
+        class TimestampedInput(FakeInput):
+            def last_press_at(self, key):
+                return 1.005
+
+        input_manager = TimestampedInput()
+        module = RotationManager(input_manager)
+        module.skills = [SkillConfig(True, "1", 500)]
+        state = create_state()
+
+        with patch(
+            "core.modules.rotation_manager.time.perf_counter",
+            side_effect=[1.0, 1.01],
+        ):
+            module.update(state)
+
+        self.assertEqual(input_manager.keys, ["1"])
+        self.assertAlmostEqual(module.skills[0].last_cast, 1005)
+
+    def test_contention_is_resolved_without_retaining_an_intent(self):
         input_manager = FakeInput()
         module = RotationManager(input_manager)
         module.skills = [
@@ -1363,11 +1616,12 @@ class AutomationModuleTests(unittest.TestCase):
             module.update(create_state())
 
         self.assertEqual(input_manager.keys, ["F1", "F1"])
+        self.assertFalse(hasattr(module, "_pending_skills"))
 
-    def test_rotation_does_not_starve_many_equal_interval_skills(self):
+    def test_equal_intervals_rotate_function_winners_and_drop_numeric_collisions(self):
         input_manager = FakeInput()
         keys = [str(number) for number in range(1, 10)] + [
-            f"F{number}" for number in range(1, 10)
+            f"F{number}" for number in range(1, 8)
         ]
         module = RotationManager(input_manager)
         module.skills = [SkillConfig(True, key, 500) for key in keys]
@@ -1377,7 +1631,7 @@ class AutomationModuleTests(unittest.TestCase):
             return_value=0.0,
         ):
             module.on_start()
-        for tick in range(1, 82):
+        for tick in range(1, 202):
             with patch(
                 "core.modules.rotation_manager.time.perf_counter",
                 return_value=tick * 0.025,
@@ -1385,9 +1639,12 @@ class AutomationModuleTests(unittest.TestCase):
                 module.update(create_state())
 
         self.assertEqual(input_manager.keys[0], "F1")
-        self.assertEqual(set(input_manager.keys), set(keys))
+        self.assertEqual(input_manager.keys[:7], [
+            f"F{number}" for number in range(1, 8)
+        ])
+        self.assertTrue(all(key.startswith("F") for key in input_manager.keys))
 
-    def test_rotation_failed_send_does_not_start_skill_interval(self):
+    def test_rotation_failed_send_consumes_only_the_current_period(self):
         input_manager = ScriptedInput([False, True, True])
         module = RotationManager(input_manager)
         module.skills = [SkillConfig(True, "1", 500)]
@@ -1403,7 +1660,7 @@ class AutomationModuleTests(unittest.TestCase):
         with patch("core.modules.rotation_manager.time.perf_counter", return_value=11.05):
             module.update(SimpleNamespace())
 
-        self.assertEqual(input_manager.keys, ["1", "1", "1"])
+        self.assertEqual(input_manager.keys, ["1", "1"])
 
     def test_rotation_configures_only_checked_skills(self):
         input_manager = FakeInput()
@@ -1434,7 +1691,7 @@ class AutomationModuleTests(unittest.TestCase):
                 ("1", 500),
                 ("9", 900),
                 ("F1", 1100),
-                ("F9", 1900),
+                ("F7", 1700),
             )
         ]
         module = RotationManager(FakeInput())
@@ -1443,8 +1700,27 @@ class AutomationModuleTests(unittest.TestCase):
 
         self.assertEqual(
             [(skill.key, skill.cooldown) for skill in module.skills],
-            [("1", 500), ("9", 900), ("F1", 1100), ("F9", 1900)],
+            [("1", 500), ("9", 900), ("F1", 1100), ("F7", 1700)],
         )
+
+    def test_rotation_rejects_reserved_resource_keys(self):
+        cards = [
+            SimpleNamespace(
+                is_enabled=lambda: True,
+                skill_number=lambda key=key: key,
+                time=lambda: 500,
+            )
+            for key in ("F7", "F8", "F9", "F10")
+        ]
+        module = RotationManager(FakeInput())
+
+        module.configure(None, SimpleNamespace(skills=cards))
+
+        self.assertEqual([skill.key for skill in module.skills], ["F7"])
+
+        module.merge_config(cards, now_ms=1000)
+
+        self.assertEqual([skill.key for skill in module.skills], ["F7"])
 
 
 if __name__ == "__main__":

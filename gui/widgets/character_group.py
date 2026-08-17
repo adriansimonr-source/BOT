@@ -3,7 +3,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -24,6 +23,8 @@ class CharacterGroup(QWidget):
         self.title_label.setStyleSheet("font-weight: bold;")
         self.hp_bar = ResourceBar("HP")
         self.mp_bar = ResourceBar("MP")
+        self.current_position_title = QLabel("ACT")
+        self.start_position_title = QLabel("INI")
         self.current_position_label = QLabel("--- / ---")
         self.start_position_label = QLabel("--- / ---")
         self.refresh_position_button = QPushButton("⟳")
@@ -44,28 +45,32 @@ class CharacterGroup(QWidget):
         self.start_position_label.setToolTip(
             "Coordenadas de origen usadas para controlar el radio del bot."
         )
+        for label in (
+            self.current_position_title,
+            self.start_position_title,
+            self.current_position_label,
+            self.start_position_label,
+        ):
+            label.setStyleSheet("font-size: 10px;")
+        self.current_position_label.setFixedWidth(65)
+        self.start_position_label.setFixedWidth(65)
 
         self.mode_selector = QComboBox()
-        self.mode_selector.addItem("FIJO (0)", BotMode.STATIC_POINT)
-        self.mode_selector.addItem("25", BotMode.STATIC_25)
-        self.mode_selector.addItem("50", BotMode.STATIC_50)
-        self.mode_selector.addItem("75", BotMode.STATIC_75)
-        self.mode_selector.addItem("100", BotMode.STATIC_100)
+        self.mode_selector.addItem("FIJO", BotMode.STATIC_POINT)
         self.mode_selector.addItem("SIN LÍMITE", BotMode.OFF)
+        self.mode_selector.addItem("10", BotMode.STATIC_10)
+        self.mode_selector.addItem("20", BotMode.STATIC_20)
+        self.mode_selector.addItem("30", BotMode.STATIC_30)
+        self.mode_selector.addItem("40", BotMode.STATIC_40)
         self.mode_selector.setCurrentIndex(
-            self.mode_selector.findData(BotMode.STATIC_100)
+            self.mode_selector.findData(BotMode.STATIC_40)
         )
         self.mode_selector.setToolTip(
             "Distancia máxima permitida respecto a la posición inicial."
         )
+        self.mode_selector.setFixedWidth(90)
+        self.mode_selector.setStyleSheet("font-size: 10px;")
 
-        self.quiet_seconds = QSpinBox()
-        self.quiet_seconds.setRange(3, 120)
-        self.quiet_seconds.setValue(10)
-        self.quiet_seconds.setSuffix(" s")
-        self.quiet_seconds.setToolTip(
-            "Tiempo sin desplazamiento antes de intentar regresar al origen."
-        )
         self.apply_button_style()
 
     def apply_button_style(self):
@@ -85,38 +90,39 @@ class CharacterGroup(QWidget):
             self.lock_position_button,
             self.unlock_position_button,
         ):
-            button.setFixedSize(30, 24)
+            button.setFixedSize(22, 20)
             button.setStyleSheet(style)
 
     def create_layout(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(4)
-        main_layout.addWidget(self.title_label)
-        main_layout.addWidget(self.hp_bar)
-        main_layout.addWidget(self.mp_bar)
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        main_layout.setSpacing(2)
+
+        resources = QHBoxLayout()
+        resources.setSpacing(4)
+        resources.addWidget(self.title_label)
+        self.hp_bar.setFixedWidth(120)
+        self.mp_bar.setFixedWidth(120)
+        resources.addWidget(self.hp_bar)
+        resources.addWidget(self.mp_bar)
+        resources.addStretch()
+        main_layout.addLayout(resources)
 
         position = QHBoxLayout()
-        position.setSpacing(5)
-        position.addWidget(QLabel("X/Y ACTUAL"))
+        position.setSpacing(2)
+        position.addWidget(self.current_position_title)
         position.addWidget(self.current_position_label)
         position.addWidget(self.refresh_position_button)
-        position.addSpacing(10)
-        position.addWidget(QLabel("X/Y INICIAL"))
+        position.addWidget(self.start_position_title)
         position.addWidget(self.start_position_label)
         position.addWidget(self.lock_position_button)
         position.addWidget(self.unlock_position_button)
+        self.radio_label = QLabel("RADIO")
+        self.radio_label.setStyleSheet("font-size: 10px;")
+        position.addWidget(self.radio_label)
+        position.addWidget(self.mode_selector)
         position.addStretch()
         main_layout.addLayout(position)
-
-        mode = QHBoxLayout()
-        mode.addWidget(QLabel("RADIO BOT"))
-        mode.addWidget(self.mode_selector)
-        mode.addSpacing(10)
-        mode.addWidget(QLabel("QUIETO"))
-        mode.addWidget(self.quiet_seconds)
-        mode.addStretch()
-        main_layout.addLayout(mode)
 
     def update_state(self, state):
         player = state.player
@@ -144,13 +150,8 @@ class CharacterGroup(QWidget):
     def get_bot_mode(self):
         return self.mode_selector.currentData()
 
-    def get_quiet_seconds(self):
-        return self.quiet_seconds.value()
-
     def lock_settings(self):
         self.mode_selector.setEnabled(False)
-        self.quiet_seconds.setEnabled(False)
 
     def unlock_settings(self):
         self.mode_selector.setEnabled(True)
-        self.quiet_seconds.setEnabled(True)

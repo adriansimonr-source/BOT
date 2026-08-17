@@ -21,7 +21,7 @@ class AutoCard(QWidget):
         self.checkbox = QCheckBox(name)
         self.checkbox.setToolTip(f"Activa o desactiva {name}.")
         self.key_button = QPushButton(key)
-        self.key_button.setFixedSize(35, 25)
+        self.key_button.setFixedSize(28, 22)
         self.key_button.setToolTip(
             f"Tecla {key} que el bot enviará cuando {name} esté activo."
         )
@@ -32,7 +32,7 @@ class AutoCard(QWidget):
             self.interval_spin.setSingleStep(100)
             self.interval_spin.setValue(self._interval)
             self.interval_spin.setSuffix(" ms")
-            self.interval_spin.setFixedWidth(90)
+            self.interval_spin.setFixedWidth(74)
             self.interval_spin.setToolTip(
                 f"Intervalo mínimo entre ejecuciones de {name}."
             )
@@ -40,7 +40,7 @@ class AutoCard(QWidget):
     def create_layout(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(3)
         layout.addWidget(self.checkbox)
         layout.addWidget(self.key_button)
 

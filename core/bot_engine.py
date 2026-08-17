@@ -13,6 +13,7 @@ from core.input.input_manager import InputManager
 from core.managers.game_state_manager import GameStateManager
 from core.models.automation_config import config_from_widgets
 from core.models.player_profile import PlayerProfile
+from core.runtime_paths import data_path
 
 class BotState(Enum):
 
@@ -52,7 +53,7 @@ class BotEngine:
         self.movement_manager = MovementManager(
             self.input_manager,
             self.profile.bot_settings,
-            learning_path="data/navigation_learning.json",
+            learning_path=str(data_path("navigation_learning.json")),
             profile_id=self._active_game_id(),
         )
 
@@ -83,15 +84,15 @@ class BotEngine:
         )
 
         self.register_module(
-            AutoAttack(
+            RotationManager(
                 self.input_manager,
-                self.target_rules
             )
         )
 
         self.register_module(
-            RotationManager(
-                self.input_manager
+            AutoAttack(
+                self.input_manager,
+                self.target_rules
             )
         )
 
@@ -138,12 +139,6 @@ class BotEngine:
 
             self.profile.bot_settings.set_mode(
                 config.bot_mode
-            )
-
-        if config.quiet_seconds is not None:
-
-            self.profile.bot_settings.set_return_delay(
-                config.quiet_seconds
             )
 
         self.target_rules.set_blacklist(
@@ -344,15 +339,48 @@ class BotEngine:
 
                 movement_manager.suspend("desconectado")
 
+            if self._process_is_connected():
+
+                for module in self.modules:
+
+                    if (
+                        isinstance(module, RotationManager)
+                        and module.is_enabled()
+                        and module.should_update()
+                    ):
+
+                        module.update(state)
+
             self.game_state_manager.update_auxiliary()
 
             return
 
         loot_sent = False
+        loot_pending = False
+        auto_loot = next(
+            (
+                module
+                for module in self.modules
+                if isinstance(module, AutoLoot) and module.is_enabled()
+            ),
+            None,
+        )
+
+        if auto_loot is not None:
+            loot_pending = auto_loot.observe_target(state)
+
+        if loot_pending:
+            movement_manager = getattr(self, "movement_manager", None)
+            if movement_manager is not None:
+                movement_manager.suspend("loot_pendiente")
 
         for module in self.modules:
 
             if not module.is_enabled():
+
+                continue
+
+            if loot_pending and isinstance(module, MovementManager):
 
                 continue
 
@@ -378,13 +406,18 @@ class BotEngine:
                     )
                 )
 
+                and not (
+                    loot_pending
+                    and isinstance(module, AutoLoot)
+                )
+
             ):
 
                 continue
 
             if (
 
-                loot_sent
+                (loot_sent or loot_pending)
 
                 and
 
@@ -416,11 +449,25 @@ class BotEngine:
 
                 loot_sent = True
 
+            if isinstance(module, AutoLoot):
+
+                loot_pending = module.is_waiting_for_loot()
+
         self.game_state_manager.update_auxiliary()
 
     def is_running(self):
 
         return self.state == BotState.RUNNING
+
+    def _process_is_connected(self):
+
+        process_manager = getattr(
+            self.game_state_manager,
+            "process_manager",
+            None,
+        )
+        checker = getattr(process_manager, "is_connected", None)
+        return bool(callable(checker) and checker())
 
     def get_state(self):
 

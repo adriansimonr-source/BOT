@@ -1,4 +1,10 @@
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QSizePolicy,
+    QWidget,
+)
 
 
 class ResourceBar(QWidget):
@@ -12,15 +18,19 @@ class ResourceBar(QWidget):
     def setup_ui(self):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
-        self.label.setFixedWidth(25)
+        layout.setSpacing(2)
+        self.label.setFixedWidth(18)
         self.bar.setRange(0, 100)
         self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(12)
-        self.bar.setFixedWidth(350)
-        self.value_label.setFixedWidth(35)
+        self.bar.setFixedHeight(9)
+        self.bar.setMinimumWidth(36)
+        self.bar.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        self.value_label.setFixedWidth(27)
         layout.addWidget(self.label)
-        layout.addWidget(self.bar)
+        layout.addWidget(self.bar, 1)
         layout.addWidget(self.value_label)
         layout.addStretch()
 

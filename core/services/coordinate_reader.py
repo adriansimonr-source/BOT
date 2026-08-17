@@ -1,10 +1,11 @@
-import os
 import re
 import threading
 
 import cv2
 import numpy as np
 import pytesseract
+
+from core.runtime_paths import debug_path
 
 class CoordinateReader:
 
@@ -24,8 +25,9 @@ class CoordinateReader:
         self._generation = 0
         self._lock = threading.Lock()
         self.debug = debug
+        self.debug_directory = debug_path("coordinates")
         if self.debug:
-            os.makedirs("debug_coordinates", exist_ok=True)
+            self.debug_directory.mkdir(parents=True, exist_ok=True)
 
     def reset(self):
         with self._lock:
@@ -129,4 +131,4 @@ class CoordinateReader:
 
     def _save(self, filename, image):
         if self.debug:
-            cv2.imwrite(os.path.join("debug_coordinates", filename), image)
+            cv2.imwrite(str(self.debug_directory / filename), image)

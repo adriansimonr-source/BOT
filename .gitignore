@@ -17,6 +17,12 @@ debug/
 data/navigation_learning.json
 data/navigation_learning.json.tmp
 
+# Build local
+.build-venv/
+build/
+dist/
+release/
+
 # Sistema
 .DS_Store
 Thumbs.db

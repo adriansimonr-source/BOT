@@ -25,7 +25,6 @@ class MovementManager(BaseModule):
     ARRIVAL_TOLERANCE = 2.0
     RETURN_RADIUS_RATIO = 0.70
     RETURN_ORIGIN_TOLERANCE = 10.0
-    MOTION_EPSILON = 1.0
     RELIABLE_PROGRESS = 1.25
     MAX_REGRESSION = 5.0
     OUTSIDE_CONFIRMATIONS = 2
@@ -59,7 +58,6 @@ class MovementManager(BaseModule):
         self._origin = None
         self._last_revision = None
         self._last_position = None
-        self._last_motion_at = None
         self._outside_samples = 0
         self._command = None
         self._search_keys = []
@@ -106,7 +104,6 @@ class MovementManager(BaseModule):
         ):
             return False
         self._pause_navigation(
-            time.perf_counter(),
             reason,
             outside=self._forced_return,
         )
@@ -128,14 +125,14 @@ class MovementManager(BaseModule):
         radius = self.settings.get_movement_range()
         self._active_radius = radius
         if not self._navigation_configured(state, player, radius):
-            self._cancel_navigation(now)
+            self._cancel_navigation()
             return False
         if not self._has_fresh_position(player):
             if self.is_navigating() or self._command is not None:
                 self._enter_cooldown(now, "coordenadas_no_disponibles")
             return False
 
-        is_new_sample = self._consume_position_sample(player, now)
+        is_new_sample = self._consume_position_sample(player)
         distance = self._distance_to_start(player)
         outside_radius = distance > radius
         if is_new_sample:
@@ -150,7 +147,7 @@ class MovementManager(BaseModule):
                 or self._return_pending
                 or self.status != MovementStatus.IDLE
             ):
-                self._finish_return(now)
+                self._finish_return()
             else:
                 self._outside_samples = 0
                 self._reset_episode()
@@ -161,7 +158,7 @@ class MovementManager(BaseModule):
             and distance <= self._arrival_distance()
             and self._command is None
         ):
-            self._finish_return(now)
+            self._finish_return()
             return False
 
         if not outside_radius and self.status == MovementStatus.FAILED:
@@ -194,7 +191,6 @@ class MovementManager(BaseModule):
             )
             if pending:
                 self._pause_for_combat(
-                    now,
                     outside=outside_confirmed or self._forced_return,
                 )
             return False
@@ -253,13 +249,6 @@ class MovementManager(BaseModule):
         if self.is_navigating():
             return self._send_next_step(player, distance, now)
 
-        quiet_seconds = max(3.0, float(self.settings.return_delay))
-        if (
-            self._last_motion_at is not None
-            and now - self._last_motion_at >= quiet_seconds
-        ):
-            return self._start_return(player, distance, now, "quieto")
-
         return False
 
     def is_navigating(self):
@@ -294,23 +283,14 @@ class MovementManager(BaseModule):
             or getattr(target, "exists", False)
         )
 
-    def _consume_position_sample(self, player, now):
+    def _consume_position_sample(self, player):
         revision = getattr(player, "position_revision", 0)
         if revision == self._last_revision:
             return False
 
         position = (int(player.x), int(player.y))
-        if (
-            self._last_position is None
-            or self._point_distance(self._last_position, position)
-            >= self.MOTION_EPSILON
-        ):
-            self._last_motion_at = now
-
         self._last_position = position
         self._last_revision = revision
-        if self._last_motion_at is None:
-            self._last_motion_at = now
         return True
 
     def _start_return(
@@ -400,7 +380,7 @@ class MovementManager(BaseModule):
                 self._preferred_key,
             )
             if hold_ms <= 0:
-                self._finish_return(now)
+                self._finish_return()
                 return False
             return self._send_command(
                 player,
@@ -490,7 +470,7 @@ class MovementManager(BaseModule):
         )
 
         if distance <= self._arrival_distance():
-            self._finish_return(now)
+            self._finish_return()
             return False
 
         improvement = command["distance"] - observed_distance
@@ -612,19 +592,17 @@ class MovementManager(BaseModule):
                 "reintentando_retorno",
                 force=True,
             )
-        self._last_motion_at = now
         self._reset_episode()
         self._set_status(MovementStatus.IDLE)
         return False
 
-    def _pause_for_combat(self, now, outside=False):
+    def _pause_for_combat(self, outside=False):
         self._pause_navigation(
-            now,
             "objetivo_o_combate",
             outside=outside,
         )
 
-    def _pause_navigation(self, now, reason, outside=False):
+    def _pause_navigation(self, reason, outside=False):
         if self.status == MovementStatus.PAUSED and self._command is None:
             self._return_pending = self._return_pending or outside
             return
@@ -644,7 +622,6 @@ class MovementManager(BaseModule):
         self.policy.decay(0.5)
         self._orientation_needs_recheck = True
         self._set_status(MovementStatus.PAUSED, reason)
-        self._last_motion_at = now
 
     def _enter_cooldown(self, now, reason):
         self._release_movement()
@@ -658,22 +635,20 @@ class MovementManager(BaseModule):
         self._retry_not_before = now + self.COOLDOWN_SECONDS
         self._set_status(MovementStatus.COOLDOWN, reason)
 
-    def _cancel_navigation(self, now):
+    def _cancel_navigation(self):
         if self.is_navigating() or self._command is not None:
             self._release_movement()
         self.policy.cancel_episode()
         self._reset_episode()
         self._command = None
         self._outside_samples = 0
-        self._last_motion_at = now
         self._set_status(MovementStatus.IDLE)
 
-    def _finish_return(self, now):
+    def _finish_return(self):
         self._release_movement()
         self.policy.finish_episode(success=True)
         self._command = None
         self._outside_samples = 0
-        self._last_motion_at = now
         self._reset_episode()
         self._set_status(MovementStatus.IDLE, "en_posicion")
 
@@ -832,7 +807,6 @@ class MovementManager(BaseModule):
             self._origin = None
             self._last_revision = None
             self._last_position = None
-            self._last_motion_at = None
         self._outside_samples = 0
         self._command = None
         self._active_radius = None
