@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -23,13 +24,14 @@ class CharacterGroup(QWidget):
         self.title_label.setStyleSheet("font-weight: bold;")
         self.hp_bar = ResourceBar("HP")
         self.mp_bar = ResourceBar("MP")
-        self.current_position_title = QLabel("ACT")
-        self.start_position_title = QLabel("INI")
-        self.current_position_label = QLabel("--- / ---")
-        self.start_position_label = QLabel("--- / ---")
-        self.refresh_position_button = QPushButton("⟳")
-        self.lock_position_button = QPushButton("📌")
-        self.unlock_position_button = QPushButton("🔓")
+        self.navigation_controls = QWidget(self)
+        self.current_position_title = QLabel("ACT", self.navigation_controls)
+        self.start_position_title = QLabel("INI", self.navigation_controls)
+        self.current_position_label = QLabel("--- / ---", self.navigation_controls)
+        self.start_position_label = QLabel("--- / ---", self.navigation_controls)
+        self.refresh_position_button = QPushButton("⟳", self.navigation_controls)
+        self.lock_position_button = QPushButton("📌", self.navigation_controls)
+        self.unlock_position_button = QPushButton("🔓", self.navigation_controls)
         self.refresh_position_button.setToolTip(
             "Vuelve a leer las coordenadas actuales del personaje."
         )
@@ -55,7 +57,7 @@ class CharacterGroup(QWidget):
         self.current_position_label.setFixedWidth(65)
         self.start_position_label.setFixedWidth(65)
 
-        self.mode_selector = QComboBox()
+        self.mode_selector = QComboBox(self.navigation_controls)
         self.mode_selector.addItem("FIJO", BotMode.STATIC_POINT)
         self.mode_selector.addItem("SIN LÍMITE", BotMode.OFF)
         self.mode_selector.addItem("10", BotMode.STATIC_10)
@@ -72,6 +74,7 @@ class CharacterGroup(QWidget):
         self.mode_selector.setStyleSheet("font-size: 10px;")
 
         self.apply_button_style()
+        self.navigation_controls.hide()
 
     def apply_button_style(self):
         style = """
@@ -101,14 +104,22 @@ class CharacterGroup(QWidget):
         resources = QHBoxLayout()
         resources.setSpacing(4)
         resources.addWidget(self.title_label)
-        self.hp_bar.setFixedWidth(120)
-        self.mp_bar.setFixedWidth(120)
-        resources.addWidget(self.hp_bar)
-        resources.addWidget(self.mp_bar)
-        resources.addStretch()
+        self.hp_bar.setMinimumWidth(120)
+        self.mp_bar.setMinimumWidth(120)
+        self.hp_bar.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        self.mp_bar.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        resources.addWidget(self.hp_bar, 1)
+        resources.addWidget(self.mp_bar, 1)
         main_layout.addLayout(resources)
 
-        position = QHBoxLayout()
+        position = QHBoxLayout(self.navigation_controls)
+        position.setContentsMargins(0, 0, 0, 0)
         position.setSpacing(2)
         position.addWidget(self.current_position_title)
         position.addWidget(self.current_position_label)
@@ -117,12 +128,11 @@ class CharacterGroup(QWidget):
         position.addWidget(self.start_position_label)
         position.addWidget(self.lock_position_button)
         position.addWidget(self.unlock_position_button)
-        self.radio_label = QLabel("RADIO")
+        self.radio_label = QLabel("RADIO", self.navigation_controls)
         self.radio_label.setStyleSheet("font-size: 10px;")
         position.addWidget(self.radio_label)
         position.addWidget(self.mode_selector)
         position.addStretch()
-        main_layout.addLayout(position)
 
     def update_state(self, state):
         player = state.player

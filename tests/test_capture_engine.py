@@ -119,6 +119,33 @@ class CaptureEngineTests(unittest.TestCase):
 
         sleep.assert_called_once_with(0.005)
 
+    def test_windows_11_refuses_capture_when_borderless_is_denied(self):
+        window = SimpleNamespace(
+            hwnd=1,
+            is_valid=lambda: True,
+            find_window_by_title=lambda _title: True,
+        )
+        engine = CaptureEngine("Window", 100, 100)
+
+        with (
+            patch(
+                "core.services.capture_engine.WindowManager",
+                return_value=window,
+            ),
+            patch(
+                "core.services.capture_engine.is_borderless_capture_required",
+                return_value=True,
+            ),
+            patch(
+                "core.services.capture_engine.request_borderless_capture_access",
+                return_value=False,
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "captura sin borde"):
+                engine.start()
+
+        self.assertFalse(engine.running)
+
 
 if __name__ == "__main__":
     unittest.main()

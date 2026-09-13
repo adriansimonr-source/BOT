@@ -42,7 +42,13 @@ class CharacterGroupTests(unittest.TestCase):
                 removed_text,
             )
 
-    def test_update_state_keeps_hp_mp_and_coordinate_feedback(self):
+    def test_navigation_feedback_is_preserved_but_hidden_from_the_gui(self):
+        self.assertTrue(self.group.navigation_controls.isHidden())
+        self.assertEqual(
+            self.group.layout().indexOf(self.group.navigation_controls),
+            -1,
+        )
+
         state = SimpleNamespace(
             player=SimpleNamespace(
                 hp_percent=73.8,
@@ -73,6 +79,7 @@ class CharacterGroupTests(unittest.TestCase):
         self.assertEqual(self.group.start_position_label.text(), "--- / ---")
 
     def test_radio_setting_keeps_its_contract_without_quiet_control(self):
+        self.assertTrue(self.group.navigation_controls.isHidden())
         self.assertEqual(
             [
                 self.group.mode_selector.itemText(index)

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -68,7 +69,17 @@ class RightPanel(QWidget):
             list_widget.setSelectionMode(
                 QAbstractItemView.SelectionMode.ExtendedSelection
             )
-            list_widget.setFixedSize(92, 46)
+            list_widget.setMinimumSize(92, 46)
+            list_widget.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Expanding,
+            )
+
+        for label in (self.available_label, self.ignored_label):
+            label.setSizePolicy(
+                QSizePolicy.Policy.Preferred,
+                QSizePolicy.Policy.Fixed,
+            )
 
         self.add_ignore_button = QPushButton("→")
         self.add_ignore_button.setToolTip(
@@ -113,14 +124,14 @@ class RightPanel(QWidget):
             self._create_list_column(self.ignored_label, self.ignored_list),
             1,
         )
-        main_layout.addLayout(lists_layout)
+        main_layout.addLayout(lists_layout, 1)
 
     @staticmethod
     def _create_list_column(label, list_widget):
         layout = QVBoxLayout()
         layout.setSpacing(1)
         layout.addWidget(label)
-        layout.addWidget(list_widget)
+        layout.addWidget(list_widget, 1)
         return layout
 
     def apply_style(self):

@@ -8,7 +8,10 @@ from core.managers.direct3d_device import Direct3DDeviceManager
 from core.managers.direct3d_map import Direct3DMapManager
 from core.managers.direct3d_staging import Direct3DStagingManager
 from core.managers.frame_cpu_reader import FrameCPUReader
-from core.managers.wgc_borderless import request_borderless_capture_access
+from core.managers.wgc_borderless import (
+    is_borderless_capture_required,
+    request_borderless_capture_access,
+)
 from core.managers.wgc_frame_abi import WGCFrameABI
 from core.managers.wgc_frame_reader_abi import WGCFrameReaderABI
 from core.managers.wgc_framepool_abi import WGCFramePoolABI
@@ -29,6 +32,7 @@ class CaptureEngine:
         self.height = int(height)
         self.hwnd = hwnd
         self.running = False
+
         self._clear_resource_references()
 
     def start(self):
@@ -36,101 +40,206 @@ class CaptureEngine:
             return
 
         window = WindowManager()
+
         if self.hwnd:
             window.hwnd = self.hwnd
-        if not window.is_valid() and not window.find_window_by_title(self.title):
+
+        if not window.is_valid() and not window.find_window_by_title(
+            self.title
+        ):
             raise RuntimeError("Ventana no encontrada")
 
+        borderless_required = is_borderless_capture_required()
         borderless_allowed = request_borderless_capture_access()
+        if borderless_required and not borderless_allowed:
+            raise RuntimeError(
+                "Windows 11 no concedió la captura sin borde. "
+                "Instala la versión MSIX y habilita el permiso de "
+                "bordes de captura en Privacidad y seguridad."
+            )
+
         try:
             self.device_manager = Direct3DDeviceManager()
+
             if not self.device_manager.create_device():
                 raise RuntimeError("Error creando D3D11")
+
             self.device = self.device_manager.get_device()
 
             self.context_manager = Direct3DContextManager()
-            self.context = self.context_manager.create_context(self.device)
+
+            self.context = self.context_manager.create_context(
+                self.device
+            )
+
             self.converter = Direct3DConverter()
-            if not self.converter.create_winrt_device(self.device):
-                raise RuntimeError("Error creando WinRT Device")
+
+            if not self.converter.create_winrt_device(
+                self.device
+            ):
+                raise RuntimeError(
+                    "Error creando WinRT Device"
+                )
+
             self.winrt_device = self.converter.get_device()
 
             self.pool_manager = WGCFramePoolABI()
             self.pool_manager.get_statics2()
-            self.framepool = self.pool_manager.create_free_threaded(
-                self.winrt_device,
-                self.width,
-                self.height,
+
+            self.framepool = (
+                self.pool_manager.create_free_threaded(
+                    self.winrt_device,
+                    self.width,
+                    self.height,
+                )
             )
+
             self.item_manager = WGCItemABI()
-            self.item = self.item_manager.create_for_window(window.hwnd)
-            self.session_manager = WGCSessionABI()
-            self.session = self.session_manager.create_session(
-                self.framepool,
-                self.item,
+
+            self.item = self.item_manager.create_for_window(
+                window.hwnd
             )
+
+            self.session_manager = WGCSessionABI()
+
+            self.session = (
+                self.session_manager.create_session(
+                    self.framepool,
+                    self.item,
+                )
+            )
+
             self.borderless_capture = (
                 borderless_allowed
                 and self.session_manager.try_disable_border()
             )
+            if borderless_required and not self.borderless_capture:
+                raise RuntimeError(
+                    "Windows 11 no permitió desactivar el marco de captura."
+                )
+
             self.session_manager.start_capture()
 
             self.reader = WGCFrameReaderABI()
             self.reader.set_framepool(self.framepool)
+
             self.frame_manager = WGCFrameABI()
             self.surface_manager = WGCSurfaceABI()
+
             self.staging = Direct3DStagingManager()
-            self.staging.set_device(self.device, self.context)
+            self.staging.set_device(
+                self.device,
+                self.context,
+            )
+
             self.copy = Direct3DCopyManager()
             self.copy.set_context(self.context)
+
             self.map = Direct3DMapManager()
             self.map.set_context(self.context)
+
             self.cpu = FrameCPUReader()
-            self.cpu.set_size(self.width, self.height)
+            self.cpu.set_size(
+                self.width,
+                self.height,
+            )
+
             self.running = True
+
         except Exception:
             self._release_resources()
             raise
 
     def get_frame(self):
         if not self.running:
-            raise RuntimeError("CaptureEngine no iniciado")
+            raise RuntimeError(
+                "CaptureEngine no iniciado"
+            )
 
         frame = None
-        deadline = time.perf_counter() + self.FRAME_TIMEOUT_SECONDS
+
+        deadline = (
+            time.perf_counter()
+            + self.FRAME_TIMEOUT_SECONDS
+        )
+
         while frame is None:
             frame = self.reader.try_get_next_frame()
+
             if frame is None:
                 if time.perf_counter() >= deadline:
                     return None
+
                 time.sleep(0.005)
 
         surface = None
         access = None
         texture = None
         mapped = False
+
         try:
             self.frame_manager.set_frame(frame)
-            surface = self.frame_manager.get_surface()
-            access = self.surface_manager.get_dxgi_access(surface)
-            texture = self.surface_manager.get_texture(access)
-            if self.staging_texture is None:
-                self.staging_texture = self.staging.create_staging(texture)
 
-            self.copy.copy_resource(self.staging_texture, texture)
-            mapped_resource = self.map.map_texture(self.staging_texture)
+            surface = self.frame_manager.get_surface()
+
+            access = (
+                self.surface_manager.get_dxgi_access(
+                    surface
+                )
+            )
+
+            texture = self.surface_manager.get_texture(
+                access
+            )
+
+            if self.staging_texture is None:
+                self.staging_texture = (
+                    self.staging.create_staging(
+                        texture
+                    )
+                )
+
+            self.copy.copy_resource(
+                self.staging_texture,
+                texture,
+            )
+
+            mapped_resource = self.map.map_texture(
+                self.staging_texture
+            )
+
             mapped = True
-            image = self.cpu.read_frame(mapped_resource)
-            return Frame(image, time.time())
+
+            image = self.cpu.read_frame(
+                mapped_resource
+            )
+
+            return Frame(
+                image,
+                time.time(),
+            )
+
         finally:
             if mapped:
-                self.map.unmap_texture(self.staging_texture)
+                self.map.unmap_texture(
+                    self.staging_texture
+                )
+
             if texture:
-                self.surface_manager.release_interface(texture)
+                self.surface_manager.release_interface(
+                    texture
+                )
+
             if access:
-                self.surface_manager.release_interface(access)
+                self.surface_manager.release_interface(
+                    access
+                )
+
             if surface:
-                self.frame_manager.release_surface(surface)
+                self.frame_manager.release_surface(
+                    surface
+                )
+
             self.reader.release_frame(frame)
 
     def stop(self):
@@ -141,26 +250,50 @@ class CaptureEngine:
         if self.reader:
             self.reader.set_framepool(None)
 
-        self._safe_release(close_winrt, self.session)
-        self._safe_release(close_winrt, self.framepool)
-        self._safe_release(close_winrt, self.winrt_device)
+        self._safe_release(
+            close_winrt,
+            self.session,
+        )
+
+        self._safe_release(
+            close_winrt,
+            self.framepool,
+        )
+
+        self._safe_release(
+            close_winrt,
+            self.winrt_device,
+        )
+
         for interface in (
             self.session,
             self.framepool,
             self.item,
             self.staging_texture,
-            getattr(self.pool_manager, "statics2", None),
+            getattr(
+                self.pool_manager,
+                "statics2",
+                None,
+            ),
             self.winrt_device,
             self.context,
             self.device,
         ):
-            self._safe_release(release_com, interface)
+            self._safe_release(
+                release_com,
+                interface,
+            )
+
         self._clear_resource_references()
 
     @staticmethod
-    def _safe_release(operation, interface):
+    def _safe_release(
+        operation,
+        interface,
+    ):
         if not interface:
             return
+
         try:
             operation(interface)
         except Exception:

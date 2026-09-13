@@ -2,9 +2,10 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
     QPushButton,
-    QSpinBox,
     QWidget,
 )
+
+from gui.widgets.content_width_spin_box import ContentWidthSpinBox
 
 
 class AutoCard(QWidget):
@@ -27,12 +28,11 @@ class AutoCard(QWidget):
         )
 
         if show_interval:
-            self.interval_spin = QSpinBox()
+            self.interval_spin = ContentWidthSpinBox()
             self.interval_spin.setRange(100, 600000)
             self.interval_spin.setSingleStep(100)
             self.interval_spin.setValue(self._interval)
             self.interval_spin.setSuffix(" ms")
-            self.interval_spin.setFixedWidth(74)
             self.interval_spin.setToolTip(
                 f"Intervalo mínimo entre ejecuciones de {name}."
             )

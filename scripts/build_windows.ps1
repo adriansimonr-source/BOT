@@ -1,24 +1,39 @@
 param(
     [switch]$SkipTests,
-    [string]$Version = "1.1.1"
+    [switch]$SkipArchive,
+    [string]$Version = "1.1.1",
+    [string]$ArtifactName = ""
 )
 
 $ErrorActionPreference = "Stop"
 if ($Version -notmatch '^\d+\.\d+(\.\d+)?$') {
     throw "La versión debe tener formato numérico, por ejemplo 1.1 o 1.1.0."
 }
+if ($ArtifactName -and $ArtifactName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$') {
+    throw "El nombre del artefacto contiene caracteres no válidos."
+}
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$distributionName = if ($ArtifactName) {
+    $ArtifactName
+} else {
+    "SB_Automation_Suite"
+}
 $buildPython = Join-Path $projectRoot ".build-venv\Scripts\python.exe"
 $requirements = Join-Path $projectRoot "requirements.txt"
 $buildRequirements = Join-Path $projectRoot "requirements-build.txt"
 $spec = Join-Path $projectRoot "SB_Automation_Suite.spec"
-$distDirectory = Join-Path $projectRoot "dist\SB_Automation_Suite"
-$executable = Join-Path $distDirectory "SB_Automation_Suite.exe"
+$distDirectory = Join-Path $projectRoot "dist\$distributionName"
+$executable = Join-Path $distDirectory "$distributionName.exe"
 $pythonDll = Join-Path $distDirectory "_internal\python314.dll"
 $packageReadme = Join-Path $distDirectory "LEEME_PRIMERO.txt"
 $releaseDirectory = Join-Path $projectRoot "release"
-$archive = Join-Path $releaseDirectory `
+$archiveName = if ($ArtifactName) {
+    "${distributionName}.zip"
+} else {
     "SB_Automation_Suite_v${Version}_Windows_x64.zip"
+}
+$archive = Join-Path $releaseDirectory $archiveName
+$previousBuildName = $env:SB_AUTOMATION_BUILD_NAME
 
 Push-Location $projectRoot
 try {
@@ -56,6 +71,7 @@ try {
 
     $tesseractCommand = Get-Command tesseract -ErrorAction Stop
     $env:TESSERACT_HOME = Split-Path -Parent $tesseractCommand.Source
+    $env:SB_AUTOMATION_BUILD_NAME = $distributionName
 
     & $buildPython -m PyInstaller `
         --noconfirm `
@@ -68,10 +84,11 @@ try {
     }
 
     @(
-        "SB Automation Suite v$Version",
+        $distributionName,
+        "Version: $Version",
         "",
-        "1. Extrae la carpeta SB_Automation_Suite completa del ZIP.",
-        "2. Ejecuta SB_Automation_Suite.exe desde esa carpeta.",
+        "1. Extrae la carpeta $distributionName completa del ZIP.",
+        "2. Ejecuta $distributionName.exe desde esa carpeta.",
         "3. No lo abras dentro del ZIP ni separes el EXE de _internal.",
         "",
         "La aplicacion incluye Python, Tesseract y sus dependencias."
@@ -115,12 +132,21 @@ try {
     finally {
         $env:SB_AUTOMATION_DATA_DIR = $previousDataDirectory
         $env:QT_QPA_PLATFORM = $previousQtPlatform
+        if (Test-Path -LiteralPath $smokeData) {
+            Remove-Item -LiteralPath $smokeData -Recurse -Force
+        }
     }
 
     & (Join-Path $distDirectory "_internal\tesseract\tesseract.exe") `
         --version | Select-Object -First 1
     if ($LASTEXITCODE -ne 0) {
         throw "El Tesseract incluido no se puede ejecutar."
+    }
+
+    if ($SkipArchive) {
+        Write-Output "BUILD_OK"
+        Write-Output "Executable: $executable"
+        return
     }
 
     New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
@@ -135,8 +161,8 @@ try {
         ("build\archive-smoke-data-" + [Guid]::NewGuid().ToString("N"))
     try {
         Expand-Archive -LiteralPath $archive -DestinationPath $archiveSmokeRoot
-        $archiveApp = Join-Path $archiveSmokeRoot "SB_Automation_Suite"
-        $archiveExecutable = Join-Path $archiveApp "SB_Automation_Suite.exe"
+        $archiveApp = Join-Path $archiveSmokeRoot $distributionName
+        $archiveExecutable = Join-Path $archiveApp "$distributionName.exe"
         $archivePythonDll = Join-Path $archiveApp "_internal\python314.dll"
         $archiveReadme = Join-Path $archiveApp "LEEME_PRIMERO.txt"
         foreach ($path in @(
@@ -188,5 +214,6 @@ try {
     Write-Output "SHA256: $($hash.Hash)"
 }
 finally {
+    $env:SB_AUTOMATION_BUILD_NAME = $previousBuildName
     Pop-Location
 }

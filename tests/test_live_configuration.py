@@ -84,6 +84,8 @@ class BotTabConfigurationTests(unittest.TestCase):
         self.assertFalse(number_skill.time_spin.isEnabled())
         self.assertFalse(function_skill.enabled_checkbox.isEnabled())
         self.assertFalse(function_skill.time_spin.isEnabled())
+        self.assertFalse(self.tab.profile_selector.combo.isEnabled())
+        self.assertFalse(self.tab.profile_selector.save_button.isEnabled())
         self.assertTrue(self.tab.auto_panel.auto_attack.checkbox.isEnabled())
         self.assertTrue(self.tab.auto_panel.ignore_targets.isEnabled())
         self.assertTrue(self.tab.character_group.mode_selector.isEnabled())
@@ -94,6 +96,8 @@ class BotTabConfigurationTests(unittest.TestCase):
         self.assertTrue(number_skill.time_spin.isEnabled())
         self.assertTrue(function_skill.enabled_checkbox.isEnabled())
         self.assertTrue(function_skill.time_spin.isEnabled())
+        self.assertTrue(self.tab.profile_selector.combo.isEnabled())
+        self.assertTrue(self.tab.profile_selector.save_button.isEnabled())
 
     def test_function_skill_column_explains_its_priority(self):
         header = self.tab.rotation_panel.priority_header

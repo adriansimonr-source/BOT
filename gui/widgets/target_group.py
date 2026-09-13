@@ -2,7 +2,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QHBoxLayout,
-    QVBoxLayout,
 )
 
 from gui.widgets.resource_bar import ResourceBar
@@ -25,19 +24,13 @@ class TargetGroup(QWidget):
 
         )
 
-        self.level_label = QLabel(
-
-            "LVL: -"
-
-        )
-
         self.hp_bar = ResourceBar(
 
             "HP"
 
         )
 
-        self.hp_bar.setFixedWidth(140)
+        self.hp_bar.setMinimumWidth(140)
 
     def create_layout(self):
 
@@ -63,15 +56,13 @@ class TargetGroup(QWidget):
 
         main_layout.addWidget(self.target_name_label)
 
-        main_layout.addWidget(self.level_label)
-
         main_layout.addWidget(
 
-            self.hp_bar
+            self.hp_bar,
+
+            1
 
         )
-
-        main_layout.addStretch()
 
         self.setLayout(
 
@@ -97,12 +88,6 @@ class TargetGroup(QWidget):
 
             )
 
-            self.level_label.setText(
-
-                "LVL: -"
-
-            )
-
             self.hp_bar.update_percent(
 
                 0
@@ -120,12 +105,6 @@ class TargetGroup(QWidget):
             else
 
             "TARGET: ---"
-
-        )
-
-        self.level_label.setText(
-
-            f"LVL: {target.level}"
 
         )
 

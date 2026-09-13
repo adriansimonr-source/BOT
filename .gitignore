@@ -16,6 +16,8 @@ logs/
 debug/
 data/navigation_learning.json
 data/navigation_learning.json.tmp
+win11_capture_debug.png
+*.pfx
 
 # Build local
 .build-venv/

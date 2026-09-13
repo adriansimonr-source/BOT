@@ -19,6 +19,10 @@ class ResourceBar(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self.label.setFixedWidth(18)
         self.bar.setRange(0, 100)
         self.bar.setTextVisible(False)
@@ -32,7 +36,6 @@ class ResourceBar(QWidget):
         layout.addWidget(self.label)
         layout.addWidget(self.bar, 1)
         layout.addWidget(self.value_label)
-        layout.addStretch()
 
     def update_percent(self, value):
         if value is None:

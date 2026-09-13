@@ -2,8 +2,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
     QCheckBox,
-    QSpinBox,
 )
+
+from gui.widgets.content_width_spin_box import ContentWidthSpinBox
 
 class ConsumableCard(QWidget):
 
@@ -42,7 +43,7 @@ class ConsumableCard(QWidget):
             f"Activa o desactiva {name}."
         )
 
-        self.threshold_spin = QSpinBox()
+        self.threshold_spin = ContentWidthSpinBox()
 
         self.threshold_spin.setRange(
             0,
@@ -57,17 +58,13 @@ class ConsumableCard(QWidget):
             " %"
         )
 
-        self.threshold_spin.setFixedWidth(
-            52
-        )
-
         resource = "MP" if "MP" in name.upper() else "HP"
         self.threshold_spin.setToolTip(
             f"Usar {self._key} cuando el {resource} sea igual o inferior "
             "a este porcentaje."
         )
 
-        self.interval_spin = QSpinBox()
+        self.interval_spin = ContentWidthSpinBox()
 
         self.interval_spin.setRange(
             100,
@@ -84,10 +81,6 @@ class ConsumableCard(QWidget):
 
         self.interval_spin.setSuffix(
             " ms"
-        )
-
-        self.interval_spin.setFixedWidth(
-            74
         )
 
         self.interval_spin.setToolTip(

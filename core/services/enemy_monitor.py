@@ -74,28 +74,45 @@ class EnemyMonitor:
 
     def update(self, image, target_state: TargetState):
         self.poll(target_state)
+
         if image is None:
             return False
 
         anchor_template = self.templates.get("enemy_anchor")
+
         if anchor_template is None:
             return self._handle_missing_target(target_state)
 
-        enemy_anchor = self._detect_anchor(image, anchor_template)
+        enemy_anchor = self._detect_anchor(
+            image,
+            anchor_template,
+        )
+
         if not enemy_anchor:
             return self._handle_missing_target(target_state)
 
         hud_template = self.templates.get("enemy_hud")
+
         if hud_template is None:
             return self._handle_missing_target(target_state)
 
-        enemy_hud = self.resolver.resolve(enemy_anchor, hud_template)
+        enemy_hud = self.resolver.resolve(
+            enemy_anchor,
+            hud_template,
+        )
+
         if not enemy_hud:
             return self._handle_missing_target(target_state)
 
-        hud_image = self.resolver.crop(image, enemy_hud)
+        hud_image = self.resolver.crop(
+            image,
+            enemy_hud,
+        )
+
         if hud_image is None:
             return self._handle_missing_target(target_state)
+
+        scale = self._region_scale(enemy_hud)
 
         self.missing_hud_frames = 0
         target_state.reset(clear_selection=False)
@@ -103,11 +120,16 @@ class EnemyMonitor:
         name_image = self.crop_region(
             hud_image,
             self.templates.get("enemy_name"),
+            scale=scale,
         )
 
         signature = self._create_signature(name_image)
         now = time.perf_counter()
-        health_status, hp_percent = self._read_health_data(hud_image)
+
+        health_status, hp_percent = self._read_health_data(
+            hud_image,
+            scale=scale,
+        )
 
         if (
             not self.target_visible
@@ -127,11 +149,13 @@ class EnemyMonitor:
 
         target_state.selection_id = self.selection_id
         target_state.visible = True
+
         self._apply_health_state(
             target_state,
             health_status,
             now,
         )
+
         self._apply_cached_identity(
             target_state,
             signature,
@@ -139,6 +163,7 @@ class EnemyMonitor:
 
         if entity_type is None:
             target_state.identity_pending = False
+
         elif self.executor is None:
             if self._reserve_identity_attempt(now):
                 self.read_identity(
@@ -146,14 +171,18 @@ class EnemyMonitor:
                     target_state,
                     signature,
                     entity_type,
+                    scale=scale,
                 )
+
         else:
             self._schedule_identity(
                 hud_image,
                 signature,
                 entity_type,
                 now,
+                scale=scale,
             )
+
             target_state.identity_pending = (
                 entity_type == self.ENTITY_ENEMY
                 and self.recognized_entity_type is None
@@ -164,6 +193,7 @@ class EnemyMonitor:
 
     def poll(self, target_state):
         future = self.identity_future
+
         if future is None or not future.done():
             return
 
@@ -171,6 +201,7 @@ class EnemyMonitor:
 
         try:
             result = future.result()
+
             selection_id, signature, name, level, entity_type = (
                 self._unpack_identity_result(result)
             )
@@ -303,6 +334,7 @@ class EnemyMonitor:
         target_state.hp_percent = float(
             self.last_valid_hp or 0.0
         )
+
         target_state.hp_observed_at = self.last_valid_hp_at
 
         if self.current_entity_type == self.ENTITY_ENEMY:
@@ -409,6 +441,7 @@ class EnemyMonitor:
         signature,
         entity_type,
         now=None,
+        scale=1.0,
     ):
         if (
             self.identity_future is not None
@@ -428,6 +461,7 @@ class EnemyMonitor:
             signature,
             hud_image.copy(),
             entity_type,
+            scale,
         )
 
     def _reserve_identity_attempt(self, now):
@@ -438,6 +472,7 @@ class EnemyMonitor:
             return False
 
         self.identity_attempts += 1
+
         self.next_identity_retry_at = (
             now + self.IDENTITY_RETRY_SECONDS
         )
@@ -454,6 +489,7 @@ class EnemyMonitor:
         signature,
         hud_image,
         entity_type=ENTITY_ENEMY,
+        scale=1.0,
     ):
         empty_result = (
             selection_id,
@@ -466,6 +502,7 @@ class EnemyMonitor:
         name_image = self.crop_region(
             hud_image,
             self.templates.get("enemy_name"),
+            scale=scale,
         )
 
         if name_image is None:
@@ -484,6 +521,7 @@ class EnemyMonitor:
             level_image = self.crop_region(
                 hud_image,
                 self.templates.get("enemy_level"),
+                scale=scale,
             )
 
             level = (
@@ -506,12 +544,14 @@ class EnemyMonitor:
         target_state,
         signature=None,
         entity_type=ENTITY_ENEMY,
+        scale=1.0,
     ):
         result = self._read_identity_data(
             self.selection_id,
             signature,
             hud_image,
             entity_type,
+            scale,
         )
 
         selection_id, signature, name, level, resolved_type = (
@@ -715,6 +755,7 @@ class EnemyMonitor:
         template,
     ):
         cached = self.anchor_detection
+
         template_image = getattr(
             template,
             "image",
@@ -730,9 +771,18 @@ class EnemyMonitor:
         ):
             return None
 
+        scale = self._cached_scale()
+
         image_height, image_width = image.shape[:2]
-        target_height, target_width = (
-            template_image.shape[:2]
+
+        target_height = max(
+            1,
+            int(round(template_image.shape[0] * scale)),
+        )
+
+        target_width = max(
+            1,
+            int(round(template_image.shape[1] * scale)),
         )
 
         margin = self.ANCHOR_LOCAL_MARGIN
@@ -769,12 +819,14 @@ class EnemyMonitor:
         detection = self.detector.detect(
             search_image,
             template,
+            scale_hint=scale,
         )
 
         if detection is None:
             return None
 
         detection = dict(detection)
+
         detection["x"] += left
         detection["y"] += top
 
@@ -787,13 +839,13 @@ class EnemyMonitor:
         area_name,
     ):
         search_area = self.templates.get(area_name)
+        scale_hint = self._cached_scale_or_none()
 
-        # Si no hay una ROI configurada,
-        # buscamos directamente en todo el frame.
         if search_area is None:
             return self.detector.detect(
                 image,
                 template,
+                scale_hint=scale_hint,
             )
 
         search_image = self.resolver.crop(
@@ -801,18 +853,17 @@ class EnemyMonitor:
             search_area,
         )
 
-        # Si la ROI no se puede recortar,
-        # usamos el frame completo.
         if search_image is None:
             return self.detector.detect(
                 image,
                 template,
+                scale_hint=scale_hint,
             )
 
-        # 1. Intento rápido en la posición habitual.
         detection = self.detector.detect(
             search_image,
             template,
+            scale_hint=scale_hint,
         )
 
         if detection is not None:
@@ -830,26 +881,54 @@ class EnemyMonitor:
 
             return detection
 
-        # 2. La ROI ha fallado.
-        # Buscar el anchor del target en TODO el frame.
-        #
-        # De esta forma enemy_search_area es solamente
-        # una optimización y no obliga al usuario a
-        # mantener el HUD del target en una posición fija.
-        detection = self.detector.detect(
+        return self.detector.detect(
             image,
             template,
+            scale_hint=scale_hint,
         )
 
-        if detection is not None:
-            detection = dict(detection)
+    def _cached_scale(self):
+        scale = self._cached_scale_or_none()
+        return 1.0 if scale is None else scale
 
-        return detection
+    def _cached_scale_or_none(self):
+        if not isinstance(self.anchor_detection, dict):
+            return None
 
-    def _read_health_data(self, hud_image):
+        return self._region_scale(
+            self.anchor_detection,
+            default=None,
+        )
+
+    @staticmethod
+    def _region_scale(region, default=1.0):
+        if not isinstance(region, dict):
+            return default
+
+        try:
+            scale = float(
+                region.get(
+                    "scale",
+                    1.0 if default is None else default,
+                )
+            )
+        except (TypeError, ValueError, OverflowError):
+            return default
+
+        if not np.isfinite(scale) or scale <= 0:
+            return default
+
+        return scale
+
+    def _read_health_data(
+        self,
+        hud_image,
+        scale=1.0,
+    ):
         hp_image = self.crop_region(
             hud_image,
             self.templates.get("enemy_hp"),
+            scale=scale,
         )
 
         if (
@@ -910,16 +989,47 @@ class EnemyMonitor:
         )
 
     @staticmethod
-    def crop_region(image, region):
-        if image is None or region is None:
+    def crop_region(
+        image,
+        region,
+        scale=1.0,
+    ):
+        if (
+            image is None
+            or region is None
+            or not isinstance(image, np.ndarray)
+            or image.ndim < 2
+            or image.size == 0
+        ):
             return None
 
-        x = region.get("x", 0)
-        y = region.get("y", 0)
-        width = region.get("width", 0)
-        height = region.get("height", 0)
+        try:
+            scale = float(scale)
+        except (
+            TypeError,
+            ValueError,
+            OverflowError,
+        ):
+            scale = 1.0
 
-        if width <= 0 or height <= 0:
+        if not np.isfinite(scale) or scale <= 0:
+            scale = 1.0
+
+        x = int(round(region.get("x", 0) * scale))
+        y = int(round(region.get("y", 0) * scale))
+        width = int(round(region.get("width", 0) * scale))
+        height = int(round(region.get("height", 0) * scale))
+
+        image_height, image_width = image.shape[:2]
+
+        if (
+            x < 0
+            or y < 0
+            or width <= 0
+            or height <= 0
+            or x + width > image_width
+            or y + height > image_height
+        ):
             return None
 
         return image[

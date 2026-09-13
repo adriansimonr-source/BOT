@@ -11,6 +11,7 @@ from gui.right_panel import RightPanel
 from gui.widgets.bot_control_bar import BotControlBar
 from gui.widgets.character_group import CharacterGroup
 from gui.widgets.game_selector import GameSelector
+from gui.widgets.profile_selector import ProfileSelector
 from gui.widgets.skill_card import SkillCard
 
 
@@ -37,6 +38,7 @@ class GuiTooltipTests(unittest.TestCase):
         character = CharacterGroup()
         panel = RightPanel()
         selector = GameSelector(_EmptyGameProfiles())
+        profile = ProfileSelector()
         dialog = AddGameDialog(SimpleNamespace())
         try:
             buttons = (
@@ -52,6 +54,8 @@ class GuiTooltipTests(unittest.TestCase):
                 selector.add_button,
                 selector.refresh_button,
                 selector.delete_button,
+                profile.save_button,
+                profile.delete_button,
                 dialog.detect_button,
                 dialog.cancel_button,
                 dialog.add_button,
@@ -59,7 +63,14 @@ class GuiTooltipTests(unittest.TestCase):
             for button in buttons:
                 self.assertTrue(button.toolTip().strip(), button.text())
         finally:
-            for widget in (control_bar, character, panel, selector, dialog):
+            for widget in (
+                control_bar,
+                character,
+                panel,
+                selector,
+                profile,
+                dialog,
+            ):
                 widget.deleteLater()
             self.app.processEvents()
 

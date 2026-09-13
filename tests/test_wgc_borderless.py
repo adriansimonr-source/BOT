@@ -7,12 +7,6 @@ from core.managers.wgc_session_abi import WGCSessionABI
 
 class BorderlessAccessTests(unittest.TestCase):
 
-    def setUp(self):
-        wgc_borderless.request_borderless_capture_access.cache_clear()
-
-    def tearDown(self):
-        wgc_borderless.request_borderless_capture_access.cache_clear()
-
     def test_unsupported_windows_never_requests_access(self):
         with (
             patch.object(
@@ -53,7 +47,7 @@ class BorderlessAccessTests(unittest.TestCase):
                 wgc_borderless.request_borderless_capture_access()
             )
 
-        request.assert_awaited_once()
+        self.assertEqual(request.await_count, 2)
 
     def test_denied_access_keeps_the_capture_border(self):
         with (
@@ -72,6 +66,26 @@ class BorderlessAccessTests(unittest.TestCase):
             self.assertFalse(
                 wgc_borderless.request_borderless_capture_access()
             )
+
+    def test_windows_11_build_boundary_controls_requirement(self):
+        with patch.object(wgc_borderless.sys, "platform", "win32"):
+            for build, expected in ((21999, False), (22000, True)):
+                with (
+                    self.subTest(build=build),
+                    patch.object(
+                        wgc_borderless.sys,
+                        "getwindowsversion",
+                        return_value=type(
+                            "Version",
+                            (),
+                            {"build": build},
+                        )(),
+                    ),
+                ):
+                    self.assertEqual(
+                        wgc_borderless.is_borderless_capture_required(),
+                        expected,
+                    )
 
 
 class BorderlessSessionTests(unittest.TestCase):

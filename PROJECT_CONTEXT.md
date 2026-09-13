@@ -1,6 +1,6 @@
 # SB Automation Suite - documento canónico
 
-Estado operativo consolidado del 17 de agosto de 2026. Este archivo reúne el contexto del proyecto, el contrato funcional, la arquitectura, las dependencias, la ejecución, la compatibilidad y los criterios de continuidad. Es la única documentación técnica normativa; `README.md` es solo la portada del repositorio y `requirements.txt` es el manifiesto instalable.
+Estado operativo consolidado del 13 de septiembre de 2026. Este archivo reúne el contexto del proyecto, el contrato funcional, la arquitectura, las dependencias, la ejecución, la compatibilidad y los criterios de continuidad. Es la única documentación técnica normativa; `README.md` es la portada e inicio rápido del repositorio y `requirements.txt` es el manifiesto instalable. No se mantienen documentos técnicos paralelos.
 
 ## Propósito y fases
 
@@ -16,9 +16,9 @@ El proyecto es deliberadamente no intrusivo:
 | Fase | Estado |
 | --- | --- |
 | GUI genérica | Estable y funcional. Mantener diseño y distribución salvo petición expresa. |
-| Captura, visión e input de fondo | Flujo general validado en una prueba real de Kathana sobre Windows 10; el regreso al origen sigue siendo la función menos fiable. |
+| Captura, visión e input de fondo | Windows 10 mantiene la ruta compatible. En Windows 11 la captura pasa a exigir el permiso sin borde; falta validarla en una MSIX instalada. El regreso al origen sigue siendo la función menos fiable. |
 | Persistencia | Operativa para juegos, configuración, enemigos, ignorados, items y aprendizaje de navegación. |
-| Build y multiplataforma | Build portable Windows 10 x64 v1.1.1 generada y validada; Windows 11, instalador firmado y Ubuntu siguen pendientes. |
+| Build y multiplataforma | No hay artefactos publicados: las builds anteriores se retiraron. El pipeline MSIX firmado para Windows 11 está preparado, pero no se ejecutará sin autorización. La validación en equipos limpios y Ubuntu siguen pendientes. |
 
 ## Arquitectura
 
@@ -46,16 +46,17 @@ Responsabilidades:
 ## GUI y perfiles
 
 - `MainWindow` usa `WindowStaysOnTopHint`: permanece en primer plano y solo desaparece si el usuario la minimiza.
-- La ventana v1.1.1 mide 480×320, con un mínimo intrínseco medido de 465×295. Muestra directamente el panel operativo sin pestañas `BOT/LOG`; inicio/parada comparte la cabecera compacta con GAME. `TARGET`, `LVL` y la barra HP enemiga están en ese orden y separados por 4 px, dejando el espacio flexible detrás de la barra.
+- En la rama Windows 11 la ventana abre a 640×320, es redimensionable y deja que los layouts impongan un mínimo nativo aproximado de 522–531×319. Qt 6 gestiona el escalado DPI sin cálculos manuales; se validaron 100%, 125%, 150%, 175% y 200%. Muestra directamente el panel operativo sin pestañas `BOT/LOG`; inicio/parada comparte la cabecera compacta con GAME.
 - GAME permite seleccionar, añadir y borrar perfiles. El alta manual detecta ventana, PID y ejecutable; refresh vuelve a localizar el proceso del juego seleccionado. La pestaña PROCESO fue eliminada.
-- La tarjeta `PERSONAJE` solo muestra HP, MP, coordenadas, origen y radio. HP y MP comparten una fila de barras de 120 px; coordenadas, botones y radio comparten otra. Nombre, nivel, online, tiempo quieto y OCR de identidad del jugador no existen.
-- El objetivo ocupa una única fila y el panel de filtros contiene dos listas de 92×46, `Disponibles`, dos flechas e `Ignorados`; admite selección múltiple y guarda los cambios. Solo existe `Ignorar objetivos`; objetivos únicos fue eliminado.
+- La tarjeta `PERSONAJE` muestra únicamente HP y MP. La posición actual, el origen, el radio y sus botones están fuera del layout y ocultos para ahorrar altura, pero se conservan sus widgets, señales, actualización de estado y toda la navegación interna para retomarlos más adelante. HP y MP parten de un mínimo de 120 px y se reparten el ancho adicional.
+- El objetivo ocupa una única fila con `TARGET` y la barra HP enemiga; el campo visual `LVL` y sus actualizaciones se eliminaron. A su derecha, `PERFIL` ofrece un combo editable opcional, un icono de disquete y una `×`: seleccionar aplica un perfil, escribir un nombre y pulsar el disquete crea uno, volver a guardarlo actualiza el existente y la cruz elimina el seleccionado tras confirmación. `Sin perfil` es la selección inicial y, al elegirla, restaura todos los controles a sus valores iniciales.
+- El panel de filtros contiene dos listas con mínimo de 92×46, `Disponibles`, dos flechas e `Ignorados`; las listas se expanden en ambas direcciones, admiten selección múltiple y guardan los cambios. Solo existe `Ignorar objetivos`; objetivos únicos fue eliminado.
 - AutoTarget, AutoAttack y AutoLoot exponen milisegundos. AutoPot1, AutoMP y AutoHeal exponen recurso, umbral e intervalo independientes.
 - La rotación expone `1..9` y `F1..F7`; solo participan las tarjetas marcadas. La columna numérica no tiene cabecera y la columna F1–F7 muestra únicamente `PRIORIDAD`, con un tooltip que explica que gana las colisiones sin adelantar sus tiempos. F8 y F9 están reservadas para AutoPot1 y AutoMP.
-- Todos los botones tienen ayuda contextual al pasar el ratón. También se explican los tiempos, umbrales, coordenadas, listas y selectores; la ayuda del botón principal sigue el estado de arranque/parada y GAME siempre describe su conexión.
-- Checks, umbrales y milisegundos de automatismos, radio e ignorados se aplican en vivo con debounce de 75 ms. La configuración de skills se captura al arrancar y sus checks y milisegundos quedan bloqueados hasta detener el bot. La GUI crea un snapshot inmutable de valores; ningún `QWidget` cruza al hilo del bot.
+- Todos los botones visibles tienen ayuda contextual al pasar el ratón. También se explican los tiempos, umbrales, listas, perfiles y selectores; la ayuda del botón principal sigue el estado de arranque/parada y GAME siempre describe su conexión.
+- Checks, umbrales y milisegundos de automatismos e ignorados se aplican en vivo con debounce de 75 ms. La configuración de skills se captura al arrancar y sus checks y milisegundos quedan bloqueados hasta detener el bot. La GUI crea un snapshot inmutable de valores; ningún `QWidget` cruza al hilo del bot.
 - El arranque muestra un estado intermedio cancelable. Al detener, la GUI conserva worker e hilo y muestra `DETENIENDO...` hasta confirmar que visión, OCR y COM han terminado; nunca permite reiniciar sobre una captura anterior aún viva.
-- Durante una sesión quedan bloqueados GAME/proceso y las tarjetas `1..9`/`F1..F7`; los automatismos y ajustes auxiliares continúan editables. No se añadieron controles manuales de recalibración, panel de diagnóstico ni persistencia adicional de la configuración por juego.
+- Durante una sesión quedan bloqueados GAME/proceso, `PERFIL` y las tarjetas `1..9`/`F1..F7`; los automatismos y ajustes auxiliares continúan editables. Los perfiles de automatización son globales y opcionales, no quedan seleccionados automáticamente y no incluyen el juego ni la lista de enemigos ignorados.
 - El refresco visual está limitado a 250 ms y la BBDD de enemigos se consulta cada segundo solo para detectar cambios.
 
 ## Cadencias y contrato de input
@@ -166,7 +167,7 @@ AutoLoot (`F`) nunca recoge con un objetivo vivo seleccionado. Solo arma su vent
 
 ### Radio, llegada y seguridad
 
-RADIO BOT usa distancia euclídea al origen: `FIJO`, `SIN LÍMITE`, `10`, `20`, `30` o `40`. El valor inicial es `40`. El origen solo se fija con coordenadas frescas. Coordenadas de uno solo dígito por eje se rechazan.
+La lógica interna de RADIO BOT usa distancia euclídea al origen: `FIJO`, `SIN LÍMITE`, `10`, `20`, `30` o `40`. El selector ya no es visible, pero conserva `40` como valor inicial. El origen solo se fija con coordenadas frescas. Coordenadas de un solo dígito por eje se rechazan.
 
 - Dos revisiones frescas consecutivas fuera del radio activan un regreso forzado.
 - La histéresis no declara éxito junto al límite: exige volver cerca del origen. Con radio 10 termina a un máximo de 7 coordenadas; con 20, 30 o 40, a un máximo de 10. Esto evita oscilar sin exigir una precisión que el OCR y el movimiento actual aún no garantizan.
@@ -216,7 +217,7 @@ Microbenchmark local orientativo: 100.000 rankings de las tres teclas promediaro
 
 Datos activos:
 
-- `data/config.json`: juego activo, features y filtro por juego.
+- `data/config.json`: juego activo, features, filtro por juego y perfiles opcionales de automatización bajo `automation_profiles`.
 - `data/games.json`: perfiles de proceso, ventana y resolución.
 - `data/entities/enemies.json`: nombres, encuentros e ignorados.
 - `data/entities/items.json`: entidades sin barra para uso futuro.
@@ -227,7 +228,7 @@ Los nombres OCR se normalizan antes de persistir. Se rechazan temporizadores, co
 
 ## Requirements, instalación y ejecución
 
-Entorno de referencia: Windows 10 20H2 x64 y Python 3.14.6. `requirements.txt` fija las nueve dependencias directas:
+Entorno de referencia: Windows 10 20H2 x64 y Python 3.14.6. `requirements.txt` fija las once dependencias directas:
 
 | Dependencia | Uso |
 | --- | --- |
@@ -238,6 +239,7 @@ Entorno de referencia: Windows 10 20H2 x64 y Python 3.14.6. `requirements.txt` f
 | `pytesseract` | Puente hacia Tesseract |
 | `comtypes`, `pywin32` | COM, ventanas e input de Windows |
 | `winrt-runtime`, `winrt-Windows.Graphics.Capture` | WGC |
+| `winrt-Windows.Foundation`, `winrt-Windows.Security.Authorization.AppCapabilityAccess` | Operación asíncrona y resultado del permiso de captura sin borde |
 
 Las dependencias Windows tienen marcador de plataforma. El controlador adaptativo usa solo la biblioteca estándar; no se ha añadido TensorFlow, PyTorch, scikit-learn ni otra dependencia.
 
@@ -271,27 +273,33 @@ Desde código, los recursos se resuelven respecto a la raíz del repositorio y l
 
 | Plataforma | Estado real |
 | --- | --- |
-| Windows 10 20H2 x64 | Referencia desde código y build portable validadas por tests y smoke. WGC conserva el marco amarillo si el sistema no concede captura sin borde. |
+| Windows 10 20H2 x64 | Referencia validada previamente desde código y build portable; no se conserva ningún artefacto. WGC puede mantener el marco si el sistema no concede captura sin borde. |
 | Windows 10 1903+ | Diseño compatible con WGC; falta validar cada build. |
-| Windows 11 x64 | Ruta prevista; falta validar permisos, captura sin borde y artefacto final. |
+| Windows 11 x64 | GUI y pipeline preparados. La captura exige modo WGC sin borde y no arranca si Windows lo deniega. Falta generar, instalar y probar la nueva MSIX firmada en equipos limpios. |
 | Ubuntu 24.04 X11/Wayland | No compatible: faltan backends de captura, ventana e input y hay imports Win32. |
 | macOS | Fuera del plan. |
 
-El marco WGC no aparece en el frame entregado a visión. La aplicación intenta desactivarlo si la API y permisos lo permiten; un fallo conserva el borde sin detener captura. Cada sistema necesita una build nativa.
+El marco WGC no aparece en el frame entregado a visión. Desde Windows 11 build 22000, la aplicación solo inicia captura si `GraphicsCaptureAccess` concede `Borderless` y `IGraphicsCaptureSession3.IsBorderRequired` acepta `False`; si falla cualquiera de las dos condiciones, se detiene con un error claro en vez de mostrar el marco amarillo. El permiso se consulta en cada arranque de captura y el inicio admite hasta 60 segundos para responder al primer diálogo, sin impedir que el usuario lo cancele. Windows 10 conserva el fallback anterior para no romper compatibilidad. Cada sistema necesita una build nativa. Windows aún puede imponer el borde si otra aplicación captura simultáneamente la misma ventana y lo exige; ese conflicto externo no se puede desactivar desde esta sesión.
 
 La build se genera con PyInstaller 6.22.1 en formato `onedir`, ventana sin consola, sin UPX y para Windows x64. `SB_Automation_Suite.spec` incorpora Qt, OpenCV, NumPy, pywin32, WinRT, logo, templates, anchors y los datos iniciales. También incluye Tesseract 5.5.3, sus DLL, `tessdata` y su licencia; el equipo de destino no necesita instalar Python ni Tesseract. En Windows, las rutas del motor OCR se convierten mediante `GetShortPathNameW` para que Tesseract pueda cargar idiomas aunque la ruta de extracción contenga acentos.
 
-Las dependencias de empaquetado están fijadas en `requirements-build.txt`. El proceso reproducible es:
+Las dependencias de PyInstaller están aisladas y fijadas en `requirements-build.txt`; no forman parte del manifiesto de ejecución. El `onedir` para la MSIX se genera sin crear un ZIP portable:
 
 ```powershell
-.\scripts\build_windows.ps1 -Version 1.1.1
+.\scripts\build_windows.ps1 -Version 1.0 -ArtifactName Windows_11_lite_v1.0 -SkipArchive
 ```
 
-El script crea un entorno limpio `.build-venv`, valida dependencias, ejecuta toda la suite, genera el ejecutable, comprueba los recursos críticos —incluida `python314.dll`—, arranca y espera la aplicación empaquetada con un directorio de datos nuevo, ejecuta el Tesseract incluido y crea `release/SB_Automation_Suite_v<versión>_Windows_x64.zip`. Después extrae ese ZIP en una carpeta nueva, vuelve a comprobar el ejecutable y la DLL y repite el smoke desde la copia extraída. Esperar cada proceso gráfico evita bloquear `base_library.zip` y convierte ambos smoke en validaciones reales del código de salida. El paquete incluye `LEEME_PRIMERO.txt` para advertir que no se debe abrir el EXE dentro del ZIP ni separarlo de `_internal`.
+El script conserva su modo ZIP para Windows 10, pero `-SkipArchive` evita publicar una versión portable de Windows 11 que no puede declarar identidad ni capacidades. En ambos modos valida dependencias, ejecuta la suite, genera el ejecutable, comprueba los recursos críticos —incluida `python314.dll`—, arranca la aplicación con datos nuevos y ejecuta el Tesseract incluido.
 
-Build v1.1.1 del 17 de agosto de 2026: `SB_Automation_Suite_v1.1.1_Windows_x64.zip`, 173,31 MiB, SHA-256 `31A838B0085DA557363F3810E37C62FB1D108F9143B49CFA07D7741EC09915AB`. Contiene 429 archivos; `_internal/python314.dll` mide 6.778.592 bytes y el ejecutable extraído termina el smoke con código 0. Es una candidata portable, no un instalador ni un binario firmado. Falta validar en equipos Windows 10 y 11 limpios la captura WGC real, OCR, entrega de input, permisos de captura sin borde, persistencia y sesiones prolongadas sin fuga D3D.
+La distribución de Windows 11 se completa con `scripts/package_windows_msix.ps1`. Requiere Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código válido con clave privada en `Cert:\CurrentUser\My`. Copia el `onedir` a un staging aislado, genera logos cuadrados, materializa `packaging/windows/AppxManifest.xml.in`, crea y firma el MSIX x64 dentro del staging, verifica firma y contenido y solo entonces mueve el paquete terminado a `release/`; un fallo no deja un artefacto parcial publicado. El manifiesto mantiene la identidad `SB.AutomationSuite.Win11Lite`, requiere Windows 11 y declara `graphicsCaptureProgrammatic`, `graphicsCaptureWithoutBorder` y `runFullTrust`.
 
-Checklist de entrega final: prueba en Windows limpio, selección del `HWND`, captura y resize/restart, OCR con Tesseract incluido, input de fondo, diferencia de privilegios frente al juego, ciclos repetidos sin fuga D3D, datos persistentes y smoke por versión de Windows.
+Entorno local de empaquetado preparado el 13 de septiembre de 2026: Windows SDK 10.0.26100.7705, `MakeAppx` y `SignTool` instalados. Certificado de desarrollo `CN=SB Automation Suite Development`, thumbprint `63700DA94F957E4A368FC864D9AA805F7098AC27`, RSA 3072/SHA-256, restricción explícita de entidad final, EKU de firma de código y validez hasta el 13 de septiembre de 2031. La clave privada es no exportable y permanece en `Cert:\CurrentUser\My`; la parte pública está en `%LOCALAPPDATA%\SB Automation Suite\certificates\SB_Automation_Suite_Development.cer` y se importó en `Cert:\CurrentUser\TrustedPeople`. No existe PFX. Antes de instalar la futura MSIX de prueba, el `.cer` debe importarse con privilegios de administrador en `Cert:\LocalMachine\TrustedPeople`; esta confianza global no se añadió durante la preparación.
+
+Una firma identifica al editor y permite verificar que el paquete no se ha alterado. Un certificado autofirmado sirve para desarrollo, pero solo será de confianza en los equipos donde se instale previamente su parte pública; para distribución general hace falta Microsoft Store o un certificado de confianza pública. La firma no concede por sí sola el permiso sin borde: Windows conserva la decisión del usuario o de la política del equipo. Si no lo concede, el bot informa del problema y no inicia captura.
+
+El 13 de septiembre de 2026 se eliminaron de forma recuperable todas las salidas anteriores de `build/`, `dist/` y `release/`, además de un frame de depuración y un volcado de tests obsoleto. `.build-venv` se conserva como entorno de herramientas y no se distribuye. No existe una build actual hasta recibir autorización para crearla.
+
+Checklist de entrega final: instalar la MSIX y aceptar el permiso, comprobar ausencia del marco, selección del `HWND`, captura y resize/restart, OCR incluido, input de fondo, diferencia de privilegios frente al juego, ciclos repetidos sin fuga D3D, datos persistentes y smoke por versión de Windows.
 
 ## Health check
 
@@ -323,6 +331,30 @@ Snapshot v1.1.1 del 17 de agosto de 2026 tras ajustar la GUI y endurecer la dist
 - `compileall`, `pip check`, smoke offscreen desde código, desde `dist` y desde una extracción limpia del ZIP, imports nativos, idiomas de Tesseract empaquetado, validación JSON, presencia de `python314.dll` e integridad del ZIP correctos.
 - No se añadieron dependencias, polling ni consumo de GPU/CPU durante la ejecución. El cambio de GUI solo modifica geometría y pintura; el endurecimiento se ejecuta únicamente al construir la distribución. Una prueba real de Kathana en el equipo Windows 10 de referencia confirmó el funcionamiento general de visión, combate e input en v1.1; el regreso al origen siguió siendo irregular. Los radios reducidos hacen que se active antes, pero no se considera corregida la navegación hasta repetir pruebas reales.
 
+Snapshot Windows 11 del 13 de septiembre de 2026 tras adaptar exclusivamente la GUI:
+
+- 298/298 tests automatizados en verde; el baseline previo a esta adaptación era 296/296.
+- La ventana es redimensionable, todos los bloques quedan contenidos entre el mínimo y tamaños ampliados, y los controles conservan sus interfaces públicas.
+- Validación nativa satisfactoria a 100%, 125%, 150%, 175% y 200%: tamaño inicial 640×360, mínimo aproximado 522–531×337 según el factor, sin solapes y con los valores máximos de los spinboxes legibles.
+- GAME, HP/MP, HP enemigo y las listas aprovechan el espacio disponible; las filas de habilidades mantienen su altura natural al crecer la ventana.
+- Solo se modificaron GUI, pruebas de layout y esta documentación. No se tocaron captura, visión, OCR, automatización, plantillas ni datos, y no se añadió polling ni carga periódica.
+
+Snapshot Windows 11 del 13 de septiembre de 2026 tras compactar navegación y añadir perfiles:
+
+- 302/302 tests automatizados en verde y `pip check` sin dependencias rotas.
+- Tamaño inicial 640×320 y mínimo nativo 522–531×319 entre 100% y 200% de DPI; la fila oculta permite conservar listas de 47 px de alto en el tamaño inicial.
+- La línea de posición actual, origen, radio y botones dejó de formar parte del layout. Sus controles, señales, actualización de estado y lógica de navegación siguen disponibles internamente.
+- `LVL` dejó de existir en `TargetGroup`; la captura y el modelo interno del enemigo no se modificaron para evitar alterar la visión y el combate.
+- Los perfiles guardan y restauran checks, intervalos, umbrales y habilidades. Se almacenan atómicamente en `data/config.json` y se actualizan o eliminan por nombre sin distinguir mayúsculas. Seleccionar `Sin perfil` desactiva todos los checks y restaura los valores iniciales.
+- No se añadieron dependencias, hilos, timers ni polling, y no se modificó ningún manager o servicio de captura, OCR o visión.
+
+Snapshot Windows 11 del 13 de septiembre de 2026 tras corregir la política de borde y limpiar builds:
+
+- 306/306 tests automatizados en verde, incluidas las fronteras Windows 10/11, el rechazo temprano cuando falta permiso sin borde y el contrato del manifiesto MSIX.
+- Windows 11 ya no degrada silenciosamente a captura con marco: permiso denegado o `IsBorderRequired=False` fallido impiden iniciar WGC. Windows 10 mantiene su fallback.
+- Se prepararon el manifiesto MSIX y un empaquetador que valida SDK, certificado, capacidades, firma y contenido. Después se instalaron el SDK 10.0.26100.7705 y el certificado local de desarrollo descrito en la sección de build; no se ejecutó ninguna build.
+- Las antiguas salidas `build/`, `dist/` y `release/`, el frame temporal `win11_capture_debug.png` y `tests_output.txt` se retiraron. No queda ningún artefacto distribuible en el repositorio.
+
 ## Riesgos y siguientes pasos
 
 1. Validar en una zona abierta de Kathana el heading en varias orientaciones, mapas y escalas de UI; medir falso-válido y error angular antes de confiar en él como señal principal.
@@ -330,7 +362,7 @@ Snapshot v1.1.1 del 17 de agosto de 2026 tras ajustar la GUI y endurecer la dist
 3. Inspeccionar `data/navigation_learning.json` tras varias sesiones para ajustar umbrales solo con evidencia.
 4. Instrumentar percentiles de captura, OCR, antigüedad del snapshot y retraso entre deadline y `KEYDOWN` sin convertirlos de momento en un panel GUI.
 5. Validar barras, watchdog, resize/restart de captura y sesiones prolongadas a 1920x1080. Los templates actuales asumen esa resolución y escala fija de UI; un cambio de escala exige anchors y geometría calibrados para ese perfil.
-6. Validar la build portable en Windows 10 y 11 limpios, incluyendo WGC, OCR, input de fondo y varias horas de ejecución; después decidir si se crea instalador firmado y el alcance real de Ubuntu.
+6. Generar e instalar la MSIX firmada en varias revisiones limpias de Windows 11; validar consentimiento sin borde, WGC, OCR, input de fondo y varias horas de ejecución. Mantener el ZIP solo para Windows 10 y decidir aparte el alcance real de Ubuntu.
 7. Python no puede interrumpir con seguridad una llamada nativa que se bloquee dentro de WinRT o del proceso de Tesseract. Los timeouts cubren el funcionamiento normal; si una prueba real reproduce un bloqueo nativo, el siguiente aislamiento debe ser un proceso auxiliar reiniciable, no finalizar hilos a la fuerza.
 
 ## Invariantes de continuidad

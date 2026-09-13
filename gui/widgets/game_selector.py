@@ -1,5 +1,12 @@
 from PySide6.QtCore import QSignalBlocker, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QWidget,
+)
 
 from core.managers.game_profile_manager import GameProfileManager
 
@@ -26,12 +33,32 @@ class GameSelector(QWidget):
         layout.addWidget(QLabel("GAME"))
 
         self.combo = QComboBox()
-        self.combo.setFixedWidth(110)
+        self.combo.setMinimumWidth(110)
+        self.combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self.combo.setToolTip("Selecciona el perfil de juego que utilizará el bot.")
-        layout.addWidget(self.combo)
+        layout.addWidget(self.combo, 1)
 
         self.status_label = QLabel("● Sin detectar")
-        self.status_label.setFixedWidth(78)
+        status_texts = (
+            "● Sin detectar",
+            "● Perfil incompleto",
+            "● Ventana no encontrada",
+            "● Proceso no coincide",
+            "● Bot activo · revisar config",
+        )
+        self.status_label.setMinimumWidth(
+            max(
+                self.status_label.fontMetrics().horizontalAdvance(text)
+                for text in status_texts
+            )
+        )
+        self.status_label.setSizePolicy(
+            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Fixed,
+        )
         self.status_label.setStyleSheet("color: #6B7280;")
         self.status_label.setToolTip("Estado del juego: Sin detectar.")
         layout.addWidget(self.status_label)
@@ -54,8 +81,6 @@ class GameSelector(QWidget):
         ):
             button.setFixedSize(22, 22)
             layout.addWidget(button)
-
-        layout.addStretch()
 
     def connect_signals(self):
         self.combo.currentIndexChanged.connect(self.on_game_changed)

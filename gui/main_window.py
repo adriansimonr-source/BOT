@@ -75,6 +75,8 @@ class MainWindow(QMainWindow):
 
         self.connect_signals()
 
+        self.refresh_automation_profiles()
+
         self.initialize_selected_game()
 
         self.refresh_enemy_lists(force=True)
@@ -105,9 +107,9 @@ class MainWindow(QMainWindow):
 
         )
 
-        self.setFixedSize(
+        self.resize(
 
-            480,
+            640,
 
             320
 
@@ -259,6 +261,24 @@ class MainWindow(QMainWindow):
 
         )
 
+        self.bot_tab.profile_selector.profile_selected.connect(
+
+            self.load_automation_profile
+
+        )
+
+        self.bot_tab.profile_selector.save_requested.connect(
+
+            self.save_automation_profile
+
+        )
+
+        self.bot_tab.profile_selector.delete_requested.connect(
+
+            self.delete_automation_profile
+
+        )
+
         self.bot_tab.character_group.refresh_position_button.clicked.connect(
 
             self.refresh_player_position
@@ -331,6 +351,82 @@ class MainWindow(QMainWindow):
         self.bot_tab.auto_panel.set_target_filters(
             filters["ignore_enabled"],
         )
+
+    def refresh_automation_profiles(self, selected_name=None):
+        names = self.process_manager.config.get_automation_profile_names()
+        self.bot_tab.profile_selector.set_profiles(names, selected_name)
+
+    def load_automation_profile(self, name):
+        if not name:
+            self.bot_tab.reset_profile_settings()
+            return
+
+        settings = self.process_manager.config.get_automation_profile(name)
+        if settings is None:
+            self.refresh_automation_profiles()
+            return
+        if not self.bot_tab.apply_profile_settings(settings):
+            QMessageBox.warning(
+                self,
+                "Perfil no válido",
+                "El perfil seleccionado no contiene una configuración válida.",
+            )
+
+    def save_automation_profile(self, name):
+        if not str(name or "").strip():
+            QMessageBox.warning(
+                self,
+                "Nombre necesario",
+                "Escribe un nombre de perfil antes de guardarlo.",
+            )
+            return False
+
+        try:
+            stored_name = self.process_manager.config.set_automation_profile(
+                name,
+                self.bot_tab.get_profile_settings(),
+            )
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(
+                self,
+                "No se pudo guardar",
+                f"No se guardó el perfil:\n{error}",
+            )
+            return False
+
+        self.refresh_automation_profiles(stored_name)
+        return True
+
+    def delete_automation_profile(self, name):
+        profile_name = str(name or "").strip()
+        if not profile_name:
+            return False
+
+        answer = QMessageBox.question(
+            self,
+            "Eliminar perfil",
+            f'¿Eliminar el perfil "{profile_name}"?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+
+        try:
+            removed = self.process_manager.config.remove_automation_profile(
+                profile_name
+            )
+        except OSError as error:
+            QMessageBox.warning(
+                self,
+                "No se pudo eliminar",
+                f"No se eliminó el perfil:\n{error}",
+            )
+            return False
+
+        self.refresh_automation_profiles()
+        self.bot_tab.reset_profile_settings()
+        return removed
 
     def save_target_filters(self, game_id=None):
         active_game = self.process_manager.get_active_game()

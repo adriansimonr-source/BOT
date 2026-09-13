@@ -44,6 +44,7 @@ class CenterPanel(QWidget):
             grid.addWidget(skill, row, 1)
 
         layout.addLayout(grid)
+        layout.addStretch()
 
     def lock_controls(self):
         for skill in self.skills:

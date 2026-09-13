@@ -29,35 +29,53 @@ class PlayerMonitor:
 
         if self.player_hud is not None:
             hud_image = self._crop_hud(image, self.player_hud)
+
             if hud_image is not None:
                 resource_status = self.read_resources(
                     hud_image,
                     player_state,
+                    scale=self._region_scale(self.player_hud),
                 )
+
                 if not self._reacquire_due(resource_status):
                     return any(resource_status)
+
                 self._reset_resource_misses()
             else:
                 self.player_hud = None
                 self._reset_resource_misses()
 
         anchor_template = self.templates.get("player_anchor")
+
         if anchor_template is None:
             return False
 
-        player_anchor = self._detect_anchor(image, anchor_template)
+        player_anchor = self._detect_anchor(
+            image,
+            anchor_template,
+        )
+
         if not player_anchor:
             return False
 
         hud_template = self.templates.get("player_hud")
+
         if hud_template is None:
             return False
 
-        player_hud = self.resolver.resolve(player_anchor, hud_template)
+        player_hud = self.resolver.resolve(
+            player_anchor,
+            hud_template,
+        )
+
         if not player_hud:
             return False
 
-        hud_image = self._crop_hud(image, player_hud)
+        hud_image = self._crop_hud(
+            image,
+            player_hud,
+        )
+
         if hud_image is None:
             return False
 
@@ -67,22 +85,31 @@ class PlayerMonitor:
         resource_status = self.read_resources(
             hud_image,
             player_state,
+            scale=self._region_scale(player_hud),
         )
+
         self._record_resource_status(resource_status)
 
         return any(resource_status)
 
-    def read_resources(self, hud_image, player_state):
+    def read_resources(
+        self,
+        hud_image,
+        player_state,
+        scale=1.0,
+    ):
         observed_at = time.perf_counter()
 
         hp_updated = False
         hp_image = self.crop_region(
             hud_image,
             self.templates.get("player_hp"),
+            scale=scale,
         )
 
         if hp_image is not None:
             hp_percent = self.bar_reader.read_hp(hp_image)
+
             if hp_percent is not None:
                 hp_updated = player_state.update_hp(
                     hp_percent,
@@ -93,10 +120,12 @@ class PlayerMonitor:
         mp_image = self.crop_region(
             hud_image,
             self.templates.get("player_mp"),
+            scale=scale,
         )
 
         if mp_image is not None:
             mp_percent = self.bar_reader.read_mp(mp_image)
+
             if mp_percent is not None:
                 mp_updated = player_state.update_mp(
                     mp_percent,
@@ -207,8 +236,19 @@ class PlayerMonitor:
         ):
             return None
 
+        scale = self._cached_scale()
+
         image_height, image_width = image.shape[:2]
-        target_height, target_width = template_image.shape[:2]
+
+        target_height = max(
+            1,
+            int(round(template_image.shape[0] * scale)),
+        )
+
+        target_width = max(
+            1,
+            int(round(template_image.shape[1] * scale)),
+        )
 
         margin = self.ANCHOR_LOCAL_MARGIN
 
@@ -237,18 +277,15 @@ class PlayerMonitor:
         )
 
         detection = self.detector.detect(
-            image[
-                top:bottom,
-                left:right,
-            ],
+            image[top:bottom, left:right],
             template,
+            scale_hint=scale,
         )
 
         if detection is None:
             return None
 
         detection = dict(detection)
-
         detection["x"] += left
         detection["y"] += top
 
@@ -261,13 +298,13 @@ class PlayerMonitor:
         area_name,
     ):
         search_area = self.templates.get(area_name)
+        scale_hint = self._cached_scale_or_none()
 
-        # Si no hay ROI configurada,
-        # buscar directamente en todo el frame.
         if search_area is None:
             return self.detector.detect(
                 image,
                 template,
+                scale_hint=scale_hint,
             )
 
         search_image = self.resolver.crop(
@@ -275,18 +312,17 @@ class PlayerMonitor:
             search_area,
         )
 
-        # Si la ROI no se puede recortar,
-        # buscar también en todo el frame.
         if search_image is None:
             return self.detector.detect(
                 image,
                 template,
+                scale_hint=scale_hint,
             )
 
-        # 1. Búsqueda rápida en la ROI habitual.
         detection = self.detector.detect(
             search_image,
             template,
+            scale_hint=scale_hint,
         )
 
         if detection is not None:
@@ -304,20 +340,44 @@ class PlayerMonitor:
 
             return detection
 
-        # 2. Si no está en la ROI,
-        # buscar en toda la pantalla.
-        #
-        # Esto permite mover el HUD del jugador
-        # sin que el bot deje de localizarlo.
-        detection = self.detector.detect(
+        return self.detector.detect(
             image,
             template,
+            scale_hint=scale_hint,
         )
 
-        if detection is not None:
-            detection = dict(detection)
+    def _cached_scale(self):
+        scale = self._cached_scale_or_none()
+        return 1.0 if scale is None else scale
 
-        return detection
+    def _cached_scale_or_none(self):
+        if not isinstance(self.anchor_detection, dict):
+            return None
+
+        return self._region_scale(
+            self.anchor_detection,
+            default=None,
+        )
+
+    @staticmethod
+    def _region_scale(region, default=1.0):
+        if not isinstance(region, dict):
+            return default
+
+        try:
+            scale = float(
+                region.get(
+                    "scale",
+                    1.0 if default is None else default,
+                )
+            )
+        except (TypeError, ValueError, OverflowError):
+            return default
+
+        if not np.isfinite(scale) or scale <= 0:
+            return default
+
+        return scale
 
     def _crop_hud(self, image, hud):
         crop = self.resolver.crop(
@@ -348,7 +408,11 @@ class PlayerMonitor:
         return crop
 
     @staticmethod
-    def crop_region(image, region):
+    def crop_region(
+        image,
+        region,
+        scale=1.0,
+    ):
         if (
             image is None
             or region is None
@@ -356,10 +420,18 @@ class PlayerMonitor:
         ):
             return None
 
-        x = int(region.get("x", 0))
-        y = int(region.get("y", 0))
-        width = int(region.get("width", 0))
-        height = int(region.get("height", 0))
+        try:
+            scale = float(scale)
+        except (TypeError, ValueError, OverflowError):
+            scale = 1.0
+
+        if not np.isfinite(scale) or scale <= 0:
+            scale = 1.0
+
+        x = int(round(region.get("x", 0) * scale))
+        y = int(round(region.get("y", 0) * scale))
+        width = int(round(region.get("width", 0) * scale))
+        height = int(round(region.get("height", 0) * scale))
 
         image_height, image_width = image.shape[:2]
 

@@ -14,6 +14,8 @@ def _verify_smoke_dependencies():
         import win32api
         import win32gui
         import win32process
+        import winrt.windows.foundation
+        import winrt.windows.security.authorization.appcapabilityaccess
         from winrt.windows.graphics.capture import GraphicsCaptureSession
 
         GraphicsCaptureSession.is_supported()

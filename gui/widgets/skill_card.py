@@ -3,10 +3,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QCheckBox,
     QLabel,
-    QSpinBox,
+    QSizePolicy,
 )
 
 from PySide6.QtCore import Qt
+
+from gui.widgets.content_width_spin_box import ContentWidthSpinBox
 
 
 
@@ -20,6 +22,11 @@ class SkillCard(QWidget):
         super().__init__()
 
         self.skill_key = str(skill_key)
+
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
 
         self.create_widgets()
 
@@ -60,7 +67,7 @@ class SkillCard(QWidget):
 
 
 
-        self.time_spin = QSpinBox()
+        self.time_spin = ContentWidthSpinBox()
 
 
         self.time_spin.setRange(
@@ -83,10 +90,6 @@ class SkillCard(QWidget):
             " ms"
         )
 
-
-        self.time_spin.setFixedWidth(
-            68
-        )
 
         self.time_spin.setToolTip(
             f"Intervalo mínimo entre ejecuciones de {self.skill_key}."

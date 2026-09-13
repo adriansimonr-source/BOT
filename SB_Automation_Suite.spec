@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -6,6 +7,13 @@ from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
 
 ROOT = Path(SPEC).resolve().parent
+BUILD_NAME = os.environ.get(
+    "SB_AUTOMATION_BUILD_NAME",
+    "SB_Automation_Suite",
+).strip()
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", BUILD_NAME):
+    raise SystemExit("Nombre de build no válido.")
+
 TESSERACT_EXECUTABLE = shutil.which("tesseract")
 TESSERACT_ROOT = Path(
     os.environ.get("TESSERACT_HOME")
@@ -59,7 +67,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="SB_Automation_Suite",
+    name=BUILD_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -81,5 +89,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="SB_Automation_Suite",
+    name=BUILD_NAME,
 )

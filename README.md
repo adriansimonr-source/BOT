@@ -1,8 +1,10 @@
-# SB Automation Suite v1.1.1
+# SB Automation Suite
 
 Suite no intrusiva de automatización por visión, OCR e input dirigido a una ventana de juego. Kathana en Windows 10 es el entorno de referencia actual. Captura/CV y automatización usan relojes separados; los automatismos, umbrales y tiempos auxiliares se pueden editar mientras el bot está activo, las habilidades `1..9` y `F1..F7` quedan bloqueadas durante la sesión, y el cierre espera de forma verificable a captura y OCR.
 
-La GUI de 480×320 muestra el panel operativo sin pestañas `BOT/LOG`; HP y MP comparten una fila, y `TARGET`, `LVL` y la barra de vida enemiga quedan juntos en la siguiente. El control de inicio/parada está a la derecha de GAME. RADIO ofrece `FIJO`, `SIN LÍMITE`, `10`, `20`, `30` y `40`, con `40` como valor inicial.
+La GUI abre a 640×320 y es redimensionable. Los layouts fijan un mínimo útil aproximado de 522–531×319 en Windows 11, evitando solapes sin depender de la resolución física. `PERSONAJE` muestra únicamente HP y MP; la posición, el origen, el radio y sus botones ya no ocupan espacio, aunque su lógica interna se conserva. `TARGET` muestra el nombre y la barra HP sin el campo `LVL`. Se ha validado el comportamiento nativo con escalado de pantalla del 100% al 200%.
+
+A la derecha de `TARGET`, `PERFIL` permite seleccionar uno existente o escribir uno nuevo. El botón de disquete crea o actualiza ese perfil con los checks, umbrales y tiempos actuales de automatismos, consumibles, habilidades e ignorados; la `×` elimina el perfil seleccionado tras confirmarlo. Al elegir `Sin perfil`, todos los checks se desactivan y los valores vuelven a sus ajustes iniciales.
 
 La GUI ofrece ayuda contextual en sus controles y marca F1–F7 como habilidades prioritarias para buffs/escudos. Esa prioridad solo arbitra acciones ya vencidas: no adelanta los intervalos configurados. La rotación no conserva colas ni buffers: en una colisión intenta una sola skill, prioriza `F1..F7` y descarta las demás ocurrencias hasta su siguiente periodo. F8 y F9 quedan reservadas para AutoPot1 y AutoMP. Las skills temporizadas continúan si la visión se retrasa mientras el proceso del juego siga conectado.
 
@@ -12,11 +14,13 @@ Tras perder el objetivo de un combate, AutoLoot reserva la primera recogida: esp
 
 La arquitectura, el contrato de combate y navegación, las dependencias, la instalación, la compatibilidad y el estado del proyecto están consolidados en [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
 
-## Build portable para Windows
+## Estado de la build para Windows
 
-La build x64 está en `release/SB_Automation_Suite_v1.1.1_Windows_x64.zip` (SHA-256 `31A838B0085DA557363F3810E37C62FB1D108F9143B49CFA07D7741EC09915AB`). Hay que extraer la carpeta completa antes de ejecutar `SB_Automation_Suite.exe`; no se debe abrir desde dentro del ZIP ni separar el ejecutable de `_internal`. `LEEME_PRIMERO.txt` conserva estas instrucciones junto al ejecutable. No requiere instalar Python ni Tesseract.
+No hay ahora mismo ningún artefacto publicado: las builds anteriores y sus directorios `build/`, `dist/` y `release/` se eliminaron antes de preparar la siguiente versión. El entorno reutilizable `.build-venv` se conserva y no forma parte de la distribución.
 
-La configuración, perfiles y BBDD de la build se conservan en `%LOCALAPPDATA%\SB Automation Suite\data`, por lo que sustituir la carpeta de la aplicación no los sobrescribe. La v1.1.1 está validada por 292 tests, un smoke desde `dist` y otro desde una extracción limpia del ZIP. La prueba real del bot en Windows 10 corresponde a la línea v1.1; la vuelta al origen sigue pendiente de mejora. Todavía no es un instalador firmado ni se ha certificado en un Windows 11 limpio.
+En Windows 11 la aplicación exige que el sistema conceda y aplique la captura WGC sin borde. Si no puede hacerlo, la captura no arranca y muestra un error en vez de continuar con el marco amarillo. Para declarar las capacidades requeridas, la distribución de Windows 11 debe instalarse como un MSIX firmado; el ZIP portable no proporciona identidad de paquete y no garantiza ese permiso. En el primer inicio Windows puede pedir confirmación y hay hasta 60 segundos para responder. Otra aplicación que capture simultáneamente la misma ventana aún puede obligar al sistema a mostrar el borde. Windows 10 conserva la compatibilidad anterior.
+
+La configuración, perfiles y BBDD de una build se guardan en `%LOCALAPPDATA%\SB Automation Suite\data`, por lo que una actualización no los sobrescribe. La vuelta al origen sigue pendiente de mejora.
 
 ## Inicio rápido
 
@@ -33,10 +37,15 @@ Al ejecutar desde código, Tesseract debe instalarse por separado y estar dispon
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Para reconstruir la distribución en Windows x64:
+Para preparar la futura distribución de Windows 11 x64 se necesita Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código con clave privada. El comando debe recibir el thumbprint del certificado disponible en cada equipo de desarrollo. Antes de instalar una MSIX autofirmada, su certificado público debe importarse con permisos de administrador en `Cert:\LocalMachine\TrustedPeople`. Los datos del entorno local actual se conservan en `PROJECT_CONTEXT.md`; ninguna clave privada forma parte del repositorio.
 
 ```powershell
-.\scripts\build_windows.ps1 -Version 1.1.1
+.\scripts\build_windows.ps1 -Version 1.0 -ArtifactName Windows_11_lite_v1.0 -SkipArchive
+.\scripts\package_windows_msix.ps1 `
+    -SourceDirectory .\dist\Windows_11_lite_v1.0 `
+    -ArtifactName Windows_11_lite_v1.0 `
+    -Version 1.0 `
+    -CertificateThumbprint <THUMBPRINT>
 ```
 
-El script usa `requirements-build.txt`, crea un entorno limpio, ejecuta las pruebas, exige la DLL de Python y valida tanto la carpeta generada como una extracción nueva del ZIP antes de publicarlo. Estado de plataformas: Windows 10 operativo desde código y con build portable; Windows 11 pendiente de validación; Ubuntu no dispone todavía de backends de captura e input.
+El primer script valida dependencias y tests, genera el `onedir`, comprueba `python314.dll`, recursos, Tesseract y el arranque del ejecutable. El segundo crea `release/Windows_11_lite_v1.0_x64.msix`, incorpora las capacidades de captura, firma el paquete, verifica la firma y vuelve a inspeccionar su contenido. Estos comandos están preparados pero no se han ejecutado. La suite actual tiene 306 tests en verde; Ubuntu todavía no dispone de backends de captura e input.

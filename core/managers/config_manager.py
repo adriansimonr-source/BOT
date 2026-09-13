@@ -1,5 +1,6 @@
 import json
 import os
+from copy import deepcopy
 
 from core.runtime_paths import data_path
 
@@ -70,5 +71,87 @@ class ConfigManager:
         if not isinstance(all_filters, dict) or game_id not in all_filters:
             return False
         del all_filters[game_id]
+        self.save()
+        return True
+
+    def get_automation_profile_names(self):
+        profiles = self.config.get("automation_profiles")
+        if not isinstance(profiles, dict):
+            return []
+        return sorted(
+            (
+                name
+                for name, settings in profiles.items()
+                if isinstance(name, str)
+                and name.strip()
+                and isinstance(settings, dict)
+            ),
+            key=str.casefold,
+        )
+
+    def get_automation_profile(self, name):
+        requested_name = str(name or "").strip().casefold()
+        if not requested_name:
+            return None
+
+        profiles = self.config.get("automation_profiles")
+        if not isinstance(profiles, dict):
+            return None
+        for profile_name, settings in profiles.items():
+            if (
+                isinstance(profile_name, str)
+                and profile_name.casefold() == requested_name
+                and isinstance(settings, dict)
+            ):
+                return deepcopy(settings)
+        return None
+
+    def set_automation_profile(self, name, settings):
+        profile_name = str(name or "").strip()
+        if not profile_name:
+            raise ValueError("El perfil necesita un nombre.")
+        if len(profile_name) > 40:
+            raise ValueError("El nombre del perfil no puede superar 40 caracteres.")
+        if not isinstance(settings, dict):
+            raise ValueError("La configuración del perfil no es válida.")
+
+        profiles = self.config.get("automation_profiles")
+        if not isinstance(profiles, dict):
+            profiles = {}
+            self.config["automation_profiles"] = profiles
+
+        stored_name = next(
+            (
+                current_name
+                for current_name in profiles
+                if isinstance(current_name, str)
+                and current_name.casefold() == profile_name.casefold()
+            ),
+            profile_name,
+        )
+        profile_settings = deepcopy(settings)
+        if profiles.get(stored_name) != profile_settings:
+            profiles[stored_name] = profile_settings
+            self.save()
+        return stored_name
+
+    def remove_automation_profile(self, name):
+        requested_name = str(name or "").strip().casefold()
+        profiles = self.config.get("automation_profiles")
+        if not requested_name or not isinstance(profiles, dict):
+            return False
+
+        stored_name = next(
+            (
+                profile_name
+                for profile_name in profiles
+                if isinstance(profile_name, str)
+                and profile_name.casefold() == requested_name
+            ),
+            None,
+        )
+        if stored_name is None:
+            return False
+        del profiles[stored_name]
         self.save()
         return True

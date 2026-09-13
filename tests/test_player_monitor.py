@@ -28,14 +28,32 @@ class RecordingTemplates:
 
 class PlayerMonitorTests(unittest.TestCase):
 
-    def test_configured_player_area_avoids_full_frame_search_on_miss(self):
+    def test_configured_player_area_falls_back_to_full_frame_on_miss(self):
         full_image = np.zeros((1080, 1920, 3), dtype=np.uint8)
         search_image = np.zeros((300, 540, 3), dtype=np.uint8)
-        search_area = {"x": 600, "y": 740, "width": 540, "height": 300}
-        detector = SimpleNamespace(detect=MagicMock(return_value=None))
-        resolver = SimpleNamespace(crop=MagicMock(return_value=search_image))
-        templates = SimpleNamespace(get=lambda name: search_area)
-        monitor = PlayerMonitor(detector, resolver, SimpleNamespace(), templates)
+        search_area = {
+            "x": 600,
+            "y": 740,
+            "width": 540,
+            "height": 300,
+        }
+
+        detector = SimpleNamespace(
+            detect=MagicMock(return_value=None)
+        )
+        resolver = SimpleNamespace(
+            crop=MagicMock(return_value=search_image)
+        )
+        templates = SimpleNamespace(
+            get=lambda name: search_area
+        )
+
+        monitor = PlayerMonitor(
+            detector,
+            resolver,
+            SimpleNamespace(),
+            templates,
+        )
 
         detection = monitor._detect_in_search_area(
             full_image,
@@ -44,7 +62,13 @@ class PlayerMonitorTests(unittest.TestCase):
         )
 
         self.assertIsNone(detection)
-        detector.detect.assert_called_once_with(search_image, unittest.mock.ANY)
+        self.assertEqual(detector.detect.call_count, 2)
+
+        first_call = detector.detect.call_args_list[0]
+        second_call = detector.detect.call_args_list[1]
+
+        self.assertIs(first_call.args[0], search_image)
+        self.assertIs(second_call.args[0], full_image)
 
     def test_player_area_detection_restores_frame_coordinates(self):
         full_image = np.zeros((1080, 1920, 3), dtype=np.uint8)
@@ -290,6 +314,7 @@ class PlayerMonitorTests(unittest.TestCase):
         bar_reader.read_mp.return_value = 45
         monitor.hp_misses = 0
         monitor.mp_misses = 0
+
         for _ in range(8):
             monitor.update(image, player)
 
@@ -314,7 +339,10 @@ class PlayerMonitorTests(unittest.TestCase):
         )
         player = PlayerState()
 
-        results = [monitor.update(image, player) for _ in range(8)]
+        results = [
+            monitor.update(image, player)
+            for _ in range(8)
+        ]
 
         self.assertEqual(results, [False] * 8)
         self.assertGreaterEqual(detector.detect.call_count, 2)
@@ -332,10 +360,17 @@ class PlayerMonitorTests(unittest.TestCase):
         self.assertIsNone(crop)
 
     def test_public_api_has_no_identity_executor_or_ocr_dependencies(self):
-        parameters = list(inspect.signature(PlayerMonitor).parameters)
+        parameters = list(
+            inspect.signature(PlayerMonitor).parameters
+        )
         self.assertEqual(
             parameters,
-            ["detector", "resolver", "bar_reader", "templates"],
+            [
+                "detector",
+                "resolver",
+                "bar_reader",
+                "templates",
+            ],
         )
 
         monitor = PlayerMonitor(
@@ -344,6 +379,7 @@ class PlayerMonitorTests(unittest.TestCase):
             SimpleNamespace(),
             SimpleNamespace(),
         )
+
         for attribute in (
             "executor",
             "identity_future",
@@ -352,7 +388,11 @@ class PlayerMonitorTests(unittest.TestCase):
             "entity_cache",
             "entity_database",
         ):
-            self.assertFalse(hasattr(monitor, attribute), attribute)
+            self.assertFalse(
+                hasattr(monitor, attribute),
+                attribute,
+            )
+
         for method in (
             "set_executor",
             "poll",
@@ -361,7 +401,10 @@ class PlayerMonitorTests(unittest.TestCase):
             "_schedule_identity",
             "_read_identity_data",
         ):
-            self.assertFalse(hasattr(monitor, method), method)
+            self.assertFalse(
+                hasattr(monitor, method),
+                method,
+            )
 
 
 if __name__ == "__main__":

@@ -7,5 +7,108 @@
         "kathana": {
             "ignore_enabled": false
         }
+    },
+    "automation_profiles": {
+        "Davion": {
+            "version": 1,
+            "actions": {
+                "auto_target": {
+                    "enabled": false,
+                    "interval_ms": 10000
+                },
+                "auto_attack": {
+                    "enabled": true,
+                    "interval_ms": 250
+                },
+                "auto_loot": {
+                    "enabled": true,
+                    "interval_ms": 500
+                }
+            },
+            "resources": {
+                "auto_pot1": {
+                    "enabled": false,
+                    "threshold_percent": 40,
+                    "interval_ms": 2000
+                },
+                "auto_mp": {
+                    "enabled": false,
+                    "threshold_percent": 30,
+                    "interval_ms": 2000
+                },
+                "auto_heal": {
+                    "enabled": false,
+                    "threshold_percent": 40,
+                    "interval_ms": 2000
+                }
+            },
+            "skills": {
+                "1": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "2": {
+                    "enabled": true,
+                    "interval_ms": 1500
+                },
+                "3": {
+                    "enabled": true,
+                    "interval_ms": 1500
+                },
+                "4": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "5": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "6": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "7": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "8": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "9": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F1": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F2": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F3": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F4": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F5": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F6": {
+                    "enabled": false,
+                    "interval_ms": 500
+                },
+                "F7": {
+                    "enabled": false,
+                    "interval_ms": 500
+                }
+            },
+            "ignore_enabled": false
+        }
     }
 }
