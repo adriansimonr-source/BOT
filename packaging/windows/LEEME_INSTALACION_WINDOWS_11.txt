@@ -1,0 +1,26 @@
+SB Automation Suite - Windows_11_lite_v1.0 (x64)
+
+REQUISITOS
+- Windows 11 x64, compilacion 22000 o posterior.
+- El juego y el bot deben ejecutarse con el mismo nivel de permisos.
+
+INSTALACION
+1. Conserva juntos el archivo .msix y SB_Automation_Suite_Development.cer.
+2. Instala el certificado publico en Equipo local > Personas de confianza.
+   Su huella SHA-1 debe ser:
+   63700DA94F957E4A368FC864D9AA805F7098AC27
+3. Abre Windows_11_lite_v1.0_x64.msix y pulsa Instalar.
+4. Inicia SB Automation Suite desde el menu Inicio.
+5. La primera vez, acepta el permiso de captura sin borde de Windows.
+
+Tambien puedes instalar el certificado desde PowerShell como administrador:
+Import-Certificate -FilePath ".\SB_Automation_Suite_Development.cer" -CertStoreLocation "Cert:\LocalMachine\TrustedPeople"
+
+IMPORTANTE
+- No ejecutes por separado el EXE interno: esta version necesita la identidad MSIX.
+- El certificado incluido solo contiene la clave publica; no permite firmar programas.
+- Si el juego se ejecuta como administrador, Windows puede bloquear las pulsaciones
+  enviadas por una aplicacion con permisos normales.
+
+DESINSTALACION
+Configuracion > Aplicaciones > Aplicaciones instaladas > SB Automation Suite.

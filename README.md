@@ -16,7 +16,7 @@ La arquitectura, el contrato de combate y navegación, las dependencias, la inst
 
 ## Estado de la build para Windows
 
-No hay ahora mismo ningún artefacto publicado: las builds anteriores y sus directorios `build/`, `dist/` y `release/` se eliminaron antes de preparar la siguiente versión. El entorno reutilizable `.build-venv` se conserva y no forma parte de la distribución.
+La build actual es `Windows_11_lite_v1.0_x64.msix`, para Windows 11 x64 build 22000 o posterior. Está firmada con el certificado de desarrollo del proyecto y se entrega junto a su parte pública y las instrucciones de instalación en `release/`. El 13 de septiembre de 2026 superó los 306 tests, el smoke test del ejecutable, la verificación de firma y contenido y una instalación temporal real con estado `Ok`.
 
 En Windows 11 la aplicación exige que el sistema conceda y aplique la captura WGC sin borde. Si no puede hacerlo, la captura no arranca y muestra un error en vez de continuar con el marco amarillo. Para declarar las capacidades requeridas, la distribución de Windows 11 debe instalarse como un MSIX firmado; el ZIP portable no proporciona identidad de paquete y no garantiza ese permiso. En el primer inicio Windows puede pedir confirmación y hay hasta 60 segundos para responder. Otra aplicación que capture simultáneamente la misma ventana aún puede obligar al sistema a mostrar el borde. Windows 10 conserva la compatibilidad anterior.
 
@@ -37,7 +37,7 @@ Al ejecutar desde código, Tesseract debe instalarse por separado y estar dispon
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Para preparar la futura distribución de Windows 11 x64 se necesita Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código con clave privada. El comando debe recibir el thumbprint del certificado disponible en cada equipo de desarrollo. Antes de instalar una MSIX autofirmada, su certificado público debe importarse con permisos de administrador en `Cert:\LocalMachine\TrustedPeople`. Los datos del entorno local actual se conservan en `PROJECT_CONTEXT.md`; ninguna clave privada forma parte del repositorio.
+Para reproducir la distribución de Windows 11 x64 se necesita Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código con clave privada. El comando debe recibir el thumbprint del certificado disponible en cada equipo de desarrollo. Antes de instalar una MSIX autofirmada, su certificado público debe importarse con permisos de administrador en `Cert:\LocalMachine\TrustedPeople`. Los datos del entorno local actual se conservan en `PROJECT_CONTEXT.md`; ninguna clave privada forma parte del repositorio.
 
 ```powershell
 .\scripts\build_windows.ps1 -Version 1.0 -ArtifactName Windows_11_lite_v1.0 -SkipArchive
@@ -48,4 +48,4 @@ Para preparar la futura distribución de Windows 11 x64 se necesita Windows 11 S
     -CertificateThumbprint <THUMBPRINT>
 ```
 
-El primer script valida dependencias y tests, genera el `onedir`, comprueba `python314.dll`, recursos, Tesseract y el arranque del ejecutable. El segundo crea `release/Windows_11_lite_v1.0_x64.msix`, incorpora las capacidades de captura, firma el paquete, verifica la firma y vuelve a inspeccionar su contenido. Estos comandos están preparados pero no se han ejecutado. La suite actual tiene 306 tests en verde; Ubuntu todavía no dispone de backends de captura e input.
+El primer script valida dependencias y tests, genera el `onedir`, comprueba `python314.dll`, recursos, Tesseract y el arranque del ejecutable. El segundo crea `release/Windows_11_lite_v1.0_x64.msix`, incorpora las capacidades de captura, firma el paquete, verifica la firma y vuelve a inspeccionar su contenido. También exporta el certificado público y las instrucciones de instalación; no distribuye la clave privada. La suite actual tiene 306 tests en verde; Ubuntu todavía no dispone de backends de captura e input.

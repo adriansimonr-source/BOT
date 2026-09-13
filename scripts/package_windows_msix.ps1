@@ -18,6 +18,8 @@ $minimumSdkVersion = [version]"10.0.22000.0"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $manifestTemplate = Join-Path $projectRoot `
     "packaging\windows\AppxManifest.xml.in"
+$installationReadme = Join-Path $projectRoot `
+    "packaging\windows\LEEME_INSTALACION_WINDOWS_11.txt"
 $logoSource = Join-Path $projectRoot "data\logo\Logo_cami.png"
 
 function Find-WindowsSdkTool {
@@ -129,7 +131,11 @@ $executableName = "$ArtifactName.exe"
 if (-not (Test-Path -LiteralPath (Join-Path $source $executableName))) {
     throw "No se encontró $executableName en la distribución."
 }
-foreach ($requiredPath in @($manifestTemplate, $logoSource)) {
+foreach ($requiredPath in @(
+    $manifestTemplate,
+    $installationReadme,
+    $logoSource
+)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Falta un recurso de empaquetado: $requiredPath"
     }
@@ -176,10 +182,21 @@ $stagingRoot = Join-Path $projectRoot `
 $layout = Join-Path $stagingRoot "layout"
 $unpacked = Join-Path $stagingRoot "unpacked"
 $stagedPackage = Join-Path $stagingRoot "${ArtifactName}_x64.msix"
+$certificateName = "SB_Automation_Suite_Development.cer"
+$readmeName = "LEEME_INSTALACION_WINDOWS_11.txt"
+$stagedCertificate = Join-Path $stagingRoot $certificateName
 try {
     New-Item -ItemType Directory -Path $layout -Force | Out-Null
     Get-ChildItem -LiteralPath $source -Force | Copy-Item `
         -Destination $layout -Recurse -Force
+    Copy-Item `
+        -LiteralPath $installationReadme `
+        -Destination (Join-Path $layout "LEEME_PRIMERO.txt") `
+        -Force
+    Export-Certificate `
+        -Cert $certificate `
+        -FilePath $stagedCertificate `
+        -Type CERT | Out-Null
 
     $assets = Join-Path $layout "Assets"
     New-Item -ItemType Directory -Path $assets -Force | Out-Null
@@ -271,8 +288,18 @@ try {
     } else {
         Move-Item -LiteralPath $stagedPackage -Destination $packagePath
     }
+    Copy-Item `
+        -LiteralPath $stagedCertificate `
+        -Destination (Join-Path $outputRoot $certificateName) `
+        -Force
+    Copy-Item `
+        -LiteralPath $installationReadme `
+        -Destination (Join-Path $outputRoot $readmeName) `
+        -Force
     Write-Output "MSIX_OK"
     Write-Output "Package: $packagePath"
+    Write-Output "Certificate: $(Join-Path $outputRoot $certificateName)"
+    Write-Output "Instructions: $(Join-Path $outputRoot $readmeName)"
     Write-Output "SHA256: $($hash.Hash)"
 }
 finally {

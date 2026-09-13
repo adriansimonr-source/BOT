@@ -16,9 +16,9 @@ El proyecto es deliberadamente no intrusivo:
 | Fase | Estado |
 | --- | --- |
 | GUI genérica | Estable y funcional. Mantener diseño y distribución salvo petición expresa. |
-| Captura, visión e input de fondo | Windows 10 mantiene la ruta compatible. En Windows 11 la captura pasa a exigir el permiso sin borde; falta validarla en una MSIX instalada. El regreso al origen sigue siendo la función menos fiable. |
+| Captura, visión e input de fondo | Windows 10 mantiene la ruta compatible. En Windows 11 la captura exige el permiso sin borde y el MSIX ya supera registro e instalación; falta validación real con Kathana en distintas revisiones. El regreso al origen sigue siendo la función menos fiable. |
 | Persistencia | Operativa para juegos, configuración, enemigos, ignorados, items y aprendizaje de navegación. |
-| Build y multiplataforma | No hay artefactos publicados: las builds anteriores se retiraron. El pipeline MSIX firmado para Windows 11 está preparado, pero no se ejecutará sin autorización. La validación en equipos limpios y Ubuntu siguen pendientes. |
+| Build y multiplataforma | `Windows_11_lite_v1.0_x64.msix` está compilada, firmada y validada localmente. La validación funcional en equipos Windows 11 limpios y Ubuntu siguen pendientes. |
 
 ## Arquitectura
 
@@ -275,7 +275,7 @@ Desde código, los recursos se resuelven respecto a la raíz del repositorio y l
 | --- | --- |
 | Windows 10 20H2 x64 | Referencia validada previamente desde código y build portable; no se conserva ningún artefacto. WGC puede mantener el marco si el sistema no concede captura sin borde. |
 | Windows 10 1903+ | Diseño compatible con WGC; falta validar cada build. |
-| Windows 11 x64 | GUI y pipeline preparados. La captura exige modo WGC sin borde y no arranca si Windows lo deniega. Falta generar, instalar y probar la nueva MSIX firmada en equipos limpios. |
+| Windows 11 x64 | MSIX v1.0 compilada, firmada y aceptada por Windows con estado `Ok`. La captura exige modo WGC sin borde y no arranca si Windows lo deniega. Falta probar captura e input reales en varias revisiones limpias. |
 | Ubuntu 24.04 X11/Wayland | No compatible: faltan backends de captura, ventana e input y hay imports Win32. |
 | macOS | Fuera del plan. |
 
@@ -291,13 +291,13 @@ Las dependencias de PyInstaller están aisladas y fijadas en `requirements-build
 
 El script conserva su modo ZIP para Windows 10, pero `-SkipArchive` evita publicar una versión portable de Windows 11 que no puede declarar identidad ni capacidades. En ambos modos valida dependencias, ejecuta la suite, genera el ejecutable, comprueba los recursos críticos —incluida `python314.dll`—, arranca la aplicación con datos nuevos y ejecuta el Tesseract incluido.
 
-La distribución de Windows 11 se completa con `scripts/package_windows_msix.ps1`. Requiere Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código válido con clave privada en `Cert:\CurrentUser\My`. Copia el `onedir` a un staging aislado, genera logos cuadrados, materializa `packaging/windows/AppxManifest.xml.in`, crea y firma el MSIX x64 dentro del staging, verifica firma y contenido y solo entonces mueve el paquete terminado a `release/`; un fallo no deja un artefacto parcial publicado. El manifiesto mantiene la identidad `SB.AutomationSuite.Win11Lite`, requiere Windows 11 y declara `graphicsCaptureProgrammatic`, `graphicsCaptureWithoutBorder` y `runFullTrust`.
+La distribución de Windows 11 se completa con `scripts/package_windows_msix.ps1`. Requiere Windows 11 SDK 10.0.22000 o posterior y un certificado de firma de código válido con clave privada en `Cert:\CurrentUser\My`. Copia el `onedir` a un staging aislado, genera logos cuadrados, materializa `packaging/windows/AppxManifest.xml.in`, crea y firma el MSIX x64 dentro del staging, verifica firma y contenido y solo entonces mueve el paquete terminado a `release/`; un fallo no deja un artefacto parcial publicado. También entrega el certificado público y `LEEME_INSTALACION_WINDOWS_11.txt`, y sustituye dentro del MSIX las instrucciones del `onedir` por las de instalación. El manifiesto mantiene la identidad `SB.AutomationSuite.Win11Lite`, requiere Windows 11 y declara `graphicsCaptureProgrammatic`, `graphicsCaptureWithoutBorder` y `runFullTrust`.
 
-Entorno local de empaquetado preparado el 13 de septiembre de 2026: Windows SDK 10.0.26100.7705, `MakeAppx` y `SignTool` instalados. Certificado de desarrollo `CN=SB Automation Suite Development`, thumbprint `63700DA94F957E4A368FC864D9AA805F7098AC27`, RSA 3072/SHA-256, restricción explícita de entidad final, EKU de firma de código y validez hasta el 13 de septiembre de 2031. La clave privada es no exportable y permanece en `Cert:\CurrentUser\My`; la parte pública está en `%LOCALAPPDATA%\SB Automation Suite\certificates\SB_Automation_Suite_Development.cer` y se importó en `Cert:\CurrentUser\TrustedPeople`. No existe PFX. Antes de instalar la futura MSIX de prueba, el `.cer` debe importarse con privilegios de administrador en `Cert:\LocalMachine\TrustedPeople`; esta confianza global no se añadió durante la preparación.
+Entorno local de empaquetado preparado el 13 de septiembre de 2026: Windows SDK 10.0.26100.7705, `MakeAppx` y `SignTool` instalados. Certificado de desarrollo `CN=SB Automation Suite Development`, thumbprint `63700DA94F957E4A368FC864D9AA805F7098AC27`, RSA 3072/SHA-256, restricción explícita de entidad final, EKU de firma de código y validez hasta el 13 de septiembre de 2031. La clave privada es no exportable y permanece en `Cert:\CurrentUser\My`; la parte pública se entrega en `release/` y se importó localmente en `Cert:\CurrentUser\TrustedPeople` y `Cert:\LocalMachine\TrustedPeople`. No existe PFX y ninguna clave privada forma parte de la entrega.
 
 Una firma identifica al editor y permite verificar que el paquete no se ha alterado. Un certificado autofirmado sirve para desarrollo, pero solo será de confianza en los equipos donde se instale previamente su parte pública; para distribución general hace falta Microsoft Store o un certificado de confianza pública. La firma no concede por sí sola el permiso sin borde: Windows conserva la decisión del usuario o de la política del equipo. Si no lo concede, el bot informa del problema y no inicia captura.
 
-El 13 de septiembre de 2026 se eliminaron de forma recuperable todas las salidas anteriores de `build/`, `dist/` y `release/`, además de un frame de depuración y un volcado de tests obsoleto. `.build-venv` se conserva como entorno de herramientas y no se distribuye. No existe una build actual hasta recibir autorización para crearla.
+Build actual del 13 de septiembre de 2026: `release/Windows_11_lite_v1.0_x64.msix`, 187.656.851 bytes (178,96 MiB), SHA-256 `3A8142C515535EA82C748FCC87FC92A3D764B34072D66153A6241006549FE251`. `release/` contiene además el certificado público y las instrucciones. Las salidas intermedias `build/` y `dist/` se eliminan después de validar; `.build-venv` se conserva para futuras compilaciones y no se distribuye.
 
 Checklist de entrega final: instalar la MSIX y aceptar el permiso, comprobar ausencia del marco, selección del `HWND`, captura y resize/restart, OCR incluido, input de fondo, diferencia de privilegios frente al juego, ciclos repetidos sin fuga D3D, datos persistentes y smoke por versión de Windows.
 
@@ -352,8 +352,9 @@ Snapshot Windows 11 del 13 de septiembre de 2026 tras corregir la política de b
 
 - 306/306 tests automatizados en verde, incluidas las fronteras Windows 10/11, el rechazo temprano cuando falta permiso sin borde y el contrato del manifiesto MSIX.
 - Windows 11 ya no degrada silenciosamente a captura con marco: permiso denegado o `IsBorderRequired=False` fallido impiden iniciar WGC. Windows 10 mantiene su fallback.
-- Se prepararon el manifiesto MSIX y un empaquetador que valida SDK, certificado, capacidades, firma y contenido. Después se instalaron el SDK 10.0.26100.7705 y el certificado local de desarrollo descrito en la sección de build; no se ejecutó ninguna build.
-- Las antiguas salidas `build/`, `dist/` y `release/`, el frame temporal `win11_capture_debug.png` y `tests_output.txt` se retiraron. No queda ningún artefacto distribuible en el repositorio.
+- Se generó `Windows_11_lite_v1.0_x64.msix` con PyInstaller 6.22.1 y Python 3.14.6. La build pasó 306/306 tests, `pip check`, smoke del EXE, Tesseract, firma, extracción e inspección independiente de 440 entradas.
+- Windows registró temporalmente el paquete como `SB.AutomationSuite.Win11Lite` 1.0.0.0 x64, firma `Developer`, estado `Ok`; después se retiró la instalación de prueba. `python314.dll`, los bindings WinRT de captura, Tesseract, datos OCR, templates y capacidades sin borde quedaron verificados dentro del MSIX.
+- La entrega queda limitada a los tres ficheros de `release/`: MSIX, certificado público e instrucciones. No se publica ZIP portable para Windows 11 ni se incluye la clave privada.
 
 ## Riesgos y siguientes pasos
 
@@ -362,7 +363,7 @@ Snapshot Windows 11 del 13 de septiembre de 2026 tras corregir la política de b
 3. Inspeccionar `data/navigation_learning.json` tras varias sesiones para ajustar umbrales solo con evidencia.
 4. Instrumentar percentiles de captura, OCR, antigüedad del snapshot y retraso entre deadline y `KEYDOWN` sin convertirlos de momento en un panel GUI.
 5. Validar barras, watchdog, resize/restart de captura y sesiones prolongadas a 1920x1080. Los templates actuales asumen esa resolución y escala fija de UI; un cambio de escala exige anchors y geometría calibrados para ese perfil.
-6. Generar e instalar la MSIX firmada en varias revisiones limpias de Windows 11; validar consentimiento sin borde, WGC, OCR, input de fondo y varias horas de ejecución. Mantener el ZIP solo para Windows 10 y decidir aparte el alcance real de Ubuntu.
+6. Instalar la MSIX firmada en varias revisiones limpias de Windows 11; validar consentimiento sin borde, WGC, OCR, input de fondo y varias horas de ejecución. Mantener el ZIP solo para Windows 10 y decidir aparte el alcance real de Ubuntu.
 7. Python no puede interrumpir con seguridad una llamada nativa que se bloquee dentro de WinRT o del proceso de Tesseract. Los timeouts cubren el funcionamiento normal; si una prueba real reproduce un bloqueo nativo, el siguiente aislamiento debe ser un proceso auxiliar reiniciable, no finalizar hilos a la fuerza.
 
 ## Invariantes de continuidad
